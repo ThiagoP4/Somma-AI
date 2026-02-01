@@ -8,7 +8,10 @@
     PhCurrencyDollar,
     PhShoppingCart,
     PhTrendUp,
-    PhChartLine
+    PhChartLine,
+    PhTrendDown,
+    PhMinus,
+    PhArrowRight
   } from '@phosphor-icons/vue'
 
   import VueApexCharts from 'vue3-apexcharts'
@@ -73,21 +76,48 @@
     try {
       const response = await axios.get('http://localhost:3000/dashboard');
       const apiData = response.data;
+
+      if (!apiData) return;
       
-      dashboardData.value = apiData;
-      pieSeries.value = apiData.pieChart.series;
-      pieOptions.value = {
-        ...pieOptions.value,
-        labels: apiData.pieChart.labels,
-        colors: apiData.pieChart.colors
+      dashboardData.value = {
+        total: Number(apiData.total) || 0,
+        count: Number(apiData.count) || 0,
+        ticketMedio: Number(apiData.ticketMedio) || 0,
+        trend: {
+          status: apiData.trend?.status || 'stable',
+          text: apiData.trend?.text || 'Sem dados',
+          current: Number(apiData.trend?.current) || 0,
+          last: Number(apiData.trend?.last) || 0
+        },
+        pieChart: apiData.pieChart || { series: [], labels: [], colors: [] },
+        lineChart: apiData.lineChart || { series: [], categories: [] }
       };
-      lineOptions.value = {
-        ...lineOptions.value,
-        xaxis: { 
-          ...lineOptions.value.xaxis,
-          categories: apiData.lineChart.categories 
-        }
-      };
+
+      // Atualiza Gráfico de Pizza
+      if (apiData.pieChart) {
+        pieSeries.value = apiData.pieChart.series || [];
+        pieOptions.value = {
+          ...pieOptions.value,
+          labels: apiData.pieChart.labels || [],
+          colors: apiData.pieChart.colors || []
+        };
+      } else {
+         // Se não tiver dados, zera o gráfico para não dar erro
+         pieSeries.value = [];
+      }
+      
+
+      // Atualiza Gráfico de Linha
+      if (apiData.lineChart) {
+        dashboardData.value.lineChart.series = apiData.lineChart.series || [];
+        lineOptions.value = {
+          ...lineOptions.value,
+          xaxis: { 
+            ...lineOptions.value.xaxis,
+            categories: apiData.lineChart.categories || []
+          }
+        };
+      }
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
       alert("Erro ao conectar com o servidor. Verifique se o Backend está rodando.");
@@ -115,21 +145,21 @@
           <h2>Total de Gastos</h2>
           <PhCurrencyDollar size="32" weight="fill"></PhCurrencyDollar>
         </div>
-        <p class="value">R$ {{ dashboardData.total.toFixed(2) }}</p>
+        <p class="value">R$ {{ (dashboardData.total || 0).toFixed(2) }}</p>
       </div>
       <div class="stat-card green">
         <div class="card-header">
           <h2>Compras Realizadas</h2>
           <PhShoppingCart size="32" weight="fill"></PhShoppingCart>
         </div>
-        <p class="value">5</p>
+        <p class="value">{{ dashboardData.count || 0 }}</p>
       </div>
       <div class="stat-card purple">
         <div class="card-header">
           <h2>Média por Compra</h2>
           <PhChartLine size="32" weight="fill"></PhChartLine>
         </div>
-        <p class="value">{{ dashboardData.ticketMedio.toFixed(2) }}</p>
+        <p class="value">R$ {{ (dashboardData.ticketMedio || 0).toFixed(2) }}</p>
       </div>
       <div class="stat-card" :class="{
         'red': dashboardData.trend.status === 'up',
@@ -144,7 +174,7 @@
         </div>
         <p class="value">{{ dashboardData.trend.text }}</p>
         <span style="font-size: 0.8rem; opacity: 0.8;">
-          Mês anterior R$ {{ dashboardData.trend.last.toFixed(2) }}
+          Mês anterior R$ {{ (dashboardData.trend.last || 0).toFixed(2) }}
         </span>
       </div>
     </section>

@@ -122,4 +122,40 @@ app.get('/dashboard', async (req, res) => {
     }
 });
 
+app.get('/categories', async (req, res) => {
+    try {
+        const categories = await prisma.category.findMany();
+        res.json(categories);
+    }   
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }      
+});
+
+app.post('/purchase', async (req, res) => {
+    try {
+        const { description, value, date, categoryId } = req.body;
+
+        if(!description || !value || !date || !categoryId) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const newPurchase = await prisma.purchase.create({
+            data: {
+                title: description,
+                value: Number(value), // Garante que o valor seja numérico
+                date: new Date(date), // Converte a string de data para objeto Date
+                categoryId: Number(categoryId), // Garante que o ID seja numérico
+            },
+        });
+
+        res.status(201).json(newPurchase);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
 app.listen(PORT, () => console.log(`Server is running on ${PORT}`));

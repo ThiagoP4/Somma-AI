@@ -1,5 +1,6 @@
 <script setup lang="ts">
-    import { PhSignOut, PhTrendUp, PhHouse } from '@phosphor-icons/vue'
+    import { RouterLink, RouterView } from 'vue-router'
+    import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag } from '@phosphor-icons/vue'
 </script>
 
 <template>
@@ -10,10 +11,20 @@
         <span>Finance <span class="ai">AI</span></span>
       </div>
 
-      <ul class="nav-links">
-        <li><a href="#" class="active"><PhHouse size="20" /> Dashboard</a></li>
-        <li><a href="#">Nova Compra</a></li>
-        <li><a href="#">Categorias</a></li>
+    <ul class="nav-links">
+        <li>
+            <RouterLink to="/" active-class="active">
+                <PhHouse size="20" /> Dashboard
+            </RouterLink>
+        </li>
+        <li>
+            <RouterLink to="/new-transaction" active-class="active">
+                <PhPlus size="20" weight="bold" /> Nova Compra
+            </RouterLink>
+        </li>
+        <li>
+            <a href="#"><PhTag size="20" /> Categorias</a>
+        </li>
       </ul>
 
       <button class="logout-btn">
