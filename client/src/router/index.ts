@@ -12,6 +12,11 @@ const router = createRouter({
         path: '/new-transaction',
         name: 'new-transaction',
         component: () => import('../components/NewTransaction.vue')
+    },
+    {
+        path: '/new-category',
+        name: 'new-category',
+        component: () => import('../components/Category.vue')
     }
     ]
 });

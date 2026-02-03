@@ -23,7 +23,9 @@
             </RouterLink>
         </li>
         <li>
-            <a href="#"><PhTag size="20" /> Categorias</a>
+        <RouterLink to="/new-category" active-class="active">
+            <PhTag size="20" /> Categorias
+        </RouterLink>
         </li>
       </ul>
 

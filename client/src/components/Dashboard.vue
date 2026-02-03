@@ -120,7 +120,7 @@
       }
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
-      alert("Erro ao conectar com o servidor. Verifique se o Backend está rodando.");
+      console.log("Erro ao conectar com o servidor. Verifique se o Backend está rodando.");
     }
   };
 

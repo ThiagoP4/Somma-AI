@@ -115,7 +115,7 @@
                     <span>ou</span>
                 </div>
 
-                <button type="button" class="btn-whatsapp" @click="handleWhatsapp">
+                <button type="button" class="btn-whatsapp" @click="">
                     <PhWhatsappLogo size="20" weight="bold" />
                     Cadastrar via WhatsApp
                 </button>
