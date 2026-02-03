@@ -10,7 +10,6 @@
     PhTrendUp,
     PhChartLine,
     PhTrendDown,
-    PhMinus,
     PhArrowRight
   } from '@phosphor-icons/vue'
 
