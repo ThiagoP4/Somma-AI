@@ -60,6 +60,9 @@ const handleSubmit = async () => {
                             <PhCheck v-if="selectedColor === color" size="16" weight="bold" color="white" />
                         </div>
                     </div>
+                    <p class="color-preview">
+                        Cor selecionada: <span :style="{ color: selectedColor, fontWeight: 'bold' }">{{ selectedColor }}</span>
+                    </p>
                 </div>
 
             </div>
@@ -78,10 +81,18 @@ const handleSubmit = async () => {
     .color-circle:hover { transform: scale(1.1); }
     .color-circle.selected { border-color: #1E293B; transform: scale(1.1); }
 
-    /* Layout Específico Desktop (Grid 2 colunas) */
-    @media (min-width: 768px) {
-        .category-form { display: flex; flex-direction: column; flex: 1; }
-        .form-body-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 4rem; align-items: start; }
-        .btn-primary { margin-top: auto; width: 100%; max-width: 300px; margin-left: auto; margin-right: auto; }
+    .form-group {
+    margin-bottom: 2.5rem; 
     }
+
+    .btn-primary {
+        margin-top: 10rem;
+    }
+
+    .color-preview { 
+        font-size: 0.85rem; 
+        color: #64748B; 
+        margin-top: 8px; 
+    }
+
 </style>

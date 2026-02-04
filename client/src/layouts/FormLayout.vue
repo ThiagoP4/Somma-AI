@@ -34,14 +34,16 @@ const goBack = () => router.push('/');
 </template>
 
 <style scoped>
-/* Apenas estrutura do card e container */
 .page-container {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     background-color: #F8FAFC;
     padding: 2rem;
+    box-sizing: border-box;
     min-height: 100vh;
+    min-height: 100dvh;
+    overflow-y: auto;
 }
 
 .form-card {
@@ -80,21 +82,61 @@ const goBack = () => router.push('/');
 }
 .back-btn:hover { background-color: #F1F5F9; color: #1E293B; border-color: #CBD5E1; }
 
-/* Desktop Responsivo */
-@media (min-width: 768px) {
-    .form-card {
-        max-width: 700px;
-        padding: 4rem;
-        min-height: 500px;
-        display: flex;
-        flex-direction: column;
-        gap: 3rem; /* Espaço entre Header e Form */
-    }
-    
-    .card-content {
-        display: flex;
-        flex-direction: column;
-        flex: 1; /* Faz o form ocupar a altura toda */
-    }
+
+</style>
+
+<style>
+.form-group {
+    margin-bottom: 2.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.8rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.required { color: #EF4444; }
+
+.input-field {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    font-size: 1rem;
+    color: #1E293B;
+    background-color: #F8FAFC;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.input-field:focus {
+    background-color: white;
+    border-color: #6366F1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 0.9rem;
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.1s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
 }
 </style>
