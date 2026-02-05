@@ -86,7 +86,7 @@ const handleSubmit = async () => {
     }
 
     .btn-primary {
-        margin-top: 10rem;
+        margin-top: 2rem;
     }
 
     .color-preview { 
@@ -94,5 +94,20 @@ const handleSubmit = async () => {
         color: var(--text-secondary);
         margin-top: 8px; 
     }
+
+    @media (max-width: 640px) {
+    .btn-primary {
+        margin-top: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .color-circle {
+        width: 36px;
+        height: 36px;
+    }
+}
 
 </style>

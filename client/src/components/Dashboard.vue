@@ -200,6 +200,11 @@
 <style scoped>
   .page-header { margin-bottom: 2rem; }
 
+  .page-header h1 {
+      font-size: 1.5rem;
+      margin: 0 0 0.5rem 0;
+  } 
+
   .stats-overview {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -209,17 +214,49 @@
 
   @media (max-width: 1024px) {
     .stats-overview { grid-template-columns: repeat(2, 1fr); }
+
+    .detailed-analytics { 
+        grid-template-columns: 1fr; 
+    }
   }
   @media (max-width: 640px) {
-    .stats-overview { grid-template-columns: 1fr; }
-    .detailed-analytics { grid-template-columns: 1fr; }
+    .stats-overview { 
+      grid-template-columns: 1fr !important; 
+      gap: 1rem;
+      margin-bottom: 1.5rem; 
+    }
+    .detailed-analytics { 
+      grid-template-columns: 1fr !important;
+      gap: 1rem;
+    }
+    .page-header h1 {
+      font-size: 1.25rem; /* ~20px */
+    }
+    .page-header p {
+      font-size: 0.85rem;
+    }
+    .value {
+        font-size: 1.5rem !important; /* Diminui o número do valor */
+    }
+    .stat-card {
+        padding: 1.25rem; /* Card mais compacto */
+        min-height: auto;
+    }
+    .stat-card h2 { font-size: 0.8rem; }
+    .chart-wrapper {
+      padding: 1rem;
+    }
+    .chart-wrapper h2 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
   }
 
   .stat-card {
     padding: 1.5rem;
     color: white;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px var(--shadow-color);
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -238,6 +275,7 @@
     font-weight: 500;
     margin: 0;
     opacity: 0.9;
+    color: white;
   }
 
   .value {
@@ -264,7 +302,14 @@
     box-shadow: 0 4px 20px var(--shadow-color);
     padding: 1.5rem;
     border-radius: 16px;
+    overflow: hidden; 
+    width: 100%;
   }
   
+  .chart-wrapper h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: var(--text-primary);
+  }
 
 </style>

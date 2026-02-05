@@ -139,8 +139,11 @@
         z-index: 1;
     }
 
+    .btn-primary {
+        margin-top: 1.5rem;
+    }
+
     /* Botão WhatsApp */
-    /* Mantive o verde padrão, mas você pode criar variáveis para ele se quiser */
     .btn-whatsapp {
         width: 100%;
         padding: 0.9rem;
@@ -171,6 +174,24 @@
     }
     :global(.dark) .btn-whatsapp:hover {
         background-color: rgba(16, 185, 129, 0.1);
+    }
+
+    @media (max-width: 640px) {
+        /* Reduz espaço do botão principal */
+        .btn-primary {
+            margin-top: 1rem;
+        }
+
+        /* Reduz o espaço do "ou" */
+        .divider {
+            margin: 1rem 0;
+        }
+        
+        /* Botão do WhatsApp mais compacto */
+        .btn-whatsapp {
+            padding: 0.75rem;
+            font-size: 0.95rem;
+        }
     }
 
 </style>
