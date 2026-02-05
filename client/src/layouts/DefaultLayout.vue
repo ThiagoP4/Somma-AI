@@ -1,6 +1,30 @@
 <script setup lang="ts">
+    import { ref, onMounted } from 'vue';
     import { RouterLink } from 'vue-router'
-    import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag } from '@phosphor-icons/vue'
+    import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag, PhSun, PhMoon } from '@phosphor-icons/vue'
+
+    const isDark = ref(false);
+
+    onMounted(() => {
+        // Verifica o tema salvo no localStorage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            isDark.value = true;
+            document.body.classList.add('dark')
+        }
+    });
+
+    const toggleTheme = () => {
+        isDark.value = !isDark.value;
+        if (isDark.value) {
+            document.body.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.classList.remove('dark');
+            localStorage.removeItem('theme');
+        }
+    };
+
 </script>
 
 <template>
@@ -29,10 +53,19 @@
         </li>
       </ul>
 
-      <button class="logout-btn">
-        <PhSignOut size="20" />
-        Sair
-      </button>
+      <div class="right-actions">
+
+        <button class="theme-btn" @click="toggleTheme" title="Alternar Tema">
+          <PhSun v-if="!isDark" size="22" weight="fill"/>
+          <PhMoon v-else size="22" weight="fill" />
+        </button>
+
+        <button class="logout-btn">
+          <PhSignOut size="20" />
+          Sair
+        </button>
+
+      </div>
     </nav>
 
     <main class="content-area">
@@ -45,22 +78,23 @@
 
     .layout-wrapper {
       font-family: 'Inter', sans-serif;
-      background-color: #F8FAFC;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
       min-height: 100vh;
     }
 
     .navbar {
-      background-color: white;
+      background-color: var(--bg-card);
       height: 70px;
       padding: 0 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid #E2E8F0;
+      border-bottom: 1px solid var(--border-color);
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 4px 6px -1px var(--shadow-color);
     }
 
     .logo {
@@ -69,12 +103,12 @@
         gap: 0.5rem;
         font-size: 1.25rem;
         font-weight: 700;
-        color: #1E293B;
+        color: var(--text-primary);
         letter-spacing: -0.5px;
     }
     
-    .logo-icon { color: #2563EB; }
-    .ai { color: #2563EB; }
+    .logo-icon { color: var(--primary-color); }
+    .ai { color: var(--primary-color); }
 
     .nav-links {
       list-style: none;
@@ -86,7 +120,7 @@
 
     .nav-links a {
       text-decoration: none;
-      color: #64748B;
+      color: var(--text-primary);
       font-weight: 500;
       font-size: 0.95rem;
       display: flex;
@@ -97,17 +131,42 @@
       border-bottom: 2px solid transparent;
     }
 
-    .nav-links a:hover { color: #2563EB; }
+    .nav-links a:hover { color: var(--primary-color); }
     
     .nav-links a.active {
-      color: #2563EB;
-      border-bottom: #2563EB;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
       font-weight: 600;
+    }
+
+    .right-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .theme-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    .theme-btn:hover {
+      background-color: var(--bg-page);
+      color: var(--primary-color);
+      transform: rotate(15deg);
     }
 
     .logout-btn {
       background: transparent;
-      border: 1px solid #F1F5F9;
+      border: 1px solid var(--border-color);
       padding: 0.5rem 1rem;
       border-radius: 8px;
       color: #EF4444;
@@ -121,7 +180,7 @@
     }
 
     .logout-btn:hover {
-      background-color: #FEF2F2;
+      background-color: rgba(239, 68, 68, 0.1);
       border-color: #FECACA;
     }
     

@@ -79,7 +79,7 @@ const handleSubmit = async () => {
     .colors-grid { display: flex; flex-wrap: wrap; gap: 12px; }
     .color-circle { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; transition: transform 0.2s; }
     .color-circle:hover { transform: scale(1.1); }
-    .color-circle.selected { border-color: #1E293B; transform: scale(1.1); }
+    .color-circle.selected { border-color: var(--text-primary); transform: scale(1.1); }
 
     .form-group {
     margin-bottom: 2.5rem; 
@@ -91,7 +91,7 @@ const handleSubmit = async () => {
 
     .color-preview { 
         font-size: 0.85rem; 
-        color: #64748B; 
+        color: var(--text-secondary);
         margin-top: 8px; 
     }
 
