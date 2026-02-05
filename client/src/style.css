@@ -1,5 +1,59 @@
-body {
+/* src/style.css */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+:root {
+  /* --- TEMA CLARO (O padrão atual) --- */
+  --bg-page: #F8FAFC;       /* Fundo da página */
+  --bg-card: #FFFFFF;       /* Fundo do cartão */
+  --bg-input: #F8FAFC;      /* Fundo do input */
+  
+  --text-primary: #1E293B;  /* Títulos e textos fortes */
+  --text-secondary: #64748B;/* Legendas e ícones */
+  --text-inverse: #FFFFFF;  /* Texto dentro de botões */
+  
+  --border-color: #E2E8F0;  /* Bordas sutis */
+  
+  --primary-color: #6366F1; /* Roxo principal */
+  --primary-hover: #4F46E5;
+}
+
+/* Quando a classe .dark for adicionada no HTML */
+.dark {
+  /* --- TEMA ESCURO (Novas cores) --- */
+  --bg-page: #0F172A;       /* Slate 900 */
+  --bg-card: #1E293B;       /* Slate 800 */
+  --bg-input: #334155;      /* Slate 700 (Input mais claro que o card) */
+  
+  --text-primary: #F8FAFC;  /* Slate 50 (Quase branco) */
+  --text-secondary: #94A3B8;/* Slate 400 */
+  --text-inverse: #FFFFFF;
+  
+  --border-color: #334155;  /* Slate 700 */
+  
+  /* O Primary geralmente brilha mais no escuro, mantive igual por enquanto */
+  --primary-color: #6366F1; 
+  --primary-hover: #818CF8; 
+}
+
+/* Reset que já existia */
+html, body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    min-height: 100vh;
     box-sizing: border-box;
+    background-color: var(--bg-page); 
+    color: var(--text-primary);       
+    transition: background-color 0.3s, color 0.3s; /* Suaviza a troca de tema */
+    scroll-behavior: smooth;
+}
+
+#app {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }

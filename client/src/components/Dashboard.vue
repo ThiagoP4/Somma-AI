@@ -198,13 +198,6 @@
 </template>
 
 <style scoped>
-
-  .container {
-    padding: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
   .page-header { margin-bottom: 2rem; }
 
   .stats-overview {
@@ -212,6 +205,14 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 1.5rem;
     margin-bottom: 2rem;
+  }
+
+  @media (max-width: 1024px) {
+    .stats-overview { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .stats-overview { grid-template-columns: 1fr; }
+    .detailed-analytics { grid-template-columns: 1fr; }
   }
 
   .stat-card {
@@ -257,9 +258,13 @@
   }
 
   .chart-wrapper {
-    border: 1px solid #ddd;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    box-shadow: 0 4px 20px var(--shadow-color);
     padding: 1.5rem;
-    border-radius: 8px;
+    border-radius: 16px;
   }
+  
 
 </style>

@@ -38,23 +38,19 @@ const goBack = () => router.push('/');
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    background-color: #F8FAFC;
-    padding: 2rem;
-    box-sizing: border-box;
-    min-height: 100vh;
-    min-height: 100dvh;
-    overflow-y: auto;
+    width: 100%;
 }
 
 .form-card {
-    background: white;
+    background: var(--bg-card);
     width: 100%;
-    max-width: 480px;
+    max-width: 500px;
     padding: 2.5rem;
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-    border: 1px solid #F1F5F9;
+    box-shadow: 0 4px 20px var(--shadow-color);
+    border: 1px solid var(--border-color);
     transition: all 0.3s ease;
+    margin-top: 1rem;
 }
 
 .card-header {
@@ -64,12 +60,12 @@ const goBack = () => router.push('/');
     margin-bottom: 2rem;
 }
 
-.header-text h2 { margin: 0; font-size: 1.5rem; color: #1E293B; font-weight: 700; }
-.subtitle { margin: 4px 0 0 0; color: #64748B; font-size: 0.9rem; }
+.header-text h2 { margin: 0; font-size: 1.5rem; color: var(--text-primary); font-weight: 700; }
+.subtitle { margin: 4px 0 0 0; color: var(--text-secondary); font-size: 0.9rem; }
 
 .back-btn {
     background: transparent;
-    border: 1px solid #E2E8F0;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     width: 40px;
     height: 40px;
@@ -77,10 +73,10 @@ const goBack = () => router.push('/');
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    color: #64748B;
+    color: var(--text-secondary);
     transition: all 0.2s;
 }
-.back-btn:hover { background-color: #F1F5F9; color: #1E293B; border-color: #CBD5E1; }
+.back-btn:hover { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--text-secondary); }
 
 
 </style>
@@ -95,7 +91,7 @@ const goBack = () => router.push('/');
     margin-bottom: 0.8rem;
     font-size: 0.9rem;
     font-weight: 600;
-    color: #475569;
+    color: var(--text-secondary);
 }
 
 .required { color: #EF4444; }
@@ -103,26 +99,31 @@ const goBack = () => router.push('/');
 .input-field {
     width: 100%;
     padding: 0.75rem 1rem;
-    border: 1px solid #E2E8F0;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 1rem;
-    color: #1E293B;
-    background-color: #F8FAFC;
+    color: var(--text-primary);
+    background-color: var(--bg-input);
     transition: all 0.2s;
     outline: none;
 }
 
 .input-field:focus {
-    background-color: white;
-    border-color: #6366F1;
+    background-color: var(--bg-card);
+    border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.input-field::placeholder {
+    color: var(--text-secondary); /* Importante para não ficar invisível no dark */
+    opacity: 0.7;
 }
 
 .btn-primary {
     width: 100%;
     padding: 0.9rem;
-    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
-    color: white;
+    background: var(--primary-color);
+    color: var(--text-inverse);
     border: none;
     border-radius: 8px;
     font-size: 1rem;
