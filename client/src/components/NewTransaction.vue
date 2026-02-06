@@ -110,7 +110,7 @@
 
 <style scoped>
     .required {
-        color: #EF4444;
+        color: #B91C1C;
     }
 
     .divider {
@@ -164,18 +164,7 @@
     .btn-whatsapp:hover {
         background-color: #D1FAE5;
     }
-
-    /* Ajuste para não ficar um bloco branco cegante no Dark Mode */
-    /* Se o corpo tiver a classe .dark (via css global), podemos ajustar aqui */
-    :global(.dark) .btn-whatsapp {
-        background-color: transparent;
-        color: #34D399;
-        border-color: #059669;
-    }
-    :global(.dark) .btn-whatsapp:hover {
-        background-color: rgba(16, 185, 129, 0.1);
-    }
-
+    
     @media (max-width: 640px) {
         /* Reduz espaço do botão principal */
         .btn-primary {

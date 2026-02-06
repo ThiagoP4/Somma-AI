@@ -284,10 +284,10 @@
     margin: 0;
   }
 
-  .blue { background-color: #2563EB; }
-  .green { background-color: #10B981; }
+  .blue { background-color: #1D4ED8; }
+  .green { background-color: #047857; }
   .purple { background-color: #8B5CF6; }
-  .red { background-color: #EF4444; }
+  .red { background-color: #B91C1C; }
 
   .detailed-analytics {
     display: grid;

@@ -115,7 +115,7 @@ const goBack = () => router.push('/');
     color: var(--text-secondary);
 }
 
-.required { color: #EF4444; }
+.required { color: #B91C1C; }
 
 .input-field {
     width: 100%;
@@ -126,7 +126,22 @@ const goBack = () => router.push('/');
     color: var(--text-primary);
     background-color: var(--bg-input);
     transition: all 0.2s;
+    color-scheme: light;
     outline: none;
+}
+
+body.dark .input-field {
+    color-scheme: dark;
+}
+
+body.dark .btn-whatsapp {
+    background-color: transparent !important; /* !important garante que sobrescreva o scoped */
+    color: #34D399 !important;
+    border-color: #059669 !important;
+}
+
+body.dark .btn-whatsapp:hover {
+    background-color: rgba(16, 185, 129, 0.1) !important;
 }
 
 .input-field:focus {

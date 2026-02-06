@@ -134,7 +134,7 @@
     .nav-links a:hover { color: var(--primary-color); }
     
     .nav-links a.active {
-      color: var(--primary-color);
+      color: var(--text-primary);
       border-bottom: 2px solid var(--primary-color);
       font-weight: 600;
     }
@@ -169,7 +169,7 @@
       border: 1px solid var(--border-color);
       padding: 0.5rem 1rem;
       border-radius: 8px;
-      color: #EF4444;
+      color: #B91C1C;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -182,6 +182,7 @@
     .logout-btn:hover {
       background-color: rgba(239, 68, 68, 0.1);
       border-color: #FECACA;
+      color: #B91C1C;
     }
     
     .content-area {

@@ -5,10 +5,10 @@
     import FormLayout from '../layouts/FormLayout.vue';
 
     const category = ref('');
-    const selectedColor = ref('#EF4444');
+    const selectedColor = ref('#B91C1C');
 
     const availableColors = [
-        '#EF4444', // Vermelho
+        '#B91C1C', // Vermelho
         '#F97316', // Laranja
         '#F59E0B', // Amarelo
         '#10B981', // Verde
