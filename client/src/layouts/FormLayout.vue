@@ -78,6 +78,27 @@ const goBack = () => router.push('/');
 }
 .back-btn:hover { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--text-secondary); }
 
+@media (max-width: 640px) {
+    .form-card {
+        padding: 1.25rem; /* Reduz de 40px para 20px */
+        margin-top: 0;    /* Cola um pouco mais no topo */
+    }
+
+    .card-header {
+        margin-bottom: 1.5rem; /* Aproxima o título do formulário */
+        gap: 0.75rem;
+    }
+
+    .header-text h2 {
+        font-size: 1.25rem; /* Título menor (20px) */
+    }
+
+    /* Ajuste o botão de voltar para não ficar gigante */
+    .back-btn {
+        width: 36px;
+        height: 36px;
+    }
+}
 
 </style>
 
@@ -94,7 +115,7 @@ const goBack = () => router.push('/');
     color: var(--text-secondary);
 }
 
-.required { color: #EF4444; }
+.required { color: #B91C1C; }
 
 .input-field {
     width: 100%;
@@ -105,7 +126,22 @@ const goBack = () => router.push('/');
     color: var(--text-primary);
     background-color: var(--bg-input);
     transition: all 0.2s;
+    color-scheme: light;
     outline: none;
+}
+
+body.dark .input-field {
+    color-scheme: dark;
+}
+
+body.dark .btn-whatsapp {
+    background-color: transparent !important; /* !important garante que sobrescreva o scoped */
+    color: #34D399 !important;
+    border-color: #059669 !important;
+}
+
+body.dark .btn-whatsapp:hover {
+    background-color: rgba(16, 185, 129, 0.1) !important;
 }
 
 .input-field:focus {
@@ -139,5 +175,16 @@ const goBack = () => router.push('/');
 .btn-primary:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+
+@media (max-width: 640px) {
+    .form-group {
+        margin-bottom: 1.5rem; 
+    }
+    
+    .btn-primary {
+        padding: 0.75rem;
+    }
 }
 </style>

@@ -1,14 +1,14 @@
 <script setup lang = "ts">
     import { ref } from 'vue';
-    import axios from 'axios'
+    import { supabase } from '../services/supabase';
     import { PhCheck, PhPlus } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
 
     const category = ref('');
-    const selectedColor = ref('#EF4444');
+    const selectedColor = ref('#B91C1C');
 
     const availableColors = [
-        '#EF4444', // Vermelho
+        '#B91C1C', // Vermelho
         '#F97316', // Laranja
         '#F59E0B', // Amarelo
         '#10B981', // Verde
@@ -27,11 +27,15 @@ const handleSubmit = async () => {
         }
 
         try {
-            await axios.post('http://localhost:3000/new-category', {
+            const { error } = await supabase
+                .from('Category')
+                .insert({
                 description: category.value,
                 color: selectedColor.value
             });
+            if (error) throw error;
             alert('Categoria adicionada com sucesso!');
+            category.value = '';
         } catch (error) {
             console.error('Erro ao adicionar categoria:', error);
             alert('Ocorreu um erro ao adicionar a categoria. Tente novamente.');
@@ -86,7 +90,7 @@ const handleSubmit = async () => {
     }
 
     .btn-primary {
-        margin-top: 10rem;
+        margin-top: 2rem;
     }
 
     .color-preview { 
@@ -94,5 +98,20 @@ const handleSubmit = async () => {
         color: var(--text-secondary);
         margin-top: 8px; 
     }
+
+    @media (max-width: 640px) {
+    .btn-primary {
+        margin-top: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .color-circle {
+        width: 36px;
+        height: 36px;
+    }
+}
 
 </style>

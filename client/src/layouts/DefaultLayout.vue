@@ -1,10 +1,12 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { RouterLink } from 'vue-router'
+    import { RouterLink, useRouter } from 'vue-router'
+    import { supabase } from '../services/supabase';
     import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag, PhSun, PhMoon } from '@phosphor-icons/vue'
 
     const isDark = ref(false);
-
+    const router = useRouter();
+    
     onMounted(() => {
         // Verifica o tema salvo no localStorage
         const savedTheme = localStorage.getItem('theme');
@@ -13,6 +15,22 @@
             document.body.classList.add('dark')
         }
     });
+
+    const handleLogout = async () => {
+      try {
+        // 1. Chama o Supabase para destruir a sessão
+        const { error } = await supabase.auth.signOut();
+        
+        if (error) throw error;
+
+        // 2. Redireciona para o Login imediatamente
+        router.push('/login');
+        
+      } catch (error) {
+        console.error('Erro ao sair:', error);
+        alert('Erro ao tentar sair. Tente novamente.');
+      }
+    };
 
     const toggleTheme = () => {
         isDark.value = !isDark.value;
@@ -60,7 +78,7 @@
           <PhMoon v-else size="22" weight="fill" />
         </button>
 
-        <button class="logout-btn">
+        <button @click="handleLogout" class="logout-btn">
           <PhSignOut size="20" />
           Sair
         </button>
@@ -134,7 +152,7 @@
     .nav-links a:hover { color: var(--primary-color); }
     
     .nav-links a.active {
-      color: var(--primary-color);
+      color: var(--text-primary);
       border-bottom: 2px solid var(--primary-color);
       font-weight: 600;
     }
@@ -169,7 +187,7 @@
       border: 1px solid var(--border-color);
       padding: 0.5rem 1rem;
       border-radius: 8px;
-      color: #EF4444;
+      color: #B91C1C;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -182,6 +200,7 @@
     .logout-btn:hover {
       background-color: rgba(239, 68, 68, 0.1);
       border-color: #FECACA;
+      color: #B91C1C;
     }
     
     .content-area {
@@ -194,5 +213,61 @@
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      /* 1. Reduzir padding lateral do menu */
+      .navbar {
+        height: 60px; /* Reduz de 70px para 60px */
+        padding: 0 1rem !important;
+        display: grid; 
+        grid-template-columns: 1fr auto 1fr; /* Divide em 3 partes: Esquerda Livre, Meio Fixo, Direita Livre */
+        align-items: center;
+      }
+      .content-area {
+        padding: 1rem !important; /* Reduz de 2rem para 1rem */
+      }
+      /* 2. Esconder o texto "Finance AI" do logo (deixa só o ícone) */
+      .logo span, .nav-links a span, .logout-btn span {
+          display: none; 
+      }
+      
+      .logo { justify-self: start; }
+
+      .logo-icon { width: 24px; height: 24px; }
+      
+      /* 3. Ajustar os links do meio (Dashboard, etc) */
+      .nav-links {
+          justify-self: center;
+          gap: 1.5rem; /* Diminui o espaço entre eles */
+      }
+
+      .nav-links a {
+          font-size: 0; /* TRUQUE: Esconde o texto do link */
+      }
+      
+      .nav-links a svg {
+          /* Aumenta um pouco o ícone já que o texto sumiu */
+          font-size: 22px !important; 
+      }
+
+      /* 4. Ajustar botão de Sair */
+      .logout-btn {
+          font-size: 0; /* Esconde texto "Sair" */
+          padding: 0.5rem; /* Botão quadrado */
+      }
+      
+      /* 5. Ajustar container da direita */
+      .right-actions {
+          justify-self: end;
+      }
+    }
+    @media (max-width: 640px) {
+      .content-area {
+        padding: 1rem !important; /* Reduz de 2rem para 1rem no celular */
+      }
+      .navbar {
+        padding: 0 1rem !important; /* Ajusta o menu também */
+      }
     }
 </style>

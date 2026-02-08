@@ -1,7 +1,7 @@
 <script setup lang="ts">    
 
     import { ref, onMounted } from 'vue';
-    import axios from 'axios'
+    import { supabase } from '../services/supabase';
     import { PhPlus, PhWhatsappLogo } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
 
@@ -10,11 +10,15 @@
     const categoryId = ref('');
     const date = ref(new Date().toISOString().split('T')[0]); // Data de hoje
     const categories = ref<any[]>([]);
+    const loading = ref(false);
 
     onMounted(async () => {
         try {
-            const response = await axios.get('http://localhost:3000/categories');
-            categories.value = response.data;
+            const { data, error } = await supabase
+                .from('Category') // Confere se no banco está maiúsculo ou minúsculo
+                .select('*');
+            if (error) throw error;
+            categories.value = data;
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
         }
@@ -26,17 +30,24 @@
             return;
         }
 
+        loading.value = true;
+
         try {
-            await axios.post('http://localhost:3000/purchase', {
-                description: description.value,
-                value: parseFloat(value.value),
-                categoryId: categoryId.value,
-                date: date.value
-            });
+           const { error } = await supabase
+                .from('Purchase')
+                .insert({
+                    title: description.value,
+                    value: parseFloat(value.value),
+                    categoryId: categoryId.value,
+                    date: date.value
+                });
+            if (error) throw error;
             alert('Compra adicionada com sucesso!');
         } catch (error) {
             console.error('Erro ao adicionar compra:', error);
             alert('Ocorreu um erro ao adicionar a compra. Tente novamente.');
+        } finally {
+            loading.value = false; // <--- DESTRAVA O BOTÃO
         }
     };
 
@@ -110,7 +121,7 @@
 
 <style scoped>
     .required {
-        color: #EF4444;
+        color: #B91C1C;
     }
 
     .divider {
@@ -139,8 +150,11 @@
         z-index: 1;
     }
 
+    .btn-primary {
+        margin-top: 1.5rem;
+    }
+
     /* Botão WhatsApp */
-    /* Mantive o verde padrão, mas você pode criar variáveis para ele se quiser */
     .btn-whatsapp {
         width: 100%;
         padding: 0.9rem;
@@ -161,16 +175,23 @@
     .btn-whatsapp:hover {
         background-color: #D1FAE5;
     }
+    
+    @media (max-width: 640px) {
+        /* Reduz espaço do botão principal */
+        .btn-primary {
+            margin-top: 1rem;
+        }
 
-    /* Ajuste para não ficar um bloco branco cegante no Dark Mode */
-    /* Se o corpo tiver a classe .dark (via css global), podemos ajustar aqui */
-    :global(.dark) .btn-whatsapp {
-        background-color: transparent;
-        color: #34D399;
-        border-color: #059669;
-    }
-    :global(.dark) .btn-whatsapp:hover {
-        background-color: rgba(16, 185, 129, 0.1);
+        /* Reduz o espaço do "ou" */
+        .divider {
+            margin: 1rem 0;
+        }
+        
+        /* Botão do WhatsApp mais compacto */
+        .btn-whatsapp {
+            padding: 0.75rem;
+            font-size: 0.95rem;
+        }
     }
 
 </style>
