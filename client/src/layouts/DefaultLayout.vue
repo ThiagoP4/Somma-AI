@@ -6,7 +6,7 @@
 
     const isDark = ref(false);
     const router = useRouter();
-    
+
     onMounted(() => {
         // Verifica o tema salvo no localStorage
         const savedTheme = localStorage.getItem('theme');
@@ -60,8 +60,8 @@
             </RouterLink>
         </li>
         <li>
-            <RouterLink to="/new-transaction" active-class="active">
-                <PhPlus size="20" weight="bold" /> Nova Compra
+            <RouterLink to="/transactions" active-class="active">
+                <PhPlus size="20" weight="bold" /> Compras
             </RouterLink>
         </li>
         <li>
