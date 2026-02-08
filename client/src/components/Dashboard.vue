@@ -1,7 +1,7 @@
 <script setup lang="ts">
 
   import { ref, onMounted } from 'vue';
-  import axios from 'axios';
+  import { supabase } from '../services/supabase';
   
 
   import {
@@ -73,8 +73,11 @@
 
   const fetchData = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/dashboard');
-      const apiData = response.data;
+      const { data, error } = await supabase.rpc('get_dashboard_data');
+
+      if (error) throw error;
+      
+      const apiData = data;
 
       if (!apiData) return;
       
@@ -88,13 +91,13 @@
           current: Number(apiData.trend?.current) || 0,
           last: Number(apiData.trend?.last) || 0
         },
-        pieChart: apiData.pieChart || { series: [], labels: [], colors: [] },
-        lineChart: apiData.lineChart || { series: [], categories: [] }
+        pieChart: { series: [], labels: [], colors: [] },
+        lineChart: { series: [], categories: [] }
       };
 
       // Atualiza Gráfico de Pizza
-      if (apiData.pieChart) {
-        pieSeries.value = apiData.pieChart.series || [];
+      if (apiData.pieChart && apiData.pieChart.series) {
+        pieSeries.value = apiData.pieChart.series;
         pieOptions.value = {
           ...pieOptions.value,
           labels: apiData.pieChart.labels || [],
@@ -107,15 +110,25 @@
       
 
       // Atualiza Gráfico de Linha
-      if (apiData.lineChart) {
-        dashboardData.value.lineChart.series = apiData.lineChart.series || [];
-        lineOptions.value = {
-          ...lineOptions.value,
-          xaxis: { 
-            ...lineOptions.value.xaxis,
-            categories: apiData.lineChart.categories || []
+      if (apiData.lineChart && apiData.lineChart.series) {
+        const safeSeries = apiData.lineChart.series.map((serie: any) => ({
+          ...serie,
+          data: Array.isArray(serie.data) ? serie.data : []
+        }));
+        const hasData = safeSeries.some((s: any) => s.data && s.data.length > 0);
+        if (hasData) {
+          dashboardData.value.lineChart.series = safeSeries;
+          lineOptions.value = {
+            ...lineOptions.value,
+            xaxis: { 
+              ...lineOptions.value.xaxis,
+              categories: apiData.lineChart.categories || []
+            }
+          };
+          } else {
+            // Se não tiver dados, zera o gráfico para não dar erro
+            dashboardData.value.lineChart.series = [];
           }
-        };
       }
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
@@ -182,14 +195,30 @@
       <div class="chart-wrapper">
         <h2>Gastos por Categoria</h2>
         <div class="charts-placeholder">
-          <VueApexCharts type="donut" height="300" :options="pieOptions" :series="pieSeries" />
+          <VueApexCharts 
+          v-if="pieSeries && pieSeries.length > 0"
+          type="donut" 
+          height="300" 
+          :options="pieOptions" 
+          :series="pieSeries" />
+          <div v-else class="no-data-message">
+            <p>Sem dados ou carregando...</p>
+          </div>
         </div>
       </div>
   
       <div class="chart-wrapper">
         <h2>Análises Detalhadas por Categoria</h2>
         <div class="charts-placeholder">
-          <VueApexCharts type="area" height="300" :options="lineOptions" :series="dashboardData.lineChart.series" />
+          <VueApexCharts 
+            v-if="dashboardData.lineChart && dashboardData.lineChart.series && dashboardData.lineChart.series.length > 0"
+            type="area" 
+            height="300" 
+            :options="lineOptions" 
+            :series="dashboardData.lineChart.series" />
+            <div v-else class="no-data-message">
+              <p>Sem dados ou carregando...</p>
+            </div>
         </div>
       </div>
     </section>
@@ -310,6 +339,17 @@
       font-size: 1.1rem;
       margin-bottom: 1rem;
       color: var(--text-primary);
+  }
+
+  .no-data-message {
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    background-color: rgba(0,0,0, 0.02);
+    border-radius: 8px;
   }
 
 </style>

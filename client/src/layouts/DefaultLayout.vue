@@ -1,10 +1,12 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { RouterLink } from 'vue-router'
+    import { RouterLink, useRouter } from 'vue-router'
+    import { supabase } from '../services/supabase';
     import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag, PhSun, PhMoon } from '@phosphor-icons/vue'
 
     const isDark = ref(false);
-
+    const router = useRouter();
+    
     onMounted(() => {
         // Verifica o tema salvo no localStorage
         const savedTheme = localStorage.getItem('theme');
@@ -13,6 +15,22 @@
             document.body.classList.add('dark')
         }
     });
+
+    const handleLogout = async () => {
+      try {
+        // 1. Chama o Supabase para destruir a sessão
+        const { error } = await supabase.auth.signOut();
+        
+        if (error) throw error;
+
+        // 2. Redireciona para o Login imediatamente
+        router.push('/login');
+        
+      } catch (error) {
+        console.error('Erro ao sair:', error);
+        alert('Erro ao tentar sair. Tente novamente.');
+      }
+    };
 
     const toggleTheme = () => {
         isDark.value = !isDark.value;
@@ -60,7 +78,7 @@
           <PhMoon v-else size="22" weight="fill" />
         </button>
 
-        <button class="logout-btn">
+        <button @click="handleLogout" class="logout-btn">
           <PhSignOut size="20" />
           Sair
         </button>

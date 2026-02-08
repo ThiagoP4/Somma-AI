@@ -1,0 +1,241 @@
+<script setup lang="ts">
+    import { ref } from 'vue';
+    import { useRouter } from 'vue-router';
+    import { supabase } from '../services/supabase';
+    import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus } from '@phosphor-icons/vue';
+
+
+    const router = useRouter();
+    const loading = ref(false);
+    const isSignUp = ref(false);
+    const email = ref('');
+    const password = ref('');
+    const errorMessage = ref('');
+
+    const handleAuth = async () => {
+        loading.value = true;
+        errorMessage.value = '';
+
+        const cleanEmail = email.value.trim();
+
+        try {
+            if (isSignUp.value) {
+                const { error } = await supabase.auth.signUp({
+                    email: cleanEmail,
+                    password: password.value,
+                });
+                if (error) throw error;
+                alert('Cadastro realizado! Verifique seu email para confirmar a conta.');
+                isSignUp.value = false;
+            } else {
+                const { error } = await supabase.auth.signInWithPassword({
+                    email: cleanEmail,
+                    password: password.value,
+                });
+                if (error) throw error;
+                router.push('/');
+            }
+        } catch (error) {
+            console.error('Erro de autenticação:', error);
+            errorMessage.value = 'Ocorreu um erro. Verifique suas credenciais e tente novamente.';
+        } finally {
+            loading.value = false;
+        }
+    };
+
+</script>
+
+
+<template>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="header">
+                <h1>Bem-vindo ao Finance AI </h1>
+                <p>Faça login para acessar seu painel de controle financeiro</p>
+            </div>
+            <form @submit.prevent="handleAuth">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <div class="input-wrapper">
+                        <PhEnvelope size="20"  class="input-icon"/>
+                        <input
+                            type="email"
+                            id="email"
+                            v-model="email"
+                            placeholder="seu@email.com"
+                            required
+                            class="input-field"
+                        />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="input-wrapper">
+                        <PhLockKey size="20" class="input-icon"/>
+                        <input
+                            type="password"
+                            v-model="password"
+                            placeholder="********"
+                            required
+                            class="input-field"
+                            minlength="8"
+                        />
+                    </div>
+                </div>
+
+                <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
+                
+                <button type="submit" class="btn-primary" :disabled="loading">
+                    <span v-if="loading">Carregando...</span>
+                    <span v-else class="btn-content">
+                        <component :is="isSignUp ? PhUserPlus : PhSignIn" size="20" weight="bold" />
+                        {{ isSignUp ? 'Cadastrar' : 'Entrar' }}
+                    </span>
+                </button>
+            </form>
+
+            <div class="toggle-mode">
+                <p>
+                    {{ isSignUp ? 'Já tem uma conta?' : 'Não tem uma conta?' }}
+                    <a href="#" @click.prevent="isSignUp = !isSignUp">
+                        {{ isSignUp ? 'Faça login' : 'Cadastre-se' }}
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+</template>
+
+<style scoped>
+    .login-container {
+        min-height: 100vh;
+        width: 100vw;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--bg-page);
+        position: fixed;
+        top: 0;
+        left: 0;
+    }
+
+    .login-card {
+        background-color: var(--bg-card);
+        padding: 3rem;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .header h1 { margin: 0; color: var(--text-primary); }
+    .header p { margin-top: 0.5rem; color: var(--text-secondary); }
+
+    .input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    .input-icon {
+        position: absolute;
+        left: 12px;
+        color: var(--text-secondary);
+        pointer-events: none;
+    }
+
+    .input-field {
+        width: 100%;
+        padding: 0.85rem 1rem 0.85rem 45px; /* Espaço para o ícone */
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-page); /* Fundo sutilmente diferente do card */
+        color: var(--text-primary);
+        border-radius: 8px;
+        font-size: 1rem;
+        outline: none;
+        transition: all 0.2s;
+    }
+
+    .input-field:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); /* Anel de foco azul */
+        background-color: var(--bg-card);
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .btn-primary {
+        margin-top: 1rem;
+        width: 100%;
+        padding: 0.9rem;
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:hover {
+        filter: brightness(1.1); /* Clareia um pouco no hover */
+    }
+    
+    .btn-primary:active {
+        transform: translateY(1px);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .btn-content {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .toggle-mode {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+    }
+
+    .toggle-mode a {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .toggle-mode a:hover {
+        text-decoration: underline;
+    }
+
+    .error-msg {
+        color: #EF4444;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+        text-align: center;
+    }
+</style>

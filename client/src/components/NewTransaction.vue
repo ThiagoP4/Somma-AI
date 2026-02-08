@@ -1,7 +1,7 @@
 <script setup lang="ts">    
 
     import { ref, onMounted } from 'vue';
-    import axios from 'axios'
+    import { supabase } from '../services/supabase';
     import { PhPlus, PhWhatsappLogo } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
 
@@ -10,11 +10,15 @@
     const categoryId = ref('');
     const date = ref(new Date().toISOString().split('T')[0]); // Data de hoje
     const categories = ref<any[]>([]);
+    const loading = ref(false);
 
     onMounted(async () => {
         try {
-            const response = await axios.get('http://localhost:3000/categories');
-            categories.value = response.data;
+            const { data, error } = await supabase
+                .from('Category') // Confere se no banco está maiúsculo ou minúsculo
+                .select('*');
+            if (error) throw error;
+            categories.value = data;
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
         }
@@ -26,17 +30,24 @@
             return;
         }
 
+        loading.value = true;
+
         try {
-            await axios.post('http://localhost:3000/purchase', {
-                description: description.value,
-                value: parseFloat(value.value),
-                categoryId: categoryId.value,
-                date: date.value
-            });
+           const { error } = await supabase
+                .from('Purchase')
+                .insert({
+                    title: description.value,
+                    value: parseFloat(value.value),
+                    categoryId: categoryId.value,
+                    date: date.value
+                });
+            if (error) throw error;
             alert('Compra adicionada com sucesso!');
         } catch (error) {
             console.error('Erro ao adicionar compra:', error);
             alert('Ocorreu um erro ao adicionar a compra. Tente novamente.');
+        } finally {
+            loading.value = false; // <--- DESTRAVA O BOTÃO
         }
     };
 

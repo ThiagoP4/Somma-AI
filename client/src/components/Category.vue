@@ -1,6 +1,6 @@
 <script setup lang = "ts">
     import { ref } from 'vue';
-    import axios from 'axios'
+    import { supabase } from '../services/supabase';
     import { PhCheck, PhPlus } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
 
@@ -27,11 +27,15 @@ const handleSubmit = async () => {
         }
 
         try {
-            await axios.post('http://localhost:3000/new-category', {
+            const { error } = await supabase
+                .from('Category')
+                .insert({
                 description: category.value,
                 color: selectedColor.value
             });
+            if (error) throw error;
             alert('Categoria adicionada com sucesso!');
+            category.value = '';
         } catch (error) {
             console.error('Erro ao adicionar categoria:', error);
             alert('Ocorreu um erro ao adicionar a categoria. Tente novamente.');
