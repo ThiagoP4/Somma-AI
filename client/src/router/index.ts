@@ -12,7 +12,13 @@ const router = createRouter({
     {    
         path: '/',
         name: 'dashboard',
-        component: () => import('../components/Dashboard.vue'),
+        component: () => import('../views/Dashboard.vue'),
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/transactions',
+        name: 'transactions',
+        component: () => import('../views/Transactions.vue'),
         meta: { requiresAuth: true }
     },
     {
@@ -24,7 +30,7 @@ const router = createRouter({
     {
         path: '/new-category',
         name: 'new-category',
-        component: () => import('../components/Category.vue'),
+        component: () => import('../components/NewCategory.vue'),
         meta: { requiresAuth: true }
     }
     ]
