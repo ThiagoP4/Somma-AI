@@ -5,8 +5,19 @@
     import { PhTrash } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
 
+    interface Transaction {
+        idPurchase: number;
+        title: string;
+        value: number;
+        date: string;
+        Category: {
+            description: string;
+            color: string;
+        } | null; // Pode ser null caso o join falhe ou não tenha categoria
+    }
+    
     const router = useRouter();
-    const transactions = ref([]);
+    const transactions = ref<Transaction[]>([]);
     const loading = ref(true);
 
     const fetchTransactions = async () => {
@@ -14,7 +25,7 @@
         try {
             const { data, error } = await supabase
             .from('Purchase')
-            .select('*, Category(description)')
+            .select('*, Category(description, color)')
             .order('date', { ascending: false })
 
             if(error) throw error;
@@ -27,6 +38,7 @@
         try {
             console.log('Tentando excluir ID:', id);
            const { error } = await supabase.from('Purchase').delete().eq('idPurchase', id);
+            if (error) throw error;
             fetchTransactions();
         } catch (e) { alert('Erro ao excluir') }
     };
@@ -68,7 +80,9 @@
             </td>
             <td>
                 <div class="category-wrapper">
-                   <span class="category-dot"></span>{{ item.Category.description }}
+                   <span class="category-dot"
+                   :style="{ backgroundColor: item.Category?.color || 'var(--text-muted)' }">
+                </span>{{ item.Category?.description }}
                 </div>
                 </td>
             <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
