@@ -2,7 +2,7 @@
     import { ref } from 'vue';
     import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
-    import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus } from '@phosphor-icons/vue';
+    import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus, PhUser, PhPhone } from '@phosphor-icons/vue';
 
 
     const router = useRouter();
@@ -11,6 +11,9 @@
     const email = ref('');
     const password = ref('');
     const errorMessage = ref('');
+    const firstName = ref('');
+    const lastName = ref('');  
+    const phone = ref('');
 
     const handleAuth = async () => {
         loading.value = true;
@@ -23,6 +26,13 @@
                 const { error } = await supabase.auth.signUp({
                     email: cleanEmail,
                     password: password.value,
+                    options: {
+                        data: {
+                            first_name: firstName.value,
+                            last_name: lastName.value,
+                            phone: phone.value
+                        }
+                    }
                 });
                 if (error) throw error;
                 alert('Cadastro realizado! Verifique seu email para confirmar a conta.');
@@ -50,10 +60,52 @@
     <div class="login-container">
         <div class="login-card">
             <div class="header">
-                <h1>Bem-vindo ao Finance AI </h1>
-                <p>Faça login para acessar seu painel de controle financeiro</p>
+                <h1>{{ isSignUp ? 'Crie sua conta' : 'Bem-vindo ao Finance AI' }}</h1>
+                <p>{{ isSignUp ? 'Preencha seus dados para começar' : 'Faça login para acessar seu painel' }}</p>
             </div>
             <form @submit.prevent="handleAuth">
+                <div v-if="isSignUp">
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Nome</label>
+                            <div class="input-wrapper">
+                                <PhUser size="20" class="input-icon"/>
+                                <input
+                                    type="text"
+                                    v-model="firstName"
+                                    placeholder="João"
+                                    required
+                                    class="input-field"
+                                />
+                            </div>
+                        </div>
+                        <div class="form-group half">
+                            <label>Sobrenome</label>
+                            <div class="input-wrapper">
+                                <input
+                                    type="text"
+                                    v-model="lastName"
+                                    placeholder="Silva"
+                                    required
+                                    class="input-field"
+                                    style="padding-left: 1rem;" 
+                                />
+                            </div>
+                        </div>
+                    </div> <div class="form-group">
+                        <label>Telefone</label>
+                        <div class="input-wrapper">
+                            <PhPhone size="20" class="input-icon"/>
+                            <input
+                                type="tel"
+                                v-model="phone"
+                                placeholder="(11) 99999-9999"
+                                required
+                                class="input-field"
+                            />
+                        </div>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="email">Email</label>
                     <div class="input-wrapper">
@@ -171,6 +223,16 @@
 
     .form-group {
         margin-bottom: 1.5rem;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 1rem; /* Espaço entre Nome e Sobrenome */
+    }
+
+    .form-group.half {
+        flex: 1; /* Faz cada campo ocupar 50% da linha */
+        min-width: 0; /* Previne quebra de layout em telas pequenas */
     }
 
     .form-group label {
