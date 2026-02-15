@@ -1,8 +1,8 @@
 <script setup lang="ts">
-    import { ref, onMounted } from 'vue';
+    import { ref, onMounted, computed } from 'vue';
     import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
-    import { PhTrash } from '@phosphor-icons/vue';
+    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
 
     interface Transaction {
@@ -19,6 +19,11 @@
     const router = useRouter();
     const transactions = ref<Transaction[]>([]);
     const loading = ref(true);
+    const showFilter = ref(false);
+
+    const totalValue = computed(() => {
+        return transactions.value.reduce((acc, item) => acc + item.value, 0);
+    });
 
     const fetchTransactions = async () => {
         loading.value = true;
@@ -54,21 +59,60 @@
 </script>
 
 <template>
-        <ListLayout 
-            title="Minhas Compras" 
-            buttonText="Nova Compra"
-            :loading="loading"
-            :items="transactions"
-            @addNew="router.push('/new-transaction')"
+    <ListLayout 
+        title="Minhas Compras" 
+        buttonText="Nova Compra"
+        :loading="loading"
+        :items="transactions"
+        :totalValue="totalValue"
+        @addNew="router.push('/new-transaction')"
+    >
+    <template #actions>
+        <button 
+            class="btn-secondary"
+            @click="showFilter = !showFilter" 
+            :class="{ 'btn-active': showFilter }"
         >
+            <PhFunnel size="18" /> Filtrar
+        </button>
+        <button class="btn-secondary">
+            <PhMicrosoftExcelLogo size="18" /> Excel
+        </button>
+    </template>
     <template #header>
         <tr>
-            <th width="40%">Descrição</th>
+            <th width="35%">Descrição</th>
+            <th width="15%">Valor</th>
             <th width="20%">Categoria</th>
-            <th width="15%" class="text-right">Valor</th>
             <th width="15%" class="text-center">Data</th>
             <th width="10%" class="text-center">Ações</th>
         </tr>
+    </template>
+
+    <template #filters v-if="showFilter">
+        <div class="filter-card">
+            <div class="filter-row">
+                <div class="input-group">
+                    <label>Buscar</label>
+                    <input type="text" placeholder="Digite para buscar..." />
+                </div>
+                <div class="input-group">
+                    <label>Categoria</label>
+                    <select>
+                        <option value="">Todas</option>
+                        <option value="alimentacao">Alimentação</option>
+                    </select> 
+                </div>
+                <div class="input-group">
+                    <label>Data</label>
+                    <input type="date" />
+                </div>
+                <div class="filter-footer">
+                    <button class="btn-clean" @click="showFilter = false">Limpar</button>
+                    <button class="btn-apply" @click="fetchTransactions()">Filtrar</button>
+                </div>
+            </div>
+        </div>
     </template>
 
     <template #body>
@@ -78,6 +122,7 @@
                     {{ item.title }}
                 </span>
             </td>
+            <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
             <td>
                 <div class="category-wrapper">
                    <span class="category-dot"
@@ -85,7 +130,6 @@
                 </span>{{ item.Category?.description }}
                 </div>
                 </td>
-            <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
             <td> {{ toDate(item.date) }}</td>
             <td class="text-center">
                 <div class="actions-wrapper">
@@ -114,6 +158,84 @@
         color: var(--text-secondary);
         font-size: 0.85rem;
     }
+
+    .btn-active {
+        background-color: var(--bg-page);
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .filter-card {
+        background-color: var(--bg-card);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        border: 1px solid var(--border-color);
+        animation: fadeIn 0.2s ease-out;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+
+    .filter-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .input-group label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .input-group input,
+    .input-group select {
+        padding: 0.6rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background-color: var(--bg-input); /* Importante para o tema escuro */
+        color: var(--text-primary);
+        outline: none;
+    }
+
+    .input-group input:focus,
+    .input-group select:focus {
+        border-color: var(--primary-color);
+    }
+
+    .filter-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+
+    .btn-apply {
+        background-color: var(--primary-color);
+        color: #fff;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .btn-clean {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+    .btn-clean:hover { text-decoration: underline; }
 
     .category-wrapper {
         display: flex;
@@ -164,6 +286,29 @@
         background-color: rgba(239, 68, 68, 0.1); /* Fundo vermelho suave */
         color: #EF4444; /* Vermelho erro */
     }
+
+    .btn-secondary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+        background-color: var(--bg-card);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        padding: 0.8rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+        height: 42px;
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--bg-page);
+        color: var(--text-primary);
+        border-color: var(--text-secondary);
+    }
+
 
     .description-cell {
         font-weight: 500;

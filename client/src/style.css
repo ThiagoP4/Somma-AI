@@ -6,36 +6,42 @@
 
 :root {
   /* --- TEMA CLARO (O padrão atual) --- */
-  --bg-page: #F8FAFC;       /* Fundo da página */
+  --bg-page: #F1F5F9;       /* Fundo da página */
   --bg-card: #FFFFFF;       /* Fundo do cartão */
-  --bg-input: #F8FAFC;      /* Fundo do input */
+  --bg-input: #FFFFFF;      /* Fundo do input */
   
-  --text-primary: #1E293B;  /* Títulos e textos fortes */
+  --text-primary: #0F172A;  /* Títulos e textos fortes */
   --text-secondary: #64748B;/* Legendas e ícones */
   --text-inverse: #FFFFFF;  /* Texto dentro de botões */
   
-  --border-color: #E2E8F0;  /* Bordas sutis */
+  --border-color: #CBD5E1;  /* Bordas sutis */
   
-  --primary-color: #6366F1; /* Roxo principal */
-  --primary-hover: #4F46E5;
+  --primary-color: #0F172A; /* Roxo principal */
+  --primary-hover: #334155;
+
+  --success-color: #059669; 
+  --danger-color: #EF4444;  /* destructive: 0 84.2% 60.2% */
 }
 
 /* Quando a classe .dark for adicionada no HTML */
 .dark {
   /* --- TEMA ESCURO (Novas cores) --- */
-  --bg-page: #0F172A;       /* Slate 900 */
+  --bg-page: #020817;       /* Slate 900 */
   --bg-card: #1E293B;       /* Slate 800 */
-  --bg-input: #334155;      /* Slate 700 (Input mais claro que o card) */
+  --bg-input: #0F172A;      /* Slate 700 (Input mais claro que o card) */
   
-  --text-primary: #F8FAFC;  /* Slate 50 (Quase branco) */
+  --text-primary: #F1F5F9;  /* Slate 50 (Quase branco) */
   --text-secondary: #94A3B8;/* Slate 400 */
-  --text-inverse: #FFFFFF;
+  --text-inverse: #020817;
   
   --border-color: #334155;  /* Slate 700 */
   
   /* O Primary geralmente brilha mais no escuro, mantive igual por enquanto */
-  --primary-color: #6366F1; 
-  --primary-hover: #818CF8; 
+  --primary-color: #F8FAFC; 
+  --primary-hover: #E2E8F0; 
+
+  --danger-color: #F87171;  /* destructive dark */
+  --success-color: #34D399; 
 }
 
 /* Reset que já existia */
@@ -48,6 +54,7 @@ html, body {
     background-color: var(--bg-page); 
     color: var(--text-primary);       
     transition: background-color 0.3s, color 0.3s; /* Suaviza a troca de tema */
+    font-family: 'Inter', sans-serif;
     scroll-behavior: smooth;
 }
 
@@ -57,3 +64,10 @@ html, body {
     display: flex;
     flex-direction: column;
 }
+
+input, select, textarea {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
