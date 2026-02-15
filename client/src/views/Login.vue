@@ -225,7 +225,7 @@
         width: 100%;
         padding: 0.85rem 1rem 0.85rem 45px; /* Espaço para o ícone */
         border: 1px solid var(--border-color);
-        background-color: var(--bg-page); /* Fundo sutilmente diferente do card */
+        background-color: var(--bg-input); /* Fundo sutilmente diferente do card */
         color: var(--text-primary);
         border-radius: 8px;
         font-size: 1rem;
@@ -234,9 +234,14 @@
     }
 
     .input-field:focus {
-        border-color: var(--primary-color);
+        border-color: var(--text-secondary);
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); /* Anel de foco azul */
         background-color: var(--bg-card);
+    }
+
+    .input-field::placeholder {
+        color: var(--text-secondary);
+        opacity: 0.7;
     }
 
     .form-group {
@@ -266,13 +271,18 @@
         width: 100%;
         padding: 0.9rem;
         background-color: var(--primary-color);
-        color: white;
+        color: var(--text-inverse);
         border: none;
         border-radius: 8px;
         font-size: 1rem;
         font-weight: 600;
         cursor: pointer;
         transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        /* Usa a cor de hover do tema */
+        background-color: var(--primary-hover);
     }
 
     .btn-primary:hover {
@@ -303,7 +313,7 @@
     }
 
     .toggle-mode a {
-        color: var(--primary-color);
+        color: var(--text-primary);
         text-decoration: none;
         font-weight: 600;
     }
@@ -313,7 +323,7 @@
     }
 
     .error-msg {
-        color: #EF4444;
+        color: var(--danger-color);
         font-size: 0.85rem;
         margin-top: 0.5rem;
         text-align: center;

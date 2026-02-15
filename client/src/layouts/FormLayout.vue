@@ -1,44 +1,54 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router';
-import { PhArrowLeft } from '@phosphor-icons/vue';
+import { PhX } from '@phosphor-icons/vue';
 
 defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' }
 });
 
-const router = useRouter();
-const goBack = () => router.push('/');
+const emit = defineEmits(['close']);
+const goBack = () => emit('close');
 </script>
 
 <template>
-  <div class="page-container">
+    <Teleport to="body">
+  <div class="modal-overlay" @click.self="goBack">
     <div class="form-card">
       
       <div class="card-header">
-        <button class="back-btn" @click="goBack" title="Voltar">
-          <PhArrowLeft size="24" weight="bold" />
-        </button>
         <div class="header-text">
-          <h2>{{ title }}</h2>
-          <p v-if="subtitle" class="subtitle">{{ subtitle }}</p>
+            <h2>{{ title }}</h2>
+            <p v-if="subtitle" class="subtitle">{{ subtitle }}</p>
         </div>
+        <button class="back-btn" @click="goBack" title="Fechar">
+          <PhX size="24" weight="bold" />
+        </button>
       </div>
 
       <div class="card-content">
         <slot></slot>
       </div>
-
     </div>
   </div>
+  
+</Teleport>
 </template>
 
 <style scoped>
-.page-container {
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(3px);
     display: flex;
     justify-content: center;
-    align-items: flex-start;
-    width: 100%;
+    align-items: center;
+    z-index: 9999;
+    padding: 1rem;
+    animation: fadeIn 0.2s ease-out;
 }
 
 .form-card {
@@ -50,12 +60,16 @@ const goBack = () => router.push('/');
     box-shadow: 0 4px 20px var(--shadow-color);
     border: 1px solid var(--border-color);
     transition: all 0.3s ease;
-    margin-top: 1rem;
+    margin-top: 0;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-out;
 }
 
 .card-header {
     display: flex;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 1rem;
     margin-bottom: 2rem;
 }
@@ -78,10 +92,12 @@ const goBack = () => router.push('/');
 }
 .back-btn:hover { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--text-secondary); }
 
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
 @media (max-width: 640px) {
     .form-card {
         padding: 1.25rem; /* Reduz de 40px para 20px */
-        margin-top: 0;    /* Cola um pouco mais no topo */
     }
 
     .card-header {
@@ -115,7 +131,7 @@ const goBack = () => router.push('/');
     color: var(--text-secondary);
 }
 
-.required { color: #B91C1C; }
+.required { color: var(--danger-color); }
 
 .input-field {
     width: 100%;

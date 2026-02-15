@@ -1,9 +1,9 @@
 <script setup lang="ts">
     import { ref, onMounted, computed } from 'vue';
-    import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
-    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo } from '@phosphor-icons/vue';
+    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo, PhPencilSimple } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
+    import NewTransaction from '../components/NewTransaction.vue';
 
     interface Transaction {
         idPurchase: number;
@@ -15,15 +15,26 @@
             color: string;
         } | null; // Pode ser null caso o join falhe ou não tenha categoria
     }
-    
-    const router = useRouter();
+
     const transactions = ref<Transaction[]>([]);
     const loading = ref(true);
     const showFilter = ref(false);
+    const isModalOpen = ref(false);
+    const transactionToEdit = ref<Transaction | null>(null);
 
     const totalValue = computed(() => {
         return transactions.value.reduce((acc, item) => acc + item.value, 0);
     });
+
+    const openEditModal = (item: Transaction) => {
+        transactionToEdit.value = item; // Passa os dados da linha clicada
+        isModalOpen.value = true;       // Abre o modal
+    };
+
+    const openNewModal = () => {
+        transactionToEdit.value = null; // Limpa qualquer dado antigo
+        isModalOpen.value = true;
+    };
 
     const fetchTransactions = async () => {
         loading.value = true;
@@ -65,7 +76,7 @@
         :loading="loading"
         :items="transactions"
         :totalValue="totalValue"
-        @addNew="router.push('/new-transaction')"
+        @addNew="openNewModal"
     >
     <template #actions>
         <button 
@@ -133,6 +144,9 @@
             <td> {{ toDate(item.date) }}</td>
             <td class="text-center">
                 <div class="actions-wrapper">
+                    <button class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
+                        <PhPencilSimple size="18" />
+                    </button>
                     <button class="action-btn" @click="deleteTransaction(item.idPurchase)" title="Excluir">
                         <PhTrash size="18" />
                     </button>
@@ -142,7 +156,11 @@
     </template>
 
 </ListLayout>
-
+<NewTransaction 
+    v-if="isModalOpen" 
+    :transactionData="transactionToEdit"
+    @close="isModalOpen = false" 
+    @saved="fetchTransactions" />
 </template>
 
 <style scoped>
@@ -161,8 +179,8 @@
 
     .btn-active {
         background-color: var(--bg-page);
-        color: var(--primary-color);
-        border-color: var(--primary-color);
+        color: var(--text-primary);
+        border-color: var(--border-color);
     }
 
     .filter-card {
@@ -208,7 +226,8 @@
 
     .input-group input:focus,
     .input-group select:focus {
-        border-color: var(--primary-color);
+        border-color: var(--text-secondary); /* Borda de foco visível */
+        background-color: var(--bg-card);
     }
 
     .filter-footer {
@@ -221,12 +240,16 @@
 
     .btn-apply {
         background-color: var(--primary-color);
-        color: #fff;
+        color: var(--text-inverse);
         border: none;
         padding: 0.6rem 1.2rem;
         border-radius: 6px;
         cursor: pointer;
         font-weight: 500;
+    }
+
+    .btn-apply:hover {
+        background-color: var(--primary-hover);
     }
 
     .btn-clean {
@@ -235,7 +258,7 @@
         color: var(--text-secondary);
         cursor: pointer;
     }
-    .btn-clean:hover { text-decoration: underline; }
+    .btn-clean:hover { text-decoration: underline; color: var(--text-primary); }
 
     .category-wrapper {
         display: flex;
@@ -273,7 +296,7 @@
         width: 32px;  /* Tamanho fixo para ficar quadrado */
         height: 32px;
         cursor: pointer;
-        color: #EF4444; /* Ícone vermelho */
+        color: var(--danger-color); /* Ícone vermelho */
         
         /* Centralizar o ícone */
         display: inline-flex;
@@ -284,7 +307,17 @@
 
     .action-btn:hover {
         background-color: rgba(239, 68, 68, 0.1); /* Fundo vermelho suave */
-        color: #EF4444; /* Vermelho erro */
+        color: var(--danger-color); /* Vermelho erro */
+    }
+
+    .action-btn.edit-btn {
+        color: var(--text-secondary);
+        border-color: var(--border-color);
+    }
+    
+    .action-btn.edit-btn:hover {
+        background-color: var(--bg-page);
+        color: var(--primary-color);
     }
 
     .btn-secondary {
