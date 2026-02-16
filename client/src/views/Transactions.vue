@@ -1,11 +1,14 @@
 <script setup lang="ts">
-    import { ref, onMounted, computed } from 'vue';
+    import { ref, onMounted, computed, watch } from 'vue';
+    import { useRoute, useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
-    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo, PhPencilSimple } from '@phosphor-icons/vue';
+    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo, PhPencilSimple, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
+    import NewCategory from '../components/NewCategory.vue';
 
-    interface Transaction {
+        
+    interface Registry {
         idPurchase: number;
         title: string;
         value: number;
@@ -16,46 +19,122 @@
         } | null; // Pode ser null caso o join falhe ou não tenha categoria
     }
 
-    const transactions = ref<Transaction[]>([]);
+
+    const route = useRoute();
+    const router = useRouter();
+    const registries = ref<any[]>([]);
     const loading = ref(true);
     const showFilter = ref(false);
     const isModalOpen = ref(false);
-    const transactionToEdit = ref<Transaction | null>(null);
+    const registryToEdit = ref<Registry | null>(null);
 
-    const totalValue = computed(() => {
-        return transactions.value.reduce((acc, item) => acc + item.value, 0);
+    const abas = ['compras', 'entradas', 'categorias'];
+    const abaAtual = ref(route.query.aba ? String(route.query.aba) : 'compras');
+    const isCategoryModalOpen = ref(false);
+
+    watch(abaAtual, (novaAba) => {
+        router.replace({ query: { ...route.query, aba: novaAba } });
+        fetchRegistries();
     });
 
-    const openEditModal = (item: Transaction) => {
-        transactionToEdit.value = item; // Passa os dados da linha clicada
+    let toqueInicialX = 0;
+    const iniciarToque = (evento: Event) => {
+            const touchEvent = evento as TouchEvent;
+            // O ?. garante que se o array ou o item não existir, ele não quebra
+            if (touchEvent.changedTouches?.length) {
+                toqueInicialX = touchEvent.changedTouches[0]?.screenX ?? 0;
+            }
+    };
+
+    const finalizarToque = (evento: Event) => {
+        const touchEvent = evento as TouchEvent;
+        if (touchEvent.changedTouches && touchEvent.changedTouches.length > 0) {
+            const toqueFinalX = touchEvent.changedTouches[0]?.screenX ?? 0;
+            const diferenca = toqueInicialX - toqueFinalX;
+            const indexAtual = abas.indexOf(abaAtual.value);
+            
+            // Lógica de deslize (swipe) com a garantia (as string) para o TypeScript
+            if (diferenca > 50 && indexAtual < abas.length - 1) {
+                abaAtual.value = abas[indexAtual + 1] as string; // Arrasta pra esquerda -> Avança
+            } else if (diferenca < -50 && indexAtual > 0) {
+                abaAtual.value = abas[indexAtual - 1] as string; // Arrasta pra direita -> Volta
+            }
+        }
+    };
+
+    const moverAba = (direcao: number) => {
+        const indexAtual = abas.indexOf(abaAtual.value);
+        const novoIndex = indexAtual + direcao;
+        
+        if (novoIndex >= 0 && novoIndex < abas.length) {
+            abaAtual.value = abas[novoIndex] as string;
+        }
+    };
+
+    const totalValue = computed(() => {
+        if(abaAtual.value === 'categorias') return 0; 
+        return registries.value.reduce((acc, item) => acc + item.value, 0);
+    });
+
+    const openEditModal = (item: Registry) => {
+        registryToEdit.value = item; // Passa os dados da linha clicada
         isModalOpen.value = true;       // Abre o modal
     };
 
     const openNewModal = () => {
-        transactionToEdit.value = null; // Limpa qualquer dado antigo
-        isModalOpen.value = true;
+        if(abaAtual.value === 'categorias') {
+            isCategoryModalOpen.value = true;
+            return;
+        } else {
+            registryToEdit.value = null; // Limpa qualquer dado antigo
+            isModalOpen.value = true;     // Abre o modal de nova compra
+        }
     };
 
-    const fetchTransactions = async () => {
+    const fetchRegistries = async () => {
         loading.value = true;
         try {
+            if (abaAtual.value === 'categorias') {
+                const { data, error } = await supabase
+                    .from('Category')
+                    .select('*, Purchase(value)'); // Faz join para somar valores por categoria
+                if (error) throw error;
+                // Transforma os dados para o formato esperado pela tabela
+                    registries.value = (data || []).map((cat: any) => {
+                     const listaCompras = cat.Purchase || []; 
+            
+                    return {
+                        idCategory: cat.idCategory,
+                        description: cat.description || '',
+                        color: cat.color || '#cccccc',
+                        value: Array.isArray(listaCompras) 
+                            ? listaCompras.reduce((acc: number, p: any) => acc + (p.value || 0), 0) 
+                            : 0,
+                    };
+                });
+                return; // Para a execução aqui se for categoria
+            }
             const { data, error } = await supabase
             .from('Purchase')
             .select('*, Category(description, color)')
             .order('date', { ascending: false })
 
             if(error) throw error;
-            transactions.value = data || [];
+            registries.value = data || [];
         } catch (error) { console.error(error); }
         finally { loading.value = false; }
     };
-    const deleteTransaction = async (id: number) => {
-        if (!confirm('Excluir Compra')) return
+
+    const deleteRegistry = async (id: number) => {
+        const msg = abaAtual.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : 'Excluir Compra';
+        if (!confirm(`Deseja realmente ${msg}?`)) return
         try {
+            const table = abaAtual.value === 'categorias' ? 'Category' : 'Purchase';
+            const columnId = table === 'Category' ? 'idCategory' : 'idPurchase';
             console.log('Tentando excluir ID:', id);
-           const { error } = await supabase.from('Purchase').delete().eq('idPurchase', id);
+           const { error } = await supabase.from(table).delete().eq(columnId, id);
             if (error) throw error;
-            fetchTransactions();
+            fetchRegistries();
         } catch (e) { alert('Erro ao excluir') }
     };
 
@@ -65,105 +144,209 @@
         return new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
     };
 
-    onMounted(fetchTransactions);
+    onMounted(fetchRegistries);
     
 </script>
 
 <template>
-    <ListLayout 
-        title="Minhas Compras" 
-        buttonText="Nova Compra"
-        :loading="loading"
-        :items="transactions"
-        :totalValue="totalValue"
-        @addNew="openNewModal"
-    >
-    <template #actions>
-        <button 
-            class="btn-secondary"
-            @click="showFilter = !showFilter" 
-            :class="{ 'btn-active': showFilter }"
+    <div @touchstart="iniciarToque" @touchend="finalizarToque">
+        <ListLayout
+            :title="abaAtual === 'compras' ? 'Minhas Compras' : 'Minhas Categorias'"
+            :buttonText="abaAtual === 'compras' ? 'Nova Compra' : 'Nova Categoria'"
+            :loading="loading"
+            :items="registries"
+            :totalValue="abaAtual === 'categorias' ? 0 : totalValue"
+            @addNew="openNewModal"
         >
-            <PhFunnel size="18" /> Filtrar
-        </button>
-        <button class="btn-secondary">
-            <PhMicrosoftExcelLogo size="18" /> Excel
-        </button>
-    </template>
-    <template #header>
-        <tr>
-            <th width="35%">Descrição</th>
-            <th width="15%">Valor</th>
-            <th width="20%">Categoria</th>
-            <th width="15%" class="text-center">Data</th>
-            <th width="10%" class="text-center">Ações</th>
-        </tr>
-    </template>
 
-    <template #filters v-if="showFilter">
-        <div class="filter-card">
-            <div class="filter-row">
-                <div class="input-group">
-                    <label>Buscar</label>
-                    <input type="text" placeholder="Digite para buscar..." />
-                </div>
-                <div class="input-group">
-                    <label>Categoria</label>
-                    <select>
-                        <option value="">Todas</option>
-                        <option value="alimentacao">Alimentação</option>
-                    </select> 
-                </div>
-                <div class="input-group">
-                    <label>Data</label>
-                    <input type="date" />
-                </div>
-                <div class="filter-footer">
-                    <button class="btn-clean" @click="showFilter = false">Limpar</button>
-                    <button class="btn-apply" @click="fetchTransactions()">Filtrar</button>
+        <template #actions>
+            <button 
+                class="btn-secondary"
+                @click="showFilter = !showFilter" 
+                :class="{ 'btn-active': showFilter }"
+            >
+                <PhFunnel size="18" /> Filtrar
+            </button>
+            <button class="btn-secondary">
+                <PhMicrosoftExcelLogo size="18" /> Excel
+            </button>
+        </template>
+        <template #header>
+            <tr v-if="abaAtual === 'compras'">
+                <th width="35%">Descrição</th>
+                <th width="15%">Valor</th>
+                <th width="20%">Categoria</th>
+                <th width="15%" class="text-center">Data</th>
+                <th width="10%" class="text-center">Ações</th>
+            </tr>
+            <tr v-else-if="abaAtual === 'categorias'">
+                <th width="40%">Descrição da Categoria</th>
+                <th width="40%">Cor Identificadora</th>
+                <th width="25%" class="text-right">Total Gasto</th>
+                <th width="20%" class="text-center">Ações</th>
+            </tr>
+        </template>
+
+        <template #filters v-if="showFilter">
+            <div class="filter-card">
+                <div class="filter-row">
+                    <div class="input-group">
+                        <label>Buscar</label>
+                        <input type="text" placeholder="Digite para buscar..." />
+                    </div>
+                    <div class="input-group">
+                        <label>Categoria</label>
+                        <select>
+                            <option value="">Todas</option>
+                            <option value="alimentacao">Alimentação</option>
+                        </select> 
+                    </div>
+                    <div class="input-group">
+                        <label>Data</label>
+                        <input type="date" />
+                    </div>
+                    <div class="filter-footer">
+                        <button class="btn-clean" @click="showFilter = false">Limpar</button>
+                        <button class="btn-apply" @click="fetchRegistries()">Filtrar</button>
+                    </div>
                 </div>
             </div>
-        </div>
-    </template>
+        </template>
 
-    <template #body>
-        <tr v-for="item in transactions" :key="item.idPurchase" class="hover-row">
-            <td> 
-                <span class="row-title">
-                    {{ item.title }}
-                </span>
-            </td>
-            <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
-            <td>
-                <div class="category-wrapper">
-                   <span class="category-dot"
-                   :style="{ backgroundColor: item.Category?.color || 'var(--text-muted)' }">
-                </span>{{ item.Category?.description }}
-                </div>
+        <template #body>
+            <tr v-for="item in registries" :key="item.idPurchase || item.idCategory" class="hover-row">
+                <template v-if="abaAtual === 'compras'">
+                    <td> 
+                        <span class="row-title">
+                            {{ item.title }}
+                        </span>
+                    </td>
+                <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
+                <td>
+                    <div class="category-wrapper">
+                    <span class="category-dot"
+                    :style="{ backgroundColor: item.Category?.color || 'var(--text-muted)' }">
+                    </span>{{ item.Category?.description }}
+                    </div>
+                    </td>
+                <td> {{ toDate(item.date) }}</td>
+                </template>
+                <template v-else-if="abaAtual === 'categorias'">
+                    <td><span class="row-title">{{ item.description }}</span></td>
+                    <td>
+                        <div class="category-wrapper">
+                            <span class="category-dot" :style="{ backgroundColor: item.color || 'var(--text-muted)' }"></span>
+                            {{ item.color }}
+                        </div>
+                    </td>
+                    <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
+                </template>
+                <td class="text-center">
+                    <div class="actions-wrapper">
+                        <button v-if="abaAtual !== 'categorias'" class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
+                            <PhPencilSimple size="18" />
+                        </button>
+                        <button class="action-btn" @click="deleteRegistry(item.idPurchase || item.idCategory )" title="Excluir">
+                            <PhTrash size="18" />
+                        </button>
+                    </div>
                 </td>
-            <td> {{ toDate(item.date) }}</td>
-            <td class="text-center">
-                <div class="actions-wrapper">
-                    <button class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
-                        <PhPencilSimple size="18" />
-                    </button>
-                    <button class="action-btn" @click="deleteTransaction(item.idPurchase)" title="Excluir">
-                        <PhTrash size="18" />
-                    </button>
-                </div>
-            </td>
-        </tr>
-    </template>
+            </tr>
+        </template>
 
-</ListLayout>
-<NewTransaction 
-    v-if="isModalOpen" 
-    :transactionData="transactionToEdit"
-    @close="isModalOpen = false" 
-    @saved="fetchTransactions" />
+        </ListLayout>
+        <div class="sub-nav-container">
+            <button class="nav-arrow" @click="moverAba(-1)" :disabled="abas.indexOf(abaAtual) === 0">
+                <PhCaretLeft size="20" weight="bold" />
+            </button>
+
+            <div class="nav-indicator-bar">
+                <div v-for="aba in abas" :key="aba" class="dot" :class="{ active: abaAtual === aba }"></div>
+            </div>
+
+            <button class="nav-arrow" @click="moverAba(1)" :disabled="abas.indexOf(abaAtual) === abas.length - 1">
+                <PhCaretRight size="20" weight="bold" />
+            </button>
+        </div>
+        <NewTransaction 
+            v-if="isModalOpen" 
+            :transactionData="registryToEdit"
+            @close="isModalOpen = false" 
+            @saved="fetchRegistries" />
+
+        <NewCategory 
+            v-if="isCategoryModalOpen" 
+            @close="isCategoryModalOpen = false" 
+            @saved="fetchRegistries" />
+            
+    </div>
 </template>
 
 <style scoped>
+
+    .sub-nav-container {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        
+        /* FIXAÇÃO NA TELA */
+        position: fixed; /* Isso tira o elemento do fluxo e cola na tela */
+        bottom: 2rem;    /* Distância da borda inferior */
+        left: 50%;       /* Centraliza horizontalmente */
+        transform: translateX(-50%); /* Ajuste fino da centralização */
+        
+        z-index: 999; /* Garante que fique acima de qualquer tabela ou modal */
+        
+        /* ESTILO PÍLULA FLUTUANTE */
+        padding: 0.8rem 2rem;
+        background-color: var(--bg-card); /* Deve ser uma cor sólida, ex: #1e293b */
+        border: 1px solid var(--border-color);
+        border-radius: 999px; /* Arredondamento máximo (Pill shape) */
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5); /* Sombra forte para dar profundidade */
+        backdrop-filter: blur(10px); /* Opcional: efeito de vidro se o fundo tiver transparência */
+    }
+
+    .nav-arrow {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s, transform 0.2s;
+        padding: 4px;
+    }
+
+    .nav-arrow:hover:not(:disabled) {
+        color: var(--text-primary);
+        transform: scale(1.1);
+    }
+
+    .nav-arrow:disabled {
+        opacity: 0.2;
+        cursor: not-allowed;
+    }
+
+    .nav-indicator-bar {
+        display: flex;
+        gap: 8px;
+    }
+
+    .nav-indicator-bar .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--border-color);
+        transition: all 0.3s ease-out;
+    }
+
+    .nav-indicator-bar .dot.active {
+        width: 24px;
+        background: var(--primary-color);
+    }
 
     .row-title {
         font-weight: 600;
