@@ -1,8 +1,9 @@
 <script setup lang="ts">
 
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, watch } from 'vue';
   import { supabase } from '../services/supabase';
-  
+  import { useDataStore } from '../stores/useDateStore';
+  import { storeToRefs } from 'pinia';
 
   import {
     PhCurrencyDollar,
@@ -15,6 +16,9 @@
 
   import VueApexCharts from 'vue3-apexcharts'
   import type { ApexOptions } from 'apexcharts'
+
+  const dateStore = useDataStore();
+  const { selectedMonth, selectedYear } = storeToRefs(dateStore);
 
   const dashboardData = ref({
     total: 0,
@@ -73,7 +77,10 @@
 
   const fetchData = async () => {
     try {
-      const { data, error } = await supabase.rpc('get_dashboard_data');
+      const { data, error } = await supabase.rpc('get_dashboard_data', {
+        p_month: selectedMonth.value + 1,
+        p_year: selectedYear.value
+      });
 
       if (error) throw error;
       
@@ -135,6 +142,10 @@
       console.log("Erro ao conectar com o servidor. Verifique se o Backend está rodando.");
     }
   };
+
+  watch([selectedMonth, selectedYear], () => {
+    fetchData();
+  });
 
   onMounted(() => {
     fetchData();
