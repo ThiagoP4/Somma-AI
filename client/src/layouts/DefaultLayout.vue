@@ -2,7 +2,7 @@
     import { ref, onMounted } from 'vue';
     import { RouterLink, useRouter } from 'vue-router'
     import { supabase } from '../services/supabase';
-    import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag, PhSun, PhMoon } from '@phosphor-icons/vue'
+    import { PhSignOut, PhTrendUp, PhHouse, PhFolders, PhSparkle, PhSun, PhMoon } from '@phosphor-icons/vue'
 
     const isDark = ref(false);
     const router = useRouter();
@@ -60,13 +60,13 @@
             </RouterLink>
         </li>
         <li>
-            <RouterLink to="/transactions" active-class="active">
-                <PhPlus size="20" weight="bold" /> Compras
+            <RouterLink to="/records" active-class="active">
+                <PhFolders size="20" weight="bold" /> Registros
             </RouterLink>
         </li>
         <li>
         <RouterLink to="/new-category" active-class="active">
-            <PhTag size="20" /> Categorias
+            <PhSparkle size="20" /> Modo IA
         </RouterLink>
         </li>
       </ul>

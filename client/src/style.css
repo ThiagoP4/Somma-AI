@@ -71,3 +71,89 @@ input, select, textarea {
     border: 1px solid var(--border-color) !important;
 }
 
+
+/* =========================================
+   UI GERAL - COMPONENTES GLOBAIS
+   ========================================= */
+
+/* --- BOTÕES --- */
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    background-color: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    height: 42px;
+}
+.btn-secondary:hover { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--text-secondary); }
+.btn-active { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--border-color); }
+
+.btn-apply {
+    background-color: var(--primary-color);
+    color: var(--text-inverse);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+.btn-apply:hover { background-color: var(--primary-hover); }
+
+.btn-clean {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.btn-clean:hover { text-decoration: underline; color: var(--text-primary); }
+
+.action-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    color: var(--danger-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+.action-btn:hover { background-color: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
+
+.action-btn.edit-btn { color: var(--text-secondary); border-color: var(--border-color); }
+.action-btn.edit-btn:hover { background-color: var(--bg-page); color: var(--primary-color); }
+
+/* --- CARD DE FILTROS E FORMULÁRIOS --- */
+.filter-card {
+    background-color: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border-color);
+    animation: fadeIn 0.2s ease-out;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+.filter-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+.filter-footer { display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem; }
+
+.input-group { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 200px; }
+.input-group label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; }
+.input-group input, .input-group select {
+    padding: 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+}
+.input-group input:focus, .input-group select:focus { border-color: var(--text-secondary); background-color: var(--bg-card); }
+

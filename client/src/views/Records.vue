@@ -1,11 +1,11 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, watch } from 'vue';
-    import { useRoute, useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
     import { PhTrash, PhFunnel, PhMicrosoftExcelLogo, PhPencilSimple, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
     import NewCategory from '../components/NewCategory.vue';
+    import { useTabsSwipe } from '../composables/useTabsSwipe';
 
         
     interface Registry {
@@ -19,60 +19,23 @@
         } | null; // Pode ser null caso o join falhe ou não tenha categoria
     }
 
-
-    const route = useRoute();
-    const router = useRouter();
     const registries = ref<any[]>([]);
     const loading = ref(true);
     const showFilter = ref(false);
     const isModalOpen = ref(false);
+    const isCategoryModalOpen = ref(false);
     const registryToEdit = ref<Registry | null>(null);
 
-    const abas = ['compras', 'entradas', 'categorias'];
-    const abaAtual = ref(route.query.aba ? String(route.query.aba) : 'compras');
-    const isCategoryModalOpen = ref(false);
-
-    watch(abaAtual, (novaAba) => {
-        router.replace({ query: { ...route.query, aba: novaAba } });
+    const touchArea = ref<HTMLElement | null>(null);
+    const { tabs, currentTab: currentTab, moveTab: moveTab } = useTabsSwipe(['compras', 'entradas', 'categorias'], touchArea);
+    
+    
+    watch(currentTab, () => {
         fetchRegistries();
     });
 
-    let toqueInicialX = 0;
-    const iniciarToque = (evento: Event) => {
-            const touchEvent = evento as TouchEvent;
-            // O ?. garante que se o array ou o item não existir, ele não quebra
-            if (touchEvent.changedTouches?.length) {
-                toqueInicialX = touchEvent.changedTouches[0]?.screenX ?? 0;
-            }
-    };
-
-    const finalizarToque = (evento: Event) => {
-        const touchEvent = evento as TouchEvent;
-        if (touchEvent.changedTouches && touchEvent.changedTouches.length > 0) {
-            const toqueFinalX = touchEvent.changedTouches[0]?.screenX ?? 0;
-            const diferenca = toqueInicialX - toqueFinalX;
-            const indexAtual = abas.indexOf(abaAtual.value);
-            
-            // Lógica de deslize (swipe) com a garantia (as string) para o TypeScript
-            if (diferenca > 50 && indexAtual < abas.length - 1) {
-                abaAtual.value = abas[indexAtual + 1] as string; // Arrasta pra esquerda -> Avança
-            } else if (diferenca < -50 && indexAtual > 0) {
-                abaAtual.value = abas[indexAtual - 1] as string; // Arrasta pra direita -> Volta
-            }
-        }
-    };
-
-    const moverAba = (direcao: number) => {
-        const indexAtual = abas.indexOf(abaAtual.value);
-        const novoIndex = indexAtual + direcao;
-        
-        if (novoIndex >= 0 && novoIndex < abas.length) {
-            abaAtual.value = abas[novoIndex] as string;
-        }
-    };
-
     const totalValue = computed(() => {
-        if(abaAtual.value === 'categorias') return 0; 
+        if(currentTab.value === 'categorias') return 0; 
         return registries.value.reduce((acc, item) => acc + item.value, 0);
     });
 
@@ -82,7 +45,7 @@
     };
 
     const openNewModal = () => {
-        if(abaAtual.value === 'categorias') {
+        if(currentTab.value === 'categorias') {
             isCategoryModalOpen.value = true;
             return;
         } else {
@@ -94,7 +57,7 @@
     const fetchRegistries = async () => {
         loading.value = true;
         try {
-            if (abaAtual.value === 'categorias') {
+            if (currentTab.value === 'categorias') {
                 const { data, error } = await supabase
                     .from('Category')
                     .select('*, Purchase(value)'); // Faz join para somar valores por categoria
@@ -126,10 +89,10 @@
     };
 
     const deleteRegistry = async (id: number) => {
-        const msg = abaAtual.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : 'Excluir Compra';
+        const msg = currentTab.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : 'Excluir Compra';
         if (!confirm(`Deseja realmente ${msg}?`)) return
         try {
-            const table = abaAtual.value === 'categorias' ? 'Category' : 'Purchase';
+            const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
             const columnId = table === 'Category' ? 'idCategory' : 'idPurchase';
             console.log('Tentando excluir ID:', id);
            const { error } = await supabase.from(table).delete().eq(columnId, id);
@@ -149,13 +112,13 @@
 </script>
 
 <template>
-    <div @touchstart="iniciarToque" @touchend="finalizarToque">
+    <div ref="touchArea">
         <ListLayout
-            :title="abaAtual === 'compras' ? 'Minhas Compras' : 'Minhas Categorias'"
-            :buttonText="abaAtual === 'compras' ? 'Nova Compra' : 'Nova Categoria'"
+            :title="currentTab === 'compras' ? 'Minhas Compras' : 'Minhas Categorias'"
+            :buttonText="currentTab === 'compras' ? 'Nova Compra' : 'Nova Categoria'"
             :loading="loading"
             :items="registries"
-            :totalValue="abaAtual === 'categorias' ? 0 : totalValue"
+            :totalValue="currentTab === 'categorias' ? 0 : totalValue"
             @addNew="openNewModal"
         >
 
@@ -172,14 +135,14 @@
             </button>
         </template>
         <template #header>
-            <tr v-if="abaAtual === 'compras'">
+            <tr v-if="currentTab === 'compras'">
                 <th width="35%">Descrição</th>
                 <th width="15%">Valor</th>
                 <th width="20%">Categoria</th>
                 <th width="15%" class="text-center">Data</th>
                 <th width="10%" class="text-center">Ações</th>
             </tr>
-            <tr v-else-if="abaAtual === 'categorias'">
+            <tr v-else-if="currentTab === 'categorias'">
                 <th width="40%">Descrição da Categoria</th>
                 <th width="40%">Cor Identificadora</th>
                 <th width="25%" class="text-right">Total Gasto</th>
@@ -215,7 +178,7 @@
 
         <template #body>
             <tr v-for="item in registries" :key="item.idPurchase || item.idCategory" class="hover-row">
-                <template v-if="abaAtual === 'compras'">
+                <template v-if="currentTab === 'compras'">
                     <td> 
                         <span class="row-title">
                             {{ item.title }}
@@ -231,7 +194,7 @@
                     </td>
                 <td> {{ toDate(item.date) }}</td>
                 </template>
-                <template v-else-if="abaAtual === 'categorias'">
+                <template v-else-if="currentTab === 'categorias'">
                     <td><span class="row-title">{{ item.description }}</span></td>
                     <td>
                         <div class="category-wrapper">
@@ -243,7 +206,7 @@
                 </template>
                 <td class="text-center">
                     <div class="actions-wrapper">
-                        <button v-if="abaAtual !== 'categorias'" class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
+                        <button v-if="currentTab !== 'categorias'" class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
                             <PhPencilSimple size="18" />
                         </button>
                         <button class="action-btn" @click="deleteRegistry(item.idPurchase || item.idCategory )" title="Excluir">
@@ -256,15 +219,15 @@
 
         </ListLayout>
         <div class="sub-nav-container">
-            <button class="nav-arrow" @click="moverAba(-1)" :disabled="abas.indexOf(abaAtual) === 0">
+            <button class="nav-arrow" @click="moveTab(-1)" :disabled="tabs.indexOf(currentTab) === 0">
                 <PhCaretLeft size="20" weight="bold" />
             </button>
 
             <div class="nav-indicator-bar">
-                <div v-for="aba in abas" :key="aba" class="dot" :class="{ active: abaAtual === aba }"></div>
+                <div v-for="aba in tabs" :key="aba" class="dot" :class="{ active: currentTab === aba }"></div>
             </div>
 
-            <button class="nav-arrow" @click="moverAba(1)" :disabled="abas.indexOf(abaAtual) === abas.length - 1">
+            <button class="nav-arrow" @click="moveTab(1)" :disabled="tabs.indexOf(currentTab) === tabs.length - 1">
                 <PhCaretRight size="20" weight="bold" />
             </button>
         </div>
@@ -348,202 +311,17 @@
         background: var(--primary-color);
     }
 
-    .row-title {
-        font-weight: 600;
-        color: var(--text-primary);
-        font-size: 0.95rem;
-        display: block;
-    }
-
-    .date-text {
-        color: var(--text-secondary);
-        font-size: 0.85rem;
-    }
-
-    .btn-active {
-        background-color: var(--bg-page);
-        color: var(--text-primary);
-        border-color: var(--border-color);
-    }
-
-    .filter-card {
-        background-color: var(--bg-card);
-        padding: 1.5rem;
-        border-radius: 8px;
-        margin-bottom: 1rem;
-        border: 1px solid var(--border-color);
-        animation: fadeIn 0.2s ease-out;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-    }
-
-    .filter-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-
-    .input-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        flex: 1;
-        min-width: 200px;
-    }
-
-    .input-group label {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        font-weight: 500;
-    }
-
-    .input-group input,
-    .input-group select {
-        padding: 0.6rem;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background-color: var(--bg-input); /* Importante para o tema escuro */
-        color: var(--text-primary);
-        outline: none;
-    }
-
-    .input-group input:focus,
-    .input-group select:focus {
-        border-color: var(--text-secondary); /* Borda de foco visível */
-        background-color: var(--bg-card);
-    }
-
-    .filter-footer {
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-        border-top: 1px solid var(--border-color);
-        padding-top: 1rem;
-    }
-
-    .btn-apply {
-        background-color: var(--primary-color);
-        color: var(--text-inverse);
-        border: none;
-        padding: 0.6rem 1.2rem;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: 500;
-    }
-
-    .btn-apply:hover {
-        background-color: var(--primary-hover);
-    }
-
-    .btn-clean {
-        background: transparent;
-        border: none;
-        color: var(--text-secondary);
-        cursor: pointer;
-    }
-    .btn-clean:hover { text-decoration: underline; color: var(--text-primary); }
-
-    .category-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 8px; /* Espaço entre bolinha e texto */
-        font-weight: 500; /* Peso da fonte igual da imagem */
-        color: var(--text-primary);
-    }
-
-    .category-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%; /* Faz virar bolinha */
-        background-color: var(--primary-color); /* Ou coloque uma cor fixa ex: #3B82F6 */
-        display: inline-block;
-    }
-
-    .value-cell {
-        font-weight: 600;
-        color: #10B981;
-        font-feature-settings: "tnum";
-        font-size: 0.95rem;
-    }
-
-    .actions-wrapper {
-        display: flex;
-        justify-content: center;
-        gap: 8px;
-    }
-
-    .action-btn {
-        background: transparent;
-        border: 1px solid var(--border-color); /* Borda cinza suave */
-        border-radius: 6px;
-        width: 32px;  /* Tamanho fixo para ficar quadrado */
-        height: 32px;
-        cursor: pointer;
-        color: var(--danger-color); /* Ícone vermelho */
-        
-        /* Centralizar o ícone */
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
-    }
-
-    .action-btn:hover {
-        background-color: rgba(239, 68, 68, 0.1); /* Fundo vermelho suave */
-        color: var(--danger-color); /* Vermelho erro */
-    }
-
-    .action-btn.edit-btn {
-        color: var(--text-secondary);
-        border-color: var(--border-color);
-    }
-    
-    .action-btn.edit-btn:hover {
-        background-color: var(--bg-page);
-        color: var(--primary-color);
-    }
-
-    .btn-secondary {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        justify-content: center;
-        background-color: var(--bg-card);
-        color: var(--text-secondary);
-        border: 1px solid var(--border-color);
-        padding: 0.8rem 1rem;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.2s;
-        height: 42px;
-    }
-
-    .btn-secondary:hover {
-        background-color: var(--bg-page);
-        color: var(--text-primary);
-        border-color: var(--text-secondary);
-    }
-
-
-    .description-cell {
-        font-weight: 500;
-        color: var(--text-primary);
-    }
-
-    .text-right {
-        text-align: right;
-    }
-
-    .text-center {
-        text-align: center;
-    }
+    .row-title { font-weight: 600; color: var(--text-primary); font-size: 0.95rem; display: block; }
+    .date-text { color: var(--text-secondary); font-size: 0.85rem; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .value-cell { font-weight: 600; color: #10B981; font-feature-settings: "tnum"; font-size: 0.95rem; }
+    .actions-wrapper { display: flex; justify-content: center; gap: 8px; }
+    .category-wrapper { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--text-primary); }
+    .category-dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--primary-color); display: inline-block; }
 
     @media (max-width: 640px) {
-        .badge {
-            font-size: 0.75rem;
-            padding: 2px 6px;
-        }
+        .badge { font-size: 0.75rem; padding: 2px 6px; }
     }
-    
+
 </style>

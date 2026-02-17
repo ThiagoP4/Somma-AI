@@ -16,21 +16,9 @@ const router = createRouter({
         meta: { requiresAuth: true }
     },
     {
-        path: '/transactions',
-        name: 'transactions',
-        component: () => import('../views/Transactions.vue'),
-        meta: { requiresAuth: true }
-    },
-    {
-        path: '/new-transaction',
-        name: 'new-transaction',
-        component: () => import('../components/NewTransaction.vue'),
-        meta: { requiresAuth: true }
-    },
-    {
-        path: '/new-category',
-        name: 'new-category',
-        component: () => import('../components/NewCategory.vue'),
+        path: '/records',
+        name: 'records',
+        component: () => import('../views/Records.vue'),
         meta: { requiresAuth: true }
     }
     ]
