@@ -4,6 +4,9 @@
     import { supabase } from '../services/supabase';
     import { PhPlus, PhWhatsappLogo } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const { showAlert } = useAlertStore();
 
     const props = defineProps({
         transactionData: {
@@ -42,7 +45,7 @@
 
     const handleSubmit = async () => {
         if (!description.value || !value.value || !categoryId.value || !date.value) {
-            alert('Por favor, preencha todos os campos obrigatórios.');
+            showAlert('Por favor, preencha todos os campos obrigatórios.', 'warning');
             return;
         }
 
@@ -71,7 +74,7 @@
             emit('close');
         } catch (error) {
             console.error('Erro ao adicionar compra:', error);
-            alert('Ocorreu um erro ao adicionar a compra. Tente novamente.');
+            showAlert('Ocorreu um erro ao adicionar a compra. Tente novamente.', 'error');
         } finally {
             loading.value = false; // <--- DESTRAVA O BOTÃO
         }

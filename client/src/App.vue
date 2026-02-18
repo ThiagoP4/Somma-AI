@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DefaultLayout from './layouts/DefaultLayout.vue'
+import CustomAlert from './components/CustomAlert.vue';
 import { RouterView } from 'vue-router'; 
 </script>
 
@@ -7,6 +8,7 @@ import { RouterView } from 'vue-router';
   <DefaultLayout>
     <RouterView />
   </DefaultLayout>
+  <CustomAlert />
 </template>
 
 <style>

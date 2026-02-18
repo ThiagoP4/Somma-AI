@@ -6,6 +6,10 @@
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const { showAlert } = useAlertStore();
+
 
     const isDark = ref(false);
     const router = useRouter();
@@ -47,7 +51,7 @@
         
       } catch (error) {
         console.error('Erro ao sair:', error);
-        alert('Erro ao tentar sair. Tente novamente.');
+        showAlert('Erro ao tentar sair. Tente novamente.', 'error');
       }
     };
 

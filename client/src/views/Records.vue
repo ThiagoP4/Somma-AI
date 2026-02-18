@@ -9,6 +9,10 @@
     import { useTabsSwipe } from '../composables/useTabsSwipe';
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const { showAlert } = useAlertStore();
+
         
     interface Registry {
         idPurchase: number;
@@ -46,7 +50,12 @@
 
     const openEditModal = (item: Registry) => {
         registryToEdit.value = item; // Passa os dados da linha clicada
-        isModalOpen.value = true;       // Abre o modal
+        if(currentTab.value === 'categorias') {
+            isCategoryModalOpen.value = true;
+            return;
+        } else {
+            isModalOpen.value = true;     // Abre o modal de edição de compra
+        }
     };
 
     const openNewModal = () => {
@@ -107,7 +116,7 @@
            const { error } = await supabase.from(table).delete().eq(columnId, id);
             if (error) throw error;
             fetchRegistries();
-        } catch (e) { alert('Erro ao excluir') }
+        } catch (e) { showAlert('Erro ao excluir', 'error'); }
     };
 
     const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL'}).format(v);
@@ -123,8 +132,8 @@
 <template>
     <div ref="touchArea">
         <ListLayout
-            :title="currentTab === 'compras' ? 'Minhas Compras' : 'Minhas Categorias'"
-            :buttonText="currentTab === 'compras' ? 'Nova Compra' : 'Nova Categoria'"
+            :title="currentTab === 'compras' ? 'Minhas Compras' : currentTab === 'entradas' ? 'Entradas' : currentTab === 'categorias' ? 'Categorias' : ''"
+            :buttonText="currentTab === 'compras' ? 'Nova Compra' : currentTab === 'entradas' ? 'Nova Entrada' : currentTab === 'categorias' ? 'Nova Categoria' : ''"
             :loading="loading"
             :items="registries"
             :totalValue="currentTab === 'categorias' ? 0 : totalValue"
@@ -152,10 +161,9 @@
                 <th width="10%" class="text-center">Ações</th>
             </tr>
             <tr v-else-if="currentTab === 'categorias'">
-                <th width="40%">Descrição da Categoria</th>
+                <th width="50%">Descrição da Categoria</th>
                 <th width="40%">Cor Identificadora</th>
-                <th width="25%" class="text-right">Total Gasto</th>
-                <th width="20%" class="text-center">Ações</th>
+                <th width="10%" class="text-center">Ações</th>
             </tr>
         </template>
 
@@ -211,11 +219,10 @@
                             {{ item.color }}
                         </div>
                     </td>
-                    <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
                 </template>
                 <td class="text-center">
                     <div class="actions-wrapper">
-                        <button v-if="currentTab !== 'categorias'" class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
+                        <button class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
                             <PhPencilSimple size="18" />
                         </button>
                         <button class="action-btn" @click="deleteRegistry(item.idPurchase || item.idCategory )" title="Excluir">
@@ -235,7 +242,8 @@
             @saved="fetchRegistries" />
 
         <NewCategory 
-            v-if="isCategoryModalOpen" 
+            v-if="isCategoryModalOpen"
+            :categoryData="registryToEdit" 
             @close="isCategoryModalOpen = false" 
             @saved="fetchRegistries" />
             
