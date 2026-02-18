@@ -64,6 +64,7 @@
                     password: password.value,
                 });
                 if (error) throw error;
+                showAlert('Login realizado com sucesso!', 'success');
                 router.push('/');
             }
         } catch (error) {

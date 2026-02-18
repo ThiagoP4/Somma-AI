@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { RouterLink, useRouter } from 'vue-router'
+    import { RouterLink, useRouter, useRoute } from 'vue-router'
     import { supabase } from '../services/supabase';
     import { PhSignOut, PhTrendUp, PhHouse, PhFolders, PhSparkle, PhSun, PhMoon, PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
     import { useDateStore } from '../stores/useDateStore';
@@ -13,6 +13,7 @@
 
     const isDark = ref(false);
     const router = useRouter();
+    const route = useRoute();
     const dateStore = useDateStore();
 
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
@@ -70,7 +71,7 @@
 
 <template>
   <div class="layout-wrapper">
-    <nav class="navbar">
+    <nav class="navbar" v-if="route.path !== '/login'">
       <div class="logo">
         <PhTrendUp size="28" weight="fill" class="logo-icon" />
         <span>Finance <span class="ai">AI</span></span>

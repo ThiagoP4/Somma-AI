@@ -102,19 +102,22 @@
 
             if(error) throw error;
             registries.value = data || [];
-        } catch (error) { console.error(error); }
+        } catch (error) { 
+            console.error(error);
+            showAlert('Erro ao carregar registros', 'error');
+         }
         finally { loading.value = false; }
     };
 
     const deleteRegistry = async (id: number) => {
-        const msg = currentTab.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : 'Excluir Compra';
+        const msg = currentTab.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : currentTab.value === 'compras' ? 'Excluir Compra' : 'Excluir Entrada';
         if (!confirm(`Deseja realmente ${msg}?`)) return
         try {
             const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
             const columnId = table === 'Category' ? 'idCategory' : 'idPurchase';
-            console.log('Tentando excluir ID:', id);
-           const { error } = await supabase.from(table).delete().eq(columnId, id);
+            const { error } = await supabase.from(table).delete().eq(columnId, id);
             if (error) throw error;
+            showAlert('Registro excluído com sucesso', 'success');
             fetchRegistries();
         } catch (e) { showAlert('Erro ao excluir', 'error'); }
     };
@@ -234,7 +237,7 @@
         </template>
 
         </ListLayout>
-        <FloatingTabs :tabs="tabs" :currentTab="currentTab" @move="moveTab" />
+        <FloatingTabs :tabs="tabs" :currentTab="currentTab" @move="moveTab" @select="currentTab = $event" />
         <NewTransaction 
             v-if="isModalOpen" 
             :transactionData="registryToEdit"

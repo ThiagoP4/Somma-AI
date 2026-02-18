@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue';
+import { PhShoppingCart, PhTrendUp, PhTag, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue';
 
 defineProps<{ tabs: string[]; currentTab: string; }>();
-const emit = defineEmits<{ (e: 'move', direction: number): void; }>();
+const emit = defineEmits<{ 
+    (e: 'move', direction: number): void;
+    (e: 'select', tab: string): void;
+    }>();
+
+const tabInfo: Record<string, any> = {
+    compras: { icon: PhShoppingCart, label: 'Compras' },
+    entradas: { icon: PhTrendUp, label: 'Entradas' },
+    categorias: { icon: PhTag, label: 'Categorias' }
+};
 </script>
 
 <template>
@@ -11,7 +20,16 @@ const emit = defineEmits<{ (e: 'move', direction: number): void; }>();
             <PhCaretLeft size="20" weight="bold" />
         </button>
         <div class="nav-indicator-bar">
-            <div v-for="aba in tabs" :key="aba" class="dot" :class="{ active: currentTab === aba }"></div>
+            <button 
+                v-for="aba in tabs" 
+                :key="aba" 
+                class="tab-icon-btn" 
+                :class="{ active: currentTab === aba }"
+                @click="emit('select', aba)"
+                :title="tabInfo[aba]?.label"
+            >
+                <component :is="tabInfo[aba].icon" size="22" :weight="currentTab === aba ? 'fill' : 'regular' " />
+            </button>
         </div>
         <button class="nav-arrow" @click="emit('move', 1)" :disabled="tabs.indexOf(currentTab) === tabs.length - 1">
             <PhCaretRight size="20" weight="bold" />
@@ -72,17 +90,28 @@ const emit = defineEmits<{ (e: 'move', direction: number): void; }>();
         gap: 8px;
     }
 
-    .nav-indicator-bar .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 4px;
-        background: var(--border-color);
-        transition: all 0.3s ease-out;
-    }
+    .tab-icon-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
 
-    .nav-indicator-bar .dot.active {
-        width: 24px;
-        background: var(--primary-color);
-    }
+        .tab-icon-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-icon-btn.active {
+            background: var(--primary-color);
+            color: var(--bg-card);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            transform: scale(1.1);
+        }
 
 </style>
