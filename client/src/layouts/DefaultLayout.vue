@@ -89,7 +89,7 @@
             </RouterLink>
         </li>
         <li>
-        <RouterLink to="/ai" active-class="active">
+        <RouterLink to="/copilot" active-class="active">
             <PhSparkle size="20" /> Modo IA
         </RouterLink>
         </li>
