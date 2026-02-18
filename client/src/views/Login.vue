@@ -3,6 +3,9 @@
     import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
     import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus, PhUser, PhPhone } from '@phosphor-icons/vue';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const { showAlert } = useAlertStore();
 
 
     const router = useRouter();
@@ -53,7 +56,7 @@
                         throw new Error('Erro ao salvar os dados do perfil. O cadastro foi cancelado.');
                     }
                 }
-                alert('Cadastro realizado! Verifique seu email para confirmar a conta.');
+                showAlert('Cadastro realizado! Verifique seu email para confirmar a conta.', 'success');
                 isSignUp.value = false;
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
@@ -61,6 +64,7 @@
                     password: password.value,
                 });
                 if (error) throw error;
+                showAlert('Login realizado com sucesso!', 'success');
                 router.push('/');
             }
         } catch (error) {

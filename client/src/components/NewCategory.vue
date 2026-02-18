@@ -1,8 +1,14 @@
 <script setup lang = "ts">
-    import { ref } from 'vue';
+    import { ref, onMounted } from 'vue';
     import { supabase } from '../services/supabase';
-    import { PhCheck, PhPlus } from '@phosphor-icons/vue';
+    import { PhCheck, PhPlus, PhPencilSimple } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const { showAlert } = useAlertStore();
+
+    const props = defineProps<{ categoryData?: any }>();
+    const emit = defineEmits(['close', 'saved']);
 
     const category = ref('');
     const selectedColor = ref('#B91C1C');
@@ -20,31 +26,52 @@
         '#64748B', // Cinza
     ];
 
-const handleSubmit = async () => {
-    if (!category.value || !selectedColor.value) {
-            alert('Por favor, preencha todos os campos obrigatórios.');
-            return;
+    onMounted(() => {
+        if (props.categoryData) {
+            category.value = props.categoryData.description;
+            selectedColor.value = props.categoryData.color;
         }
+    });
 
-        try {
-            const { error } = await supabase
-                .from('Category')
-                .insert({
-                description: category.value,
-                color: selectedColor.value
-            });
-            if (error) throw error;
-            alert('Categoria adicionada com sucesso!');
-            category.value = '';
-        } catch (error) {
-            console.error('Erro ao adicionar categoria:', error);
-            alert('Ocorreu um erro ao adicionar a categoria. Tente novamente.');
-        }
-};
+    const handleSubmit = async () => {
+        if (!category.value || !selectedColor.value) {
+                showAlert('Por favor, preencha todos os campos obrigatórios.', 'warning');
+                return;
+            }
+
+            try {
+                if(props.categoryData?.idCategory) {
+                    const { error } = await supabase
+                    .from('Category')
+                    .update({
+                        description: category.value,
+                        color: selectedColor.value
+                    })
+                    .eq('idCategory', props.categoryData.idCategory);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase
+                    .from('Category')
+                    .insert({
+                        description: category.value,
+                        color: selectedColor.value
+                    });
+                    if (error) throw error;
+                }
+                emit('saved');
+                emit('close');
+            } catch (error) {
+                console.error('Erro ao adicionar categoria:', error);
+                showAlert('Ocorreu um erro ao adicionar a categoria. Tente novamente.', 'error');
+            }
+    };
 
 </script>
 <template>
-    <FormLayout title="Nova Categoria" subtitle="Adicione uma nova categoria para organizar seus gastos">
+    <FormLayout 
+        :title="props.categoryData ? 'Editar Categoria' : 'Nova Categoria'" 
+        :subtitle="props.categoryData ? 'Atualize as informações da categoria.' : 'Preencha os campos para criar uma nova categoria.'" 
+        @close="$emit('close')">
         
         <form @submit.prevent="handleSubmit" class="category-form">
             <div class="form-body-grid">
@@ -68,12 +95,14 @@ const handleSubmit = async () => {
                         Cor selecionada: <span :style="{ color: selectedColor, fontWeight: 'bold' }">{{ selectedColor }}</span>
                     </p>
                 </div>
-
             </div>
-
-            <button type="submit" class="btn-primary">
-                <PhPlus size="20" weight="bold" /> Cadastrar Categoria
-            </button>
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">
+                    <PhPencilSimple v-if="props.categoryData" size="20" weight="bold" />
+                    <PhPlus v-else size="20" weight="bold" /> 
+                    {{ props.categoryData ? 'Atualizar Categoria' : 'Cadastrar Categoria' }}
+                </button>
+            </div>
         </form>
 
     </FormLayout>
@@ -90,6 +119,12 @@ const handleSubmit = async () => {
     }
 
     .btn-primary {
+        margin-top: 2rem;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 1rem;
         margin-top: 2rem;
     }
 
