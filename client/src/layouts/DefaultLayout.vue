@@ -2,10 +2,29 @@
     import { ref, onMounted } from 'vue';
     import { RouterLink, useRouter } from 'vue-router'
     import { supabase } from '../services/supabase';
-    import { PhSignOut, PhTrendUp, PhHouse, PhPlus, PhTag, PhSun, PhMoon } from '@phosphor-icons/vue'
+    import { PhSignOut, PhTrendUp, PhHouse, PhFolders, PhSparkle, PhSun, PhMoon, PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
+    import { useDateStore } from '../stores/useDateStore';
+    import { storeToRefs } from 'pinia';
+    import { onClickOutside } from '@vueuse/core';
 
     const isDark = ref(false);
     const router = useRouter();
+    const dateStore = useDateStore();
+
+    const { selectedMonth, selectedYear } = storeToRefs(dateStore);
+
+    const { selectMonth, nextYear, previousYear, monthNames } = dateStore;
+    const isDateDropdownOpen = ref(false);
+    const dateDropdownRef = ref<HTMLElement | null>(null);
+
+    onClickOutside(dateDropdownRef, () => {
+        isDateDropdownOpen.value = false;
+    })
+
+    const handleMonthSelection = (index: number) => {
+        selectMonth(index);
+        isDateDropdownOpen.value = false;
+    }
 
     onMounted(() => {
         // Verifica o tema salvo no localStorage
@@ -60,18 +79,44 @@
             </RouterLink>
         </li>
         <li>
-            <RouterLink to="/transactions" active-class="active">
-                <PhPlus size="20" weight="bold" /> Compras
+            <RouterLink to="/records" active-class="active">
+                <PhFolders size="20" weight="bold" /> Registros
             </RouterLink>
         </li>
         <li>
-        <RouterLink to="/new-category" active-class="active">
-            <PhTag size="20" /> Categorias
+        <RouterLink to="/ai" active-class="active">
+            <PhSparkle size="20" /> Modo IA
         </RouterLink>
         </li>
       </ul>
 
       <div class="right-actions">
+
+        <div class="date-selector-container" ref="dateDropdownRef">
+          <button class="date-btn" @click="isDateDropdownOpen = !isDateDropdownOpen">
+            <PhCalendarBlank size="18" />
+            <span>{{ monthNames[selectedMonth] }} {{ selectedYear }}</span>
+            <PhCaretDown size="16" />
+          </button>
+          <div class="date-dropdown" v-if="isDateDropdownOpen">
+            <div class="year-selector">
+              <button @click="previousYear()"><PhCaretLeft size="18" weight="bold" /></button>
+                    <span>{{ selectedYear }}</span>
+                    <button @click="nextYear()"><PhCaretRight size="18" weight="bold" /></button>
+            </div>
+            <div class="months-grid">
+              <button 
+                v-for="(month, index) in monthNames" 
+                :key="month" 
+                @click="handleMonthSelection(index)"
+                :class="['month-btn', { active: selectedMonth === index }]"
+              >
+                {{ month }}
+              </button>
+            </div>
+          </div>
+
+        </div>
 
         <button class="theme-btn" @click="toggleTheme" title="Alternar Tema">
           <PhSun v-if="!isDark" size="22" weight="fill"/>
@@ -161,6 +206,99 @@
       display: flex;
       align-items: center;
       gap: 1rem;
+    }
+
+    .date-selector-container {
+      position: relative;
+    }
+
+    .date-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+    }
+
+    .date-btn:hover {
+      background-color: var(--bg-page);
+      border-color: var(--text-secondary);
+    }
+
+    .date-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      z-index: 200;
+      width: 250px;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .year-selector {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 1rem;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text-primary);
+    }
+
+    .year-selector button {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .year-selector button:hover {
+      color: var(--text-primary);
+      background-color: var(--bg-page);
+    }
+
+    .months-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+
+    .month-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      padding: 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .month-btn:hover {
+      background-color: var(--bg-page);
+    }
+
+    .month-btn.active {
+      background-color: var(--primary-color);
+      color: var(--bg-card);
     }
 
     .theme-btn {

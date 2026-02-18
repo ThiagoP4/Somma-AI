@@ -2,7 +2,7 @@
     import { ref } from 'vue';
     import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
-    import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus } from '@phosphor-icons/vue';
+    import { PhEnvelope, PhLockKey, PhSignIn, PhUserPlus, PhUser, PhPhone } from '@phosphor-icons/vue';
 
 
     const router = useRouter();
@@ -11,6 +11,9 @@
     const email = ref('');
     const password = ref('');
     const errorMessage = ref('');
+    const firstName = ref('');
+    const lastName = ref('');  
+    const phone = ref('');
 
     const handleAuth = async () => {
         loading.value = true;
@@ -20,11 +23,36 @@
 
         try {
             if (isSignUp.value) {
-                const { error } = await supabase.auth.signUp({
+                const { data: authData, error: authError } = await supabase.auth.signUp({
                     email: cleanEmail,
                     password: password.value,
+                    options: {
+                        data: {
+                            first_name: firstName.value,
+                            last_name: lastName.value,
+                            phone: phone.value
+                        }
+                    }
                 });
-                if (error) throw error;
+                if (authError) throw authError;
+                if (authData.user) {
+                    const { error: profileError } = await supabase
+                        .from('profiles')
+                        .insert({
+                            id: authData.user.id,
+                            first_name: firstName.value,
+                            last_name: lastName.value,
+                            phone: phone.value
+                        });
+                    if (profileError) {
+                        console.error('Falha ao criar perfil:', profileError);
+                        
+                        // Faz logout imediato para não deixar o usuário logado com conta quebrada
+                        await supabase.auth.signOut();
+                        
+                        throw new Error('Erro ao salvar os dados do perfil. O cadastro foi cancelado.');
+                    }
+                }
                 alert('Cadastro realizado! Verifique seu email para confirmar a conta.');
                 isSignUp.value = false;
             } else {
@@ -50,10 +78,52 @@
     <div class="login-container">
         <div class="login-card">
             <div class="header">
-                <h1>Bem-vindo ao Finance AI </h1>
-                <p>Faça login para acessar seu painel de controle financeiro</p>
+                <h1>{{ isSignUp ? 'Crie sua conta' : 'Bem-vindo ao Finance AI' }}</h1>
+                <p>{{ isSignUp ? 'Preencha seus dados para começar' : 'Faça login para acessar seu painel' }}</p>
             </div>
             <form @submit.prevent="handleAuth">
+                <div v-if="isSignUp">
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label>Nome</label>
+                            <div class="input-wrapper">
+                                <PhUser size="20" class="input-icon"/>
+                                <input
+                                    type="text"
+                                    v-model="firstName"
+                                    placeholder="João"
+                                    required
+                                    class="input-field"
+                                />
+                            </div>
+                        </div>
+                        <div class="form-group half">
+                            <label>Sobrenome</label>
+                            <div class="input-wrapper">
+                                <input
+                                    type="text"
+                                    v-model="lastName"
+                                    placeholder="Silva"
+                                    required
+                                    class="input-field"
+                                    style="padding-left: 1rem;" 
+                                />
+                            </div>
+                        </div>
+                    </div> <div class="form-group">
+                        <label>Telefone</label>
+                        <div class="input-wrapper">
+                            <PhPhone size="20" class="input-icon"/>
+                            <input
+                                type="tel"
+                                v-model="phone"
+                                placeholder="(11) 99999-9999"
+                                required
+                                class="input-field"
+                            />
+                        </div>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="email">Email</label>
                     <div class="input-wrapper">
@@ -155,7 +225,7 @@
         width: 100%;
         padding: 0.85rem 1rem 0.85rem 45px; /* Espaço para o ícone */
         border: 1px solid var(--border-color);
-        background-color: var(--bg-page); /* Fundo sutilmente diferente do card */
+        background-color: var(--bg-input); /* Fundo sutilmente diferente do card */
         color: var(--text-primary);
         border-radius: 8px;
         font-size: 1rem;
@@ -164,13 +234,28 @@
     }
 
     .input-field:focus {
-        border-color: var(--primary-color);
+        border-color: var(--text-secondary);
         box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); /* Anel de foco azul */
         background-color: var(--bg-card);
     }
 
+    .input-field::placeholder {
+        color: var(--text-secondary);
+        opacity: 0.7;
+    }
+
     .form-group {
         margin-bottom: 1.5rem;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 1rem; /* Espaço entre Nome e Sobrenome */
+    }
+
+    .form-group.half {
+        flex: 1; /* Faz cada campo ocupar 50% da linha */
+        min-width: 0; /* Previne quebra de layout em telas pequenas */
     }
 
     .form-group label {
@@ -186,13 +271,18 @@
         width: 100%;
         padding: 0.9rem;
         background-color: var(--primary-color);
-        color: white;
+        color: var(--text-inverse);
         border: none;
         border-radius: 8px;
         font-size: 1rem;
         font-weight: 600;
         cursor: pointer;
         transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        /* Usa a cor de hover do tema */
+        background-color: var(--primary-hover);
     }
 
     .btn-primary:hover {
@@ -223,7 +313,7 @@
     }
 
     .toggle-mode a {
-        color: var(--primary-color);
+        color: var(--text-primary);
         text-decoration: none;
         font-weight: 600;
     }
@@ -233,7 +323,7 @@
     }
 
     .error-msg {
-        color: #EF4444;
+        color: var(--danger-color);
         font-size: 0.85rem;
         margin-top: 0.5rem;
         text-align: center;

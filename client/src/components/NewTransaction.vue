@@ -1,9 +1,16 @@
 <script setup lang="ts">    
 
-    import { ref, onMounted } from 'vue';
+    import { ref, onMounted, computed, type PropType } from 'vue';
     import { supabase } from '../services/supabase';
     import { PhPlus, PhWhatsappLogo } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
+
+    const props = defineProps({
+        transactionData: {
+            type: Object as PropType<any>,
+            default: null
+        }
+    });
 
     const description = ref('');
     const value = ref('');
@@ -11,6 +18,9 @@
     const date = ref(new Date().toISOString().split('T')[0]); // Data de hoje
     const categories = ref<any[]>([]);
     const loading = ref(false);
+
+    const emit = defineEmits(['close', 'saved']);
+    const isEditing = computed(() => !!props.transactionData);
 
     onMounted(async () => {
         try {
@@ -21,6 +31,12 @@
             categories.value = data;
         } catch (error) {
             console.error('Erro ao carregar categorias:', error);
+        }
+        if(props.transactionData) {
+            description.value = props.transactionData.title;
+            value.value = props.transactionData.value;
+            categoryId.value = props.transactionData.categoryId;
+            date.value = props.transactionData.date.split('T')[0]; // Formata para YYYY-MM-DD
         }
     });
 
@@ -33,16 +49,26 @@
         loading.value = true;
 
         try {
+            const payload = {
+                title: description.value,
+                value: parseFloat(value.value.toString()),
+                categoryId: categoryId.value,
+                date: date.value
+            };
+            if(isEditing.value) {
+                const { error } = await supabase
+                    .from('Purchase')
+                    .update(payload)
+                    .eq('idPurchase', props.transactionData.idPurchase);
+                if (error) throw error;
+            } else {
            const { error } = await supabase
                 .from('Purchase')
-                .insert({
-                    title: description.value,
-                    value: parseFloat(value.value),
-                    categoryId: categoryId.value,
-                    date: date.value
-                });
+                .insert(payload);
             if (error) throw error;
-            alert('Compra adicionada com sucesso!');
+            } 
+            emit('saved');
+            emit('close');
         } catch (error) {
             console.error('Erro ao adicionar compra:', error);
             alert('Ocorreu um erro ao adicionar a compra. Tente novamente.');
@@ -54,7 +80,7 @@
 </script>
 
 <template>
-    <FormLayout title="Nova Compra" subtitle="Preencha os dados da despesa">
+    <FormLayout :title="isEditing ? 'Editar Compra' : 'Nova Compra'" subtitle="Preencha os dados da despesa" @close="$emit('close')">
         
         <form @submit.prevent="handleSubmit">
 
@@ -102,7 +128,7 @@
 
             <button type="submit" class="btn-primary">
                 <PhPlus size="20" weight="bold" />
-                Adicionar Compra
+                {{ isEditing ? 'Salvar Alterações' : 'Adicionar Compra' }}
             </button>
 
             <div class="divider">
