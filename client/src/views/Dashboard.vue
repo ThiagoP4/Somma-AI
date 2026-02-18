@@ -2,7 +2,7 @@
 
   import { ref, onMounted, watch } from 'vue';
   import { supabase } from '../services/supabase';
-  import { useDataStore } from '../stores/useDateStore';
+  import { useDateStore } from '../stores/useDateStore';
   import { storeToRefs } from 'pinia';
 
   import {
@@ -17,7 +17,7 @@
   import VueApexCharts from 'vue3-apexcharts'
   import type { ApexOptions } from 'apexcharts'
 
-  const dateStore = useDataStore();
+  const dateStore = useDateStore();
   const { selectedMonth, selectedYear } = storeToRefs(dateStore);
 
   const dashboardData = ref({

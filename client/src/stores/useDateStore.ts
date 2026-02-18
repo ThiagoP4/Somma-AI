@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const useDataStore = defineStore('date', () => {
+export const useDateStore = defineStore('date', () => {
     const currentDate = new Date();
     const selectedMonth = ref(currentDate.getMonth());
     const selectedYear = ref(currentDate.getFullYear());

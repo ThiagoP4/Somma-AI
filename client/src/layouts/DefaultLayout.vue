@@ -3,13 +3,13 @@
     import { RouterLink, useRouter } from 'vue-router'
     import { supabase } from '../services/supabase';
     import { PhSignOut, PhTrendUp, PhHouse, PhFolders, PhSparkle, PhSun, PhMoon, PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
-    import { useDataStore } from '../stores/useDateStore';
+    import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
 
     const isDark = ref(false);
     const router = useRouter();
-    const dateStore = useDataStore();
+    const dateStore = useDateStore();
 
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
 
@@ -84,7 +84,7 @@
             </RouterLink>
         </li>
         <li>
-        <RouterLink to="/new-category" active-class="active">
+        <RouterLink to="/ai" active-class="active">
             <PhSparkle size="20" /> Modo IA
         </RouterLink>
         </li>
