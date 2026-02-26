@@ -1,5 +1,5 @@
 <script setup lang = "ts">
-    import { ref, onMounted } from 'vue';
+    import { ref, onMounted, computed } from 'vue';
     import { supabase } from '../services/supabase';
     import { PhCheck, PhPlus, PhPencilSimple } from '@phosphor-icons/vue';
     import FormLayout from '../layouts/FormLayout.vue';
@@ -12,6 +12,10 @@
 
     const category = ref('');
     const selectedColor = ref('#B91C1C');
+    const colorInputRef = ref<HTMLInputElement | null>(null);
+    const openColorPicker = () => {
+        colorInputRef.value?.click();
+    };
 
     const availableColors = [
         '#B91C1C', // Vermelho
@@ -25,6 +29,10 @@
         '#EC4899', // Rosa
         '#64748B', // Cinza
     ];
+
+    const isCustomColor = computed(() => {
+        return !availableColors.some(color => color.toLowerCase() === selectedColor.value.toLowerCase());
+    });
 
     onMounted(() => {
         if (props.categoryData) {
@@ -90,6 +98,16 @@
                              @click="selectedColor = color">
                             <PhCheck v-if="selectedColor === color" size="16" weight="bold" color="white" />
                         </div>
+                        <div class="color-circle custom-picker-wrapper"
+                            :class="{ selected: isCustomColor }"
+                            :style="isCustomColor ? 
+                            { background: selectedColor } : {}"
+                            @click="openColorPicker"
+                        >
+                            <PhCheck v-if="isCustomColor" size="16" weight="bold" color="white" class="overlay-icon" />
+         
+                            <input type="color" ref="colorInputRef" v-model="selectedColor" class="hidden-color-input" />
+                        </div>
                     </div>
                     <p class="color-preview">
                         Cor selecionada: <span :style="{ color: selectedColor, fontWeight: 'bold' }">{{ selectedColor }}</span>
@@ -110,10 +128,43 @@
 <style scoped>
     /* Estilos Específicos desta tela */
     .colors-grid { display: flex; flex-wrap: wrap; gap: 12px; }
-    .color-circle { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid transparent; transition: transform 0.2s; }
+    .color-circle { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
     .color-circle:hover { transform: scale(1.1); }
     .color-circle.selected { border-color: var(--text-primary); transform: scale(1.1); }
 
+    .custom-picker-wrapper {
+        position: relative;
+        overflow: hidden;
+        border-radius: 50%; /* <- garante que o input não vaze pelos cantos */
+        background: conic-gradient(
+            from 90deg,
+            hsl(0, 100%, 50%),
+            hsl(60, 100%, 50%),
+            hsl(120, 100%, 50%),
+            hsl(180, 100%, 50%),
+            hsl(240, 100%, 50%),
+            hsl(300, 100%, 50%),
+            hsl(360, 100%, 50%)
+        );
+    }
+
+    .hidden-color-input {
+        position: absolute;
+        width: 0;
+        height: 0;
+        opacity: 0;
+        pointer-events: none;
+        border: none;
+        padding: 0;
+    }
+
+    .overlay-icon { 
+        position: absolute; 
+        z-index: 1; 
+        pointer-events: none; }
+
+    .palette-icon { filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.6)); }
+    
     .form-group {
     margin-bottom: 2.5rem; 
     }

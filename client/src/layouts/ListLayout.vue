@@ -48,21 +48,11 @@
             <p>Nenhum item cadastrado ainda.</p>
             <small>Clique no botão acima para adicionar.</small>
         </div>
-        <div  v-else class="table-card">
-            <div class="table-header">
-                <h3>Cadastros ({{ items.length }} itens)</h3>
-                <span v-if="totalValue">Total: <strong>{{ new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalValue) }}</strong></span>
-            </div>
-            <div class="table-wrapper">
-                <table class="standard-table">
-                    <thead>
-                        <slot name="header" />
-                    </thead>
-                    <tbody>
-                        <slot name="body" />
-                    </tbody>
-                </table>
-            </div>
+        <div  v-else class="records-container">
+           <slot name="header" />
+           <div class="records-list">
+                <slot name="body" />
+           </div>
         </div>
     </main>
     </div>
@@ -131,63 +121,24 @@
         animation: slideDown 0.2s ease-out;
     }
 
-    .table-wrapper {
-        background: var(--bg-card);
-        border-radius: 8px;
-        box-shadow: 0 1px 3px var(--shadow-color);
-        overflow: hidden;
-        border: 1px solid var(--border-color);
+    .state-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+        background-color: var(--bg-card);
+        border: 1px dashed var(--border-color);
+        border-radius: 12px;
+        color: var(--text-secondary);
+        text-align: center;
         margin-top: 1rem;
     }
 
-    .table-card {
-        background: var(--bg-card);
-        border-radius: 8px;
-        box-shadow: 0 2px 10px var(--shadow-color); /* Sombra suave */
-        border: 1px solid var(--border-color);
-        padding: 1.5rem; /* Espaçamento interno */
-    }
-
-    .table-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .standard-table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 600px;
-    }
-
-    .standard-table th {
-        background-color: var(--bg-page); 
-        text-align: left;
-        padding: 1rem;
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: var(--text-secondary);
-        border-bottom: 1px solid var(--border-color); 
-        text-transform: uppercase; 
-        letter-spacing: 0.05em;
-    }
-
-    .standard-table td {
-        padding: 1rem;
-        border-bottom: 1px solid var(--border-color);
+    .state-container p {
+        margin: 1rem 0 0.25rem 0;
+        font-weight: 500;
         color: var(--text-primary);
-        vertical-align: middle;
-    }
-
-    .standard-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .standard-table tr:hover td {
-        background-color: var(--bg-page);
-        transition: background-color 0.2s;
     }
 
     @keyframes spin {
