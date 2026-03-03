@@ -7,7 +7,8 @@ const router = createRouter({
     {
         path: '/login',
         name: 'login',
-        component: () => import('../views/Login.vue')
+        component: () => import('../views/Login.vue'),
+        meta: { requiresGuest: true }
     },
     {    
         path: '/',
@@ -20,16 +21,23 @@ const router = createRouter({
         name: 'records',
         component: () => import('../views/Records.vue'),
         meta: { requiresAuth: true }
+    },
+    {
+        path: '/copilot',
+        name: 'copilot',
+        component: () => import('../views/Copilot.vue'),
+        meta: { requiresAuth: true }
     }
     ]
 });
 
 router.beforeEach(async (to, _from, next) => {
     const { data: { session } } = await supabase.auth.getSession();
+    const isAuthenticated = !!session;
 
-    if (to.meta.requiresAuth && !session) {
+    if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login');
-    } else if (to.path === '/login' && session) {
+    } else if (to.meta.requiresGuest && isAuthenticated) {
         next('/');
     } else {
         next();

@@ -1,11 +1,13 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, watch } from 'vue';
     import { supabase } from '../services/supabase';
-    import { PhTrash, PhFunnel, PhMicrosoftExcelLogo, PhPencilSimple, } from '@phosphor-icons/vue';
+    import { PhFunnel, PhMicrosoftExcelLogo } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
     import NewCategory from '../components/NewCategory.vue';
     import FloatingTabs from '../components/FloatingTabs.vue';
+    import TransactionList from '../components/TransactionsList.vue';
+    import CategoryGrid from '../components/CategoryGrid.vue';
     import { useTabsSwipe } from '../composables/useTabsSwipe';
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
@@ -13,7 +15,6 @@
 
     const { showAlert } = useAlertStore();
 
-        
     interface Registry {
         idPurchase: number;
         title: string;
@@ -22,7 +23,7 @@
         Category: {
             description: string;
             color: string;
-        } | null; // Pode ser null caso o join falhe ou não tenha categoria
+        } | null; 
     }
 
     const registries = ref<any[]>([]);
@@ -71,8 +72,8 @@
     const fetchRegistries = async () => {
         loading.value = true;
         try {
-            const startDate = new Date(selectedYear.value, selectedMonth.value - 1, 1).toISOString().split('T')[0];
-            const endDate = new Date(selectedYear.value, selectedMonth.value, 0).toISOString().split('T')[0];
+            const startDate = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
+            const endDate = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
             if (currentTab.value === 'categorias') {
                 const { data, error } = await supabase
                     .from('Category')
@@ -98,6 +99,8 @@
             const { data, error } = await supabase
             .from('Purchase')
             .select('*, Category(description, color)')
+            .gte('date', startDate)
+            .lte('date', endDate)
             .order('date', { ascending: false })
 
             if(error) throw error;
@@ -122,11 +125,6 @@
         } catch (e) { showAlert('Erro ao excluir', 'error'); }
     };
 
-    const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL'}).format(v);
-    const toDate = (d: string) => {
-        if (!d) return '-';
-        return new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-    };
 
     onMounted(fetchRegistries);
     
@@ -155,21 +153,6 @@
                 <PhMicrosoftExcelLogo size="18" /> Excel
             </button>
         </template>
-        <template #header>
-            <tr v-if="currentTab === 'compras'">
-                <th width="35%">Descrição</th>
-                <th width="15%">Valor</th>
-                <th width="20%">Categoria</th>
-                <th width="15%" class="text-center">Data</th>
-                <th width="10%" class="text-center">Ações</th>
-            </tr>
-            <tr v-else-if="currentTab === 'categorias'">
-                <th width="50%">Descrição da Categoria</th>
-                <th width="40%">Cor Identificadora</th>
-                <th width="10%" class="text-center">Ações</th>
-            </tr>
-        </template>
-
         <template #filters v-if="showFilter">
             <div class="filter-card">
                 <div class="filter-row">
@@ -196,44 +179,20 @@
             </div>
         </template>
 
-        <template #body>
-            <tr v-for="item in registries" :key="item.idPurchase || item.idCategory" class="hover-row">
-                <template v-if="currentTab === 'compras'">
-                    <td> 
-                        <span class="row-title">
-                            {{ item.title }}
-                        </span>
-                    </td>
-                <td class="text-right value-cell">{{ toBRL(item.value) }}</td>
-                <td>
-                    <div class="category-wrapper">
-                    <span class="category-dot"
-                    :style="{ backgroundColor: item.Category?.color || 'var(--text-muted)' }">
-                    </span>{{ item.Category?.description }}
-                    </div>
-                    </td>
-                <td> {{ toDate(item.date) }}</td>
-                </template>
-                <template v-else-if="currentTab === 'categorias'">
-                    <td><span class="row-title">{{ item.description }}</span></td>
-                    <td>
-                        <div class="category-wrapper">
-                            <span class="category-dot" :style="{ backgroundColor: item.color || 'var(--text-muted)' }"></span>
-                            {{ item.color }}
-                        </div>
-                    </td>
-                </template>
-                <td class="text-center">
-                    <div class="actions-wrapper">
-                        <button class="action-btn edit-btn" @click="openEditModal(item)" title="Editar">
-                            <PhPencilSimple size="18" />
-                        </button>
-                        <button class="action-btn" @click="deleteRegistry(item.idPurchase || item.idCategory )" title="Excluir">
-                            <PhTrash size="18" />
-                        </button>
-                    </div>
-                </td>
-            </tr>
+       <template #body>
+            <TransactionList 
+                v-if="currentTab === 'compras' || currentTab === 'entradas'" 
+                :items="registries" 
+                :currentTab="currentTab"
+                @edit="openEditModal"
+                @delete="deleteRegistry"
+            />
+
+            <CategoryGrid 
+                v-else-if="currentTab === 'categorias'" 
+                :items="registries"
+                @delete="deleteRegistry"
+            />
         </template>
 
         </ListLayout>
@@ -255,17 +214,5 @@
 
 <style scoped>
 
-    .row-title { font-weight: 600; color: var(--text-primary); font-size: 0.95rem; display: block; }
-    .date-text { color: var(--text-secondary); font-size: 0.85rem; }
-    .text-right { text-align: right; }
-    .text-center { text-align: center; }
-    .value-cell { font-weight: 600; color: #10B981; font-feature-settings: "tnum"; font-size: 0.95rem; }
-    .actions-wrapper { display: flex; justify-content: center; gap: 8px; }
-    .category-wrapper { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--text-primary); }
-    .category-dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--primary-color); display: inline-block; }
-
-    @media (max-width: 640px) {
-        .badge { font-size: 0.75rem; padding: 2px 6px; }
-    }
 
 </style>

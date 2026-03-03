@@ -6,42 +6,41 @@
 
 :root {
   /* --- TEMA CLARO (O padrão atual) --- */
-  --bg-page: #F1F5F9;       /* Fundo da página */
-  --bg-card: #FFFFFF;       /* Fundo do cartão */
-  --bg-input: #FFFFFF;      /* Fundo do input */
+  --bg-page: hsl(220, 20%, 97%);       /* Fundo da página */
+  --bg-card: hsl(0, 0%, 100%);     /* Fundo do cartão */
+  --bg-input: hsl(220, 13%, 90%);      /* Fundo do input */
   
-  --text-primary: #0F172A;  /* Títulos e textos fortes */
-  --text-secondary: #64748B;/* Legendas e ícones */
-  --text-inverse: #FFFFFF;  /* Texto dentro de botões */
+  --text-primary: hsl(224, 30%, 12%);  /* Títulos e textos fortes */
+  --text-secondary: hsl(220, 10%, 46%);/* Legendas e ícones */
+  --text-inverse: hsl(0, 0%, 100%);  /* Texto dentro de botões */
   
-  --border-color: #CBD5E1;  /* Bordas sutis */
+  --border-color: hsl(220, 13%, 90%);  /* Bordas sutis */
   
-  --primary-color: #0F172A; /* Roxo principal */
-  --primary-hover: #334155;
-
-  --success-color: #059669; 
-  --danger-color: #EF4444;  /* destructive: 0 84.2% 60.2% */
+  --primary-color: hsl(250, 85%, 60%); /* Roxo principal */
+  --primary-hover: hsl(250, 85%, 50%);
+  --success-color: hsl(152, 76%, 40%); 
+  --danger-color: hsl(0, 84%, 60%);  /* destructive: 0 84.2% 60.2% */
 }
 
 /* Quando a classe .dark for adicionada no HTML */
 .dark {
   /* --- TEMA ESCURO (Novas cores) --- */
-  --bg-page: #020817;       /* Slate 900 */
-  --bg-card: #1E293B;       /* Slate 800 */
-  --bg-input: #0F172A;      /* Slate 700 (Input mais claro que o card) */
+  --bg-page: hsl(228, 28%, 6%);      /* Slate 900 */
+  --bg-card: hsl(228, 24%, 10%);      /* Slate 800 */
+  --bg-input: hsl(228, 16%, 16%);      /* Slate 700 (Input mais claro que o card) */
   
-  --text-primary: #F1F5F9;  /* Slate 50 (Quase branco) */
-  --text-secondary: #94A3B8;/* Slate 400 */
-  --text-inverse: #020817;
+  --text-primary: hsl(220, 20%, 93%);  /* Slate 50 (Quase branco) */
+  --text-secondary: hsl(220, 12%, 52%);/* Slate 400 */
+  --text-inverse: hsl(0, 0%, 100%);
   
-  --border-color: #334155;  /* Slate 700 */
+  --border-color: hsl(228, 16%, 16%);  /* Slate 700 */
   
   /* O Primary geralmente brilha mais no escuro, mantive igual por enquanto */
-  --primary-color: #F8FAFC; 
-  --primary-hover: #E2E8F0; 
+  --primary-color: hsl(250, 85%, 65%);
+  --primary-hover: hsl(250, 85%, 75%);
 
-  --danger-color: #F87171;  /* destructive dark */
-  --success-color: #34D399; 
+  --danger-color: hsl(0, 84%, 60%);  /* destructive dark */
+  --success-color: hsl(152, 76%, 40%);
 }
 
 /* Reset que já existia */
