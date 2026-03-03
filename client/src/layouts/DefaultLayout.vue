@@ -1,20 +1,17 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { RouterLink, useRouter, useRoute } from 'vue-router'
-    import { supabase } from '../services/supabase';
-    import { PhSignOut, PhTrendUp, PhHouse, PhFolders, PhSparkle, PhSun, PhMoon, PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue'
+    import { RouterLink, useRoute } from 'vue-router'
+    import { PhTrendUp, PhHouse, PhFolders, PhSparkle, PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhList } from '@phosphor-icons/vue'
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
-    import { useAlertStore } from '../stores/useAlertStore';
-
-    const { showAlert } = useAlertStore();
+    import Sidebar from '../components/Sidebar.vue';
 
 
     const isDark = ref(false);
-    const router = useRouter();
     const route = useRoute();
     const dateStore = useDateStore();
+    const isSidebarOpen = ref(false);
 
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
 
@@ -39,43 +36,21 @@
             document.body.classList.add('dark')
         }
     });
-
-    const handleLogout = async () => {
-      try {
-        // 1. Chama o Supabase para destruir a sessão
-        const { error } = await supabase.auth.signOut();
-        
-        if (error) throw error;
-
-        // 2. Redireciona para o Login imediatamente
-        router.push('/login');
-        
-      } catch (error) {
-        console.error('Erro ao sair:', error);
-        showAlert('Erro ao tentar sair. Tente novamente.', 'error');
-      }
-    };
-
-    const toggleTheme = () => {
-        isDark.value = !isDark.value;
-        if (isDark.value) {
-            document.body.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.body.classList.remove('dark');
-            localStorage.removeItem('theme');
-        }
-    };
-
 </script>
 
 <template>
   <div class="layout-wrapper">
     <nav class="navbar" v-if="route.path !== '/login'">
-      <div class="logo">
-        <PhTrendUp size="28" weight="fill" class="logo-icon" />
-        <span>Finance <span class="ai">AI</span></span>
+      <div class="left-actions">
+        <button class="hamburger-btn" @click="isSidebarOpen = true">
+          <PhList size="26" />
+        </button>
+        <div class="logo">
+          <PhTrendUp size="28" weight="fill" class="logo-icon" />
+          <span>Finance <span class="ai">AI</span></span>
+        </div>
       </div>
+
 
     <ul class="nav-links">
         <li>
@@ -122,23 +97,13 @@
           </div>
 
         </div>
-
-        <button class="theme-btn" @click="toggleTheme" title="Alternar Tema">
-          <PhSun v-if="!isDark" size="22" weight="fill"/>
-          <PhMoon v-else size="22" weight="fill" />
-        </button>
-
-        <button @click="handleLogout" class="logout-btn">
-          <PhSignOut size="20" />
-          Sair
-        </button>
-
       </div>
     </nav>
 
     <main class="content-area">
       <slot />
     </main>
+    <Sidebar :isOpen="isSidebarOpen" @close="isSidebarOpen = false" />
   </div>
 </template>
 
@@ -163,6 +128,28 @@
       top: 0;
       z-index: 100;
       box-shadow: 0 4px 6px -1px var(--shadow-color);
+    }
+
+    .left-actions {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .hamburger-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+    }
+
+    .hamburger-btn:hover {
+        background-color: var(--bg-page);
     }
 
     .logo {
@@ -306,7 +293,7 @@
       color: var(--bg-card);
     }
 
-    .theme-btn {
+/*    .theme-btn {
       background: transparent;
       border: none;
       cursor: pointer;
@@ -345,6 +332,7 @@
       border-color: #FECACA;
       color: #B91C1C;
     }
+      */
     
     .content-area {
       padding: 2rem;
@@ -375,7 +363,7 @@
           display: none; 
       }
       
-      .logo { justify-self: start; }
+      .left-actions { justify-self: start; }
 
       .logo-icon { width: 24px; height: 24px; }
       
