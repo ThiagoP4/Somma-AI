@@ -72,8 +72,8 @@
     const fetchRegistries = async () => {
         loading.value = true;
         try {
-            const startDate = new Date(selectedYear.value, selectedMonth.value - 1, 1).toISOString().split('T')[0];
-            const endDate = new Date(selectedYear.value, selectedMonth.value, 0).toISOString().split('T')[0];
+            const startDate = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
+            const endDate = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
             if (currentTab.value === 'categorias') {
                 const { data, error } = await supabase
                     .from('Category')
@@ -99,6 +99,8 @@
             const { data, error } = await supabase
             .from('Purchase')
             .select('*, Category(description, color)')
+            .gte('date', startDate)
+            .lte('date', endDate)
             .order('date', { ascending: false })
 
             if(error) throw error;
