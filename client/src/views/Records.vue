@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, watch } from 'vue';
     import { supabase } from '../services/supabase';
-    import { PhFunnel, PhMicrosoftExcelLogo } from '@phosphor-icons/vue';
+    import { PhFunnel } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
     import NewCategory from '../components/NewCategory.vue';
@@ -12,6 +12,8 @@
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
     import { useAlertStore } from '../stores/useAlertStore';
+    import ExcelDropdown from '../components/ExcelDropdown.vue';
+    import { useExcel } from '../composables/useExcel';
 
     const { showAlert } = useAlertStore();
 
@@ -34,7 +36,50 @@
     const registryToEdit = ref<Registry | null>(null);
     const dateStore = useDateStore();
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
-    
+
+    const { exportToExcel, importFromExcel } = useExcel();
+    const exportExcel = async (scope: 'month' | 'all') => {
+        let dataToExport = [];
+
+        if (scope === 'month') {
+            // Usa o que já está renderizado na tela
+            dataToExport = registries.value;
+        } else {
+            // Se for 'all', busca tudo no banco ignorando o mês
+            const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
+            const { data } = await supabase
+                .from(table)
+                .select(table === 'Category' ? '*' : '*, Category(description, color)')
+                .order(table === 'Category' ? 'idCategory' : 'date', { ascending: false });
+            
+            dataToExport = data || [];
+        }
+
+        exportToExcel(dataToExport, `FinanceAI_${currentTab.value}_${scope}`);
+        showAlert(`Exportando dados (${scope})`, 'success');
+    };
+
+    const importExcel = async (scope: 'month' | 'all') => {
+        try {
+            const parsedData = await importFromExcel();
+            console.log("Dados lidos do Excel:", parsedData);
+            
+            showAlert('Planilha lida com sucesso! Preparando para salvar...', 'success');
+            
+            // TODO: Aqui faremos o loop para salvar `parsedData` no Supabase!
+            // fetchRegistries(); // Atualiza a tela depois de salvar
+            
+        } catch (error) {
+            console.error(error);
+        }
+        showAlert(`Importando dados (${scope})`, 'success');
+    };
+
+    const currentMonth = computed(() => {
+        const date = new Date(selectedYear.value, selectedMonth.value, 1);
+        const monthYear = date.toLocaleString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '');
+        return monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
+    })
 
     const touchArea = ref<HTMLElement | null>(null);
     const { tabs, currentTab: currentTab, moveTab: moveTab } = useTabsSwipe(['compras', 'entradas', 'categorias'], touchArea);
@@ -149,9 +194,12 @@
             >
                 <PhFunnel size="18" /> Filtrar
             </button>
-            <button class="btn-secondary">
-                <PhMicrosoftExcelLogo size="18" /> Excel
-            </button>
+            <ExcelDropdown 
+            :currentMonth="currentMonth" 
+            @export="exportExcel" 
+            @import="importExcel" 
+        />
+            
         </template>
         <template #filters v-if="showFilter">
             <div class="filter-card">
