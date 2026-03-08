@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, watch } from 'vue';
     import { supabase } from '../services/supabase';
-    import { PhFunnel } from '@phosphor-icons/vue';
+    import { PhFunnel, PhMicrosoftExcelLogo } from '@phosphor-icons/vue';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
     import NewCategory from '../components/NewCategory.vue';
@@ -12,17 +12,16 @@
     import { useDateStore } from '../stores/useDateStore';
     import { storeToRefs } from 'pinia';
     import { useAlertStore } from '../stores/useAlertStore';
-    import ExcelDropdown from '../components/ExcelDropdown.vue';
-    import { useExcel } from '../composables/useExcel';
 
     const { showAlert } = useAlertStore();
 
     interface Registry {
-        idPurchase: number;
+        idPurchase?: number; /* Opcional devido a Entradas */
+        idIncome?: number;   /* Opcional devido a Compras */
         title: string;
         value: number;
         date: string;
-        Category: {
+        fin_category: { /* O Join retorna com o nome da tabela no Supabase */
             description: string;
             color: string;
         } | null; 
@@ -36,50 +35,27 @@
     const registryToEdit = ref<Registry | null>(null);
     const dateStore = useDateStore();
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
+    
+    const search = ref('');
+    const searchCategory = ref('');
+    const searchData = ref('');
 
-    const { exportToExcel, importFromExcel } = useExcel();
-    const exportExcel = async (scope: 'month' | 'all') => {
-        let dataToExport = [];
+    const categories = ref<any[]>([]);
 
-        if (scope === 'month') {
-            // Usa o que já está renderizado na tela
-            dataToExport = registries.value;
-        } else {
-            // Se for 'all', busca tudo no banco ignorando o mês
-            const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
-            const { data } = await supabase
-                .from(table)
-                .select(table === 'Category' ? '*' : '*, Category(description, color)')
-                .order(table === 'Category' ? 'idCategory' : 'date', { ascending: false });
-            
-            dataToExport = data || [];
-        }
-
-        exportToExcel(dataToExport, `FinanceAI_${currentTab.value}_${scope}`);
-        showAlert(`Exportando dados (${scope})`, 'success');
-    };
-
-    const importExcel = async (scope: 'month' | 'all') => {
+    const fetchCategories = async () => {
         try {
-            const parsedData = await importFromExcel();
-            console.log("Dados lidos do Excel:", parsedData);
-            
-            showAlert('Planilha lida com sucesso! Preparando para salvar...', 'success');
-            
-            // TODO: Aqui faremos o loop para salvar `parsedData` no Supabase!
-            // fetchRegistries(); // Atualiza a tela depois de salvar
-            
+            const { data, error } = await supabase
+            .from('fin_category')
+            .select('*')
+            .order('description', { ascending: true });
+            if(error) throw error;
+            categories.value = data || [];
         } catch (error) {
             console.error(error);
+            showAlert('Erro ao carregar categorias', 'error');
         }
-        showAlert(`Importando dados (${scope})`, 'success');
-    };
-
-    const currentMonth = computed(() => {
-        const date = new Date(selectedYear.value, selectedMonth.value, 1);
-        const monthYear = date.toLocaleString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '');
-        return monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
-    })
+    }
+    
 
     const touchArea = ref<HTMLElement | null>(null);
     const { tabs, currentTab: currentTab, moveTab: moveTab } = useTabsSwipe(['compras', 'entradas', 'categorias'], touchArea);
@@ -121,14 +97,14 @@
             const endDate = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
             if (currentTab.value === 'categorias') {
                 const { data, error } = await supabase
-                    .from('Category')
-                    .select('*, Purchase(value)') // Faz join para somar valores por categoria
-                    .gte('Purchase.date', startDate)
-                    .lte('Purchase.date', endDate);
+                    .from('fin_category')
+                    .select('*, fin_purchase(value)') // Faz join para somar valores por categoria
+                    .gte('fin_purchase.date', startDate)
+                    .lte('fin_purchase.date', endDate);
                     if (error) throw error;
                 // Transforma os dados para o formato esperado pela tabela
                     registries.value = (data || []).map((cat: any) => {
-                     const listaCompras = cat.Purchase || []; 
+                     const listaCompras = cat.fin_purchase || []; 
             
                     return {
                         idCategory: cat.idCategory,
@@ -141,15 +117,29 @@
                 });
                 return; // Para a execução aqui se for categoria
             }
-            const { data, error } = await supabase
-            .from('Purchase')
-            .select('*, Category(description, color)')
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .order('date', { ascending: false })
 
+            if (currentTab.value === 'entradas') {
+                const { data, error } = await supabase
+                .from('fin_income')
+                .select('*, fin_category(description, color)')
+                .order('date', { ascending: false })
+                .gte('date', startDate)
+                .lte('date', endDate);
+                if (error) throw error;
+                registries.value = data || [];
+                return;
+            }
+
+            const { data, error } = await supabase
+            .from('fin_purchase')
+            .select('*, fin_category(description, color)')
+            .order('date', { ascending: false })
+            .gte('date', startDate)
+            .lte('date', endDate);
             if(error) throw error;
             registries.value = data || [];
+
+            console.log('Dados recebidos Compras:', data, 'Start:', startDate, 'End:', endDate);
         } catch (error) { 
             console.error(error);
             showAlert('Erro ao carregar registros', 'error');
@@ -158,11 +148,23 @@
     };
 
     const deleteRegistry = async (id: number) => {
-        const msg = currentTab.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : currentTab.value === 'compras' ? 'Excluir Compra' : 'Excluir Entrada';
+        const msg = currentTab.value === 'categorias' 
+        ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' 
+        : currentTab.value === 'compras' ? 'Excluir Compra' : 'Excluir Entrada';
         if (!confirm(`Deseja realmente ${msg}?`)) return
         try {
-            const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
-            const columnId = table === 'Category' ? 'idCategory' : 'idPurchase';
+            let table = '';
+            let columnId = '';
+            if(currentTab.value === 'categorias'){
+                table = 'fin_category';
+                columnId = 'idCategory';
+            } else if (currentTab.value === 'compras') {
+                table = 'fin_purchase';
+                columnId = 'idPurchase';
+            } else {
+                table = 'fin_income';
+                columnId = 'idIncome';
+            }
             const { error } = await supabase.from(table).delete().eq(columnId, id);
             if (error) throw error;
             showAlert('Registro excluído com sucesso', 'success');
@@ -171,7 +173,10 @@
     };
 
 
-    onMounted(fetchRegistries);
+    onMounted(() => {
+        fetchCategories();
+        fetchRegistries();
+    });
     
 </script>
 
@@ -194,30 +199,27 @@
             >
                 <PhFunnel size="18" /> Filtrar
             </button>
-            <ExcelDropdown 
-            :currentMonth="currentMonth" 
-            @export="exportExcel" 
-            @import="importExcel" 
-        />
-            
+            <button class="btn-secondary">
+                <PhMicrosoftExcelLogo size="18" /> Excel
+            </button>
         </template>
         <template #filters v-if="showFilter">
             <div class="filter-card">
                 <div class="filter-row">
                     <div class="input-group">
                         <label>Buscar</label>
-                        <input type="text" placeholder="Digite para buscar..." />
+                        <input type="text" placeholder="Digite para buscar..." v-model="search" />
                     </div>
                     <div class="input-group">
                         <label>Categoria</label>
-                        <select>
+                        <select v-model="searchCategory">
                             <option value="">Todas</option>
-                            <option value="alimentacao">Alimentação</option>
+                            <option v-for="category in categories" :key="category.idCategory" :value="category.idCategory">{{ category.description }}</option>
                         </select> 
                     </div>
                     <div class="input-group">
                         <label>Data</label>
-                        <input type="date" />
+                        <input type="date" v-model="searchData"/>
                     </div>
                     <div class="filter-footer">
                         <button class="btn-clean" @click="showFilter = false">Limpar</button>
@@ -248,6 +250,7 @@
         <NewTransaction 
             v-if="isModalOpen" 
             :transactionData="registryToEdit"
+            :type="currentTab"
             @close="isModalOpen = false" 
             @saved="fetchRegistries" />
 

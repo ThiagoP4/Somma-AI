@@ -1,4 +1,4 @@
-<script setup lang="ts">
+ <script setup lang="ts">
     import { computed } from 'vue';
     import { PhArrowUpRight, PhPencilSimple, PhTrash } from '@phosphor-icons/vue';
 
@@ -26,23 +26,23 @@
             </span>
         </div>
 
-        <div class="record-row hover-lift" v-for="item in items" :key="item.idPurchase">
+        <div class="record-row hover-lift" v-for="item in items" :key="item.idPurchase || item.idIncome">
             <div class="record-main">
                 <div v-if="currentTab === 'entradas'" class="icon-entrada">
                     <PhArrowUpRight size="16" weight="bold" />
                 </div>
-                <span v-else class="category-dot" :style="{ backgroundColor: item.Category?.color || 'var(--text-secondary)' }"></span>
+                <span v-else class="category-dot" :style="{ backgroundColor: item.fin_category?.color || 'var(--text-secondary)' }"></span>
                 
                 <div class="record-info">
                     <span class="title">{{ item.title }}</span>
                     <span class="subtitle">
-                        <template v-if="item.Category?.description">{{ item.Category.description }} &bull; </template>
+                        <template v-if="item.fin_category?.description">{{ item.fin_category.description }} &bull; </template>
                         {{ toDate(item.date) }}
                     </span>
-                </div>
+                 </div>
             </div>
             
-            <div class="record-actions">
+             <div class="record-actions">
                 <div class="record-value" :class="currentTab === 'entradas' ? 'text-success' : 'text-danger'">
                     {{ toBRL(item.value) }}
                 </div>
@@ -50,10 +50,10 @@
                     <button class="icon-btn edit-btn" @click="emit('edit', item)" title="Editar">
                         <PhPencilSimple size="18" />
                     </button>
-                    <button class="icon-btn delete-btn" @click="emit('delete', item.idPurchase)" title="Excluir">
+                    <button class="icon-btn delete-btn" @click="emit('delete', item.idPurchase || item.idIncome)" title="Excluir">
                         <PhTrash size="18" />
                     </button>
-                </div>
+                 </div>
             </div>
         </div>
 

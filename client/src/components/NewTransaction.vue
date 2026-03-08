@@ -12,6 +12,10 @@
         transactionData: {
             type: Object as PropType<any>,
             default: null
+        },
+        type: {
+            type: String as PropType<string>,
+            default: 'compras'
         }
     });
 
@@ -24,11 +28,12 @@
 
     const emit = defineEmits(['close', 'saved']);
     const isEditing = computed(() => !!props.transactionData);
+    const isIncome = computed(() => props.type === 'entradas');
 
     onMounted(async () => {
         try {
             const { data, error } = await supabase
-                .from('Category') // Confere se no banco está maiúsculo ou minúsculo
+                .from('fin_category') // Confere se no banco está maiúsculo ou minúsculo
                 .select('*');
             if (error) throw error;
             categories.value = data;
@@ -44,9 +49,22 @@
     });
 
     const handleSubmit = async () => {
-        if (!description.value || !value.value || !categoryId.value || !date.value) {
+        if (!description.value || !value.value || !date.value) {
             showAlert('Por favor, preencha todos os campos obrigatórios.', 'warning');
             return;
+        }
+
+        if(!isIncome.value && !categoryId.value) {
+            showAlert('Por favor, selecione uma Categoria.', 'warning');
+            return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // Se por acaso o usuário não estiver logado, bloqueia a função
+        if (!user) {
+        console.error("Usuário não autenticado!");
+        return;
         }
 
         loading.value = true;
@@ -55,18 +73,23 @@
             const payload = {
                 title: description.value,
                 value: parseFloat(value.value.toString()),
-                categoryId: categoryId.value,
-                date: date.value
+                categoryId: categoryId.value || null,
+                date: date.value,
+                user_id: user.id
             };
+            
+            const table = isIncome.value ? 'fin_income' : 'fin_purchase';
+            const primaryKey = isIncome.value ? 'idIncome' : 'idPurchase';
+
             if(isEditing.value) {
                 const { error } = await supabase
-                    .from('Purchase')
+                    .from(table)
                     .update(payload)
-                    .eq('idPurchase', props.transactionData.idPurchase);
+                    .eq(primaryKey, props.transactionData[primaryKey]);
                 if (error) throw error;
             } else {
            const { error } = await supabase
-                .from('Purchase')
+                .from(table)
                 .insert(payload);
             if (error) throw error;
             } 
@@ -83,7 +106,7 @@
 </script>
 
 <template>
-    <FormLayout :title="isEditing ? 'Editar Compra' : 'Nova Compra'" subtitle="Preencha os dados da despesa" @close="$emit('close')">
+    <FormLayout :title="isEditing ? (isIncome ? 'Editar Entrada' : 'Editar Compra') : (isIncome ? 'Nova Entrada' : 'Nova Compra')" :subtitle="isIncome ? 'Preencha os dados da receita' : 'Preencha os dados da despesa'" @close="$emit('close')">
         
         <form @submit.prevent="handleSubmit">
 
@@ -109,7 +132,7 @@
             </div>
 
             <div class="form-group">
-                <label>Categoria <span class="required">*</span></label>
+                <label>Categoria <span class="required" v-if="!isIncome">*</span></label>
                 <div class="select-wrapper">
                     <select v-model="categoryId" class="input-field">
                         <option value="" disabled selected>Selecione...</option>
@@ -131,7 +154,7 @@
 
             <button type="submit" class="btn-primary">
                 <PhPlus size="20" weight="bold" />
-                {{ isEditing ? 'Salvar Alterações' : 'Adicionar Compra' }}
+                {{ isEditing ? 'Salvar Alterações' : (isIncome ? 'Adicionar Entrada' : 'Adicionar Compra') }}
             </button>
 
             <div class="divider">

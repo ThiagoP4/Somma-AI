@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { useAlertStore } from '../stores/useAlertStore';
 
-export function useExcel(){
+export function useExcel() {
     const { showAlert } = useAlertStore();
     const exportToExcel = (data: any[], fileName: string = 'FinanceAI_Registros') => {
         try {
@@ -12,10 +12,10 @@ export function useExcel(){
             const formattedData = data.map(item => ({
                 Data: new Date(item.date).toLocaleDateString('pt-BR'),
                 Titulo: item.title,
-                Categoria: item.Category?.description || 'Sem categoria',
+                Categoria: item.fin_category?.description || 'Sem categoria',
                 Valor: item.value
             }))
-            
+
             const worksheet = XLSX.utils.json_to_sheet(formattedData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Registros');
@@ -36,7 +36,7 @@ export function useExcel(){
 
             input.onchange = (e: Event) => {
                 const file = (e.target as HTMLInputElement).files?.[0];
-                if(!file) {
+                if (!file) {
                     reject(new Error('Nenhum arquivo selecionado.'));
                     return;
                 }
@@ -47,7 +47,7 @@ export function useExcel(){
                         const arrayBuffer = event.target?.result;
                         const workbook = XLSX.read(arrayBuffer, { type: 'array' });
                         const firstSheetName = workbook.SheetNames[0];
-                        if(!firstSheetName) {
+                        if (!firstSheetName) {
                             throw new Error('Nenhuma planilha encontrada.');
                         }
                         const worksheet = workbook.Sheets[firstSheetName];

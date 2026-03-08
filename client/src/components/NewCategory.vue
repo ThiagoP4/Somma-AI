@@ -47,22 +47,33 @@
                 return;
             }
 
+         const { data: { user } } = await supabase.auth.getUser();
+
+        // Se por acaso o usuário não estiver logado, bloqueia a função
+        if (!user) {
+            console.error("Usuário não autenticado!");
+            return;
+        }
+
+
             try {
                 if(props.categoryData?.idCategory) {
                     const { error } = await supabase
-                    .from('Category')
+                    .from('fin_category')
                     .update({
                         description: category.value,
-                        color: selectedColor.value
+                        color: selectedColor.value,
+                        user_id: user.id
                     })
                     .eq('idCategory', props.categoryData.idCategory);
                     if (error) throw error;
                 } else {
                     const { error } = await supabase
-                    .from('Category')
+                    .from('fin_category')
                     .insert({
                         description: category.value,
-                        color: selectedColor.value
+                        color: selectedColor.value,
+                        user_id: user.id
                     });
                     if (error) throw error;
                 }

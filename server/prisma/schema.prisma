@@ -6,19 +6,74 @@ datasource db {
   provider = "postgresql"
 }
 
+model Profile {
+  idProfile   String    @id  @db.Uuid
+  first_name  String
+  last_name   String
+  avatar_url  String?
+  updated_at  DateTime  @updatedAt @db.Timestamptz()
+
+  @@map("usr_profile")
+}
+
+// --- MÓDULO FINANCEIRO ---
+
 model Category {
   idCategory  Int        @id @default(autoincrement())
   description String
-  color       String?
+  color       String
+  user_id     String    @db.Uuid
   purchases   Purchase[]
+  incomes     Income[]
+
+  @@map("fin_category")
 }
 
 model Purchase {
   idPurchase Int      @id @default(autoincrement())
   title      String
   value      Float
-  date       DateTime @default(now())
-
+  date       DateTime @db.Timestamptz()
   categoryId Int
-  category   Category @relation(fields: [categoryId], references: [idCategory])
+  user_id   String  @db.Uuid
+
+  obsId  Int?
+  obs ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: Cascade)
+
+
+  category   Category @relation(fields: [categoryId], references: [idCategory], onDelete: Cascade)
+
+  @@map("fin_purchase")
+  
+}
+
+model ObservationType {
+  idObservation Int      @id @default(autoincrement())
+  description   String   
+  user_id       String   @db.Uuid
+  
+  purchases     Purchase[]
+  incomes       Income[]
+
+
+  @@map("fin_observation_types")
+  
+}
+
+
+model Income {
+  idIncome      Int      @id @default(autoincrement())
+  title         String
+  value         Float
+  date          DateTime @db.Timestamp()
+  user_id       String   @db.Uuid
+  
+  categoryId    Int?     
+  obsId Int?    
+  
+  category        Category?        @relation(fields: [categoryId], references: [idCategory],  onDelete: SetNull)
+  obs ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: SetNull)
+
+  @@map("fin_income")
+  
 }

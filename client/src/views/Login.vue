@@ -40,7 +40,7 @@
                 if (authError) throw authError;
                 if (authData.user) {
                     const { error: profileError } = await supabase
-                        .from('profiles')
+                        .from('usr_profile')
                         .insert({
                             id: authData.user.id,
                             first_name: firstName.value,
