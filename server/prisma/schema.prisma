@@ -7,11 +7,12 @@ datasource db {
 }
 
 model Profile {
-  idProfile   String    @id  @db.Uuid
-  first_name  String
-  last_name   String
-  avatar_url  String?
-  updated_at  DateTime  @updatedAt @db.Timestamptz()
+  idProfile     String         @id @db.Uuid
+  first_name    String
+  last_name     String
+  avatar_url    String?
+  updated_at    DateTime       @updatedAt @db.Timestamptz()
+  subscriptions Subscription[]
 
   @@map("usr_profile")
 }
@@ -22,7 +23,7 @@ model Category {
   idCategory  Int        @id @default(autoincrement())
   description String
   color       String
-  user_id     String    @db.Uuid
+  user_id     String     @db.Uuid
   purchases   Purchase[]
   incomes     Income[]
 
@@ -35,45 +36,51 @@ model Purchase {
   value      Float
   date       DateTime @db.Timestamptz()
   categoryId Int
-  user_id   String  @db.Uuid
+  user_id    String   @db.Uuid
 
-  obsId  Int?
-  obs ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: Cascade)
+  obsId Int?
+  obs   ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: Cascade)
 
-
-  category   Category @relation(fields: [categoryId], references: [idCategory], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [idCategory], onDelete: Cascade)
 
   @@map("fin_purchase")
-  
 }
 
 model ObservationType {
-  idObservation Int      @id @default(autoincrement())
-  description   String   
-  user_id       String   @db.Uuid
-  
-  purchases     Purchase[]
-  incomes       Income[]
+  idObservation Int    @id @default(autoincrement())
+  description   String
+  user_id       String @db.Uuid
 
+  purchases Purchase[]
+  incomes   Income[]
 
   @@map("fin_observation_types")
-  
 }
 
-
 model Income {
-  idIncome      Int      @id @default(autoincrement())
-  title         String
-  value         Float
-  date          DateTime @db.Timestamp()
-  user_id       String   @db.Uuid
-  
-  categoryId    Int?     
-  obsId Int?    
-  
-  category        Category?        @relation(fields: [categoryId], references: [idCategory],  onDelete: SetNull)
-  obs ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: SetNull)
+  idIncome Int      @id @default(autoincrement())
+  title    String
+  value    Float
+  date     DateTime @db.Timestamp()
+  user_id  String   @db.Uuid
+
+  categoryId Int?
+  obsId      Int?
+
+  category Category?        @relation(fields: [categoryId], references: [idCategory], onDelete: SetNull)
+  obs      ObservationType? @relation(fields: [obsId], references: [idObservation], onDelete: SetNull)
 
   @@map("fin_income")
-  
+}
+
+model Subscription {
+  idSubscription Int     @id @default(autoincrement())
+  plan_name      String
+  monthly_price  Float
+  active         Boolean @default(true)
+  user_id        String  @db.Uuid
+
+  profile Profile @relation(fields: [user_id], references: [idProfile], onDelete: Cascade)
+
+  @@map("opt_subscription")
 }
