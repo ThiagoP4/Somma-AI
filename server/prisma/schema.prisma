@@ -35,6 +35,7 @@ model Purchase {
   title      String
   value      Float
   date       DateTime @db.Timestamptz()
+  total_installments Int              @default(1)
   categoryId Int
   user_id    String   @db.Uuid
 
@@ -43,7 +44,20 @@ model Purchase {
 
   category Category @relation(fields: [categoryId], references: [idCategory], onDelete: Cascade)
 
+  installments Installment[]
+
   @@map("fin_purchase")
+}
+
+model Installment {
+  idInstallment     Int      @id @default(autoincrement())
+  purchaseId        Int      // FK para a compra principal
+  installmentNumber Int      // Qual é essa parcela? (ex: 1, 2, 3...)
+  value             Float    // Valor desta parcela (ex: 100.00)
+  dueDate           DateTime @db.Timestamptz() // Data de vencimento desta parcela
+  paid              Boolean  @default(false)     // Controle de pago/pendente
+  purchase Purchase @relation(fields: [purchaseId], references: [idPurchase], onDelete: Cascade)
+  @@map("fin_installment")
 }
 
 model ObservationType {

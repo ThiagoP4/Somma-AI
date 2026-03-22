@@ -26,6 +26,9 @@
     const categories = ref<any[]>([]);
     const loading = ref(false);
 
+    const isInstallment = ref(false);
+    const installmentNumber = ref('');
+
     const emit = defineEmits(['close', 'saved']);
     const isEditing = computed(() => !!props.transactionData);
     const isIncome = computed(() => props.type === 'entradas');
@@ -75,7 +78,8 @@
                 value: parseFloat(value.value.toString()),
                 categoryId: categoryId.value || null,
                 date: date.value,
-                user_id: user.id
+                user_id: user.id,
+                total_installments: isInstallment.value ? Number(installmentNumber.value) : 1
             };
             
             const table = isIncome.value ? 'fin_income' : 'fin_purchase';
@@ -88,11 +92,46 @@
                     .eq(primaryKey, props.transactionData[primaryKey]);
                 if (error) throw error;
             } else {
-           const { error } = await supabase
-                .from(table)
-                .insert(payload);
-            if (error) throw error;
-            } 
+
+                if(isIncome.value) {
+                    const { error } = await supabase
+                        .from('fin_income')
+                        .insert(payload);
+                    if (error) throw error;
+                } else {
+                const { data: returnData, error: purchaseError } = await supabase
+                    .from('fin_purchase')
+                    .insert(payload)
+                    .select('idPurchase')
+                    .single();
+                if(purchaseError) throw purchaseError;
+
+                const idCompraGerada = returnData.idPurchase;
+                const totalValuesToDivide = payload.value;
+                const installment = isInstallment.value;
+                const installmentQtd = installment ? Number(installmentNumber.value) : 1;
+                const valuePerInstallment = parseFloat((totalValuesToDivide / installmentQtd).toFixed(2));
+
+                const installmentsData = [];
+
+                let currentDateInstallment = new Date(payload.date);
+
+                for(let i = 1; i <= installmentQtd; i++) {
+                    installmentsData.push({
+                        purchaseId: idCompraGerada,
+                        installmentNumber: i,
+                        value: valuePerInstallment,
+                        dueDate: currentDateInstallment.toISOString(),
+                        paid: i === 1 && !installment
+                    });
+                    currentDateInstallment.setMonth(currentDateInstallment.getMonth() + 1);
+                }
+
+                const { error: insError } = await supabase.from('fin_installment').insert(installmentsData);
+                if(insError) throw insError;
+                }
+            }
+        
             emit('saved');
             emit('close');
         } catch (error) {
@@ -143,6 +182,32 @@
                 </div>
             </div>
 
+            <div class="installment-card" v-if="!isIncome">
+                <div class="card-text">
+                    <span class="card-title">Compra Parcelada?</span>
+                    <span class="card-subtitle">Divide o valor em parcelas</span>
+                </div>
+                <label class="switch">
+                    <input 
+                        type="checkbox" 
+                        v-model="isInstallment" 
+                    />
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="installment-card" v-if="!isIncome && isInstallment"
+            style="margin-top: 12px; flex-direction: column; align-items: flex-start;">
+                <label  class="card-title mb-2">Quantidade de Parcelas</label>
+                 <div class="select-wrapper w-100">
+                    <select v-model.number="installmentNumber" class="input-field">
+                        <option v-for="n in 23" :key="n" :value="n + 1">
+                            {{ n + 1 }}x
+                        </option>
+                    </select>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Data <span class="required">*</span></label>
                 <input 
@@ -180,6 +245,85 @@
         text-align: center;
         margin: 1.5rem 0;
         position: relative;
+    }
+
+    .installment-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem;
+        background: var(--bg-card);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1rem;
+    }
+
+    .card-text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .card-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .card-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+    
+    .mb-2 {
+        margin-bottom: 8px;
+    }
+
+    .w-100 {
+        width: 100%;
+    }
+
+     .switch {
+        position: relative;
+        display: inline-block;
+        width: 46px;   /* Largura total da pista */
+        height: 24px;  /* Altura total da pista */
+    }
+    /* Esconde o checkbox HTML original */
+    .switch input { 
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    /* A pista (slider) */
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #5c5c5e; /* Cor de fundo do switch desligado */
+        transition: .3s;
+        border-radius: 24px; /* Bordas super arredondadas */
+    }
+    /* A bolinha do switch */
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: #000000; /* Cor da bolinha quando desligada */
+        transition: .3s;
+        border-radius: 50%;
+    }
+    /* Estado: LIGADO (:checked) */
+    .switch input:checked + .slider {
+        background-color: #7C3AED; 
+    }
+    /* Muda a cor da bolinha quando liga e joga ela pra direita */
+    .switch input:checked + .slider:before {
+        background-color: #FFFFFF;
+        transform: translateX(22px); 
     }
 
     .divider::before {

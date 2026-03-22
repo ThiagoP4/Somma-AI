@@ -131,13 +131,46 @@
             }
 
             const { data, error } = await supabase
-            .from('fin_purchase')
-            .select('*, fin_category(description, color)')
-            .order('date', { ascending: false })
-            .gte('date', startDate)
-            .lte('date', endDate);
+            .from('fin_installment')
+            .select(`
+            idInstallment,
+            installmentNumber,
+            value,
+            dueDate,
+            paid,
+            purchaseId,
+            fin_purchase!inner(
+                title, 
+                value, 
+                date, 
+                total_installments,
+                fin_category(
+                    description, 
+                    color
+                )
+            )
+            `)
+            .order('dueDate', { ascending: false })
+            .gte('dueDate', startDate)
+            .lte('dueDate', endDate)
+           
             if(error) throw error;
-            registries.value = data || [];
+            registries.value = (data || []).map((item: any) => {
+                const sufixo = item.fin_purchase.total_installments > 1
+                    ? `(${item.installmentNumber}/${item.fin_purchase.total_installments}x)`
+                    : '';
+
+                return {
+                    idPurchase: item.purchaseId,
+                    idInstallment: item.idInstallment,
+                    title: `${item.fin_purchase.title} ${sufixo}`.trim(),
+                    value: item.value,
+                    date: item.dueDate,
+                    paid: item.paid,
+                    fin_category: item.fin_purchase.fin_category
+                };
+            });
+           
 
             console.log('Dados recebidos Compras:', data, 'Start:', startDate, 'End:', endDate);
         } catch (error) { 
