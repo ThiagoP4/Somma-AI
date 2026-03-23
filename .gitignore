@@ -25,3 +25,6 @@ logs
 
 # Supabase (Arquivos locais gerados)
 supabase/.temp/
+
+# Pastas antigas ou ignoradas
+exc/

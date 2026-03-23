@@ -66,8 +66,17 @@
     });
 
     const totalValue = computed(() => {
-        if(currentTab.value === 'categorias') return 0; 
-        return registries.value.reduce((acc, item) => acc + item.value, 0);
+        if (currentTab.value === 'categorias') return 0;
+        
+        // Se for receitas, soma tudo (pois não tem botão de pago ainda)
+        if (currentTab.value === 'entradas') {
+            return registries.value.reduce((acc, item) => acc + (item.value || 0), 0);
+        }
+
+        // Se for compras, soma APENAS as efetivadas (item.paid === true)
+        return registries.value.reduce((acc, item) => {
+            return item.paid ? acc + (item.value || 0) : acc;
+        }, 0);
     });
 
     const openEditModal = (item: Registry) => {
@@ -89,6 +98,32 @@
             isModalOpen.value = true;     // Abre o modal de nova compra
         }
     };
+
+    const togglePaymentStatus = async (item: any) => {
+        if(currentTab.value === 'entradas' || currentTab.value === 'categorias') return;
+        
+        const newStatus = !item.paid;
+        
+        try {
+            const { error } = await supabase
+            .from('fin_installment')
+            .update({ paid: newStatus })
+            .eq('idInstallment', item.idInstallment);
+
+            if(error) throw error;
+
+            item.paid = newStatus;
+            if(item.paid === true) {
+                showAlert('Status atualizado para Efetivado', 'success');
+            } else {
+                showAlert('Status atualizado para Pendente', 'success');
+            }
+        } catch (error) {
+            console.error(error);
+            showAlert('Erro ao atualizar status', 'error');
+        }
+    
+    }
 
     const fetchRegistries = async () => {
         loading.value = true;
@@ -269,6 +304,7 @@
                 :currentTab="currentTab"
                 @edit="openEditModal"
                 @delete="deleteRegistry"
+                @toggle-paid="togglePaymentStatus"
             />
 
             <CategoryGrid 
