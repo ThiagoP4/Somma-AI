@@ -11,6 +11,7 @@
     const emit = defineEmits(['close', 'saved']);
 
     const category = ref('');
+    const categoryType = ref('despesa');
     const selectedColor = ref('#B91C1C');
     const colorInputRef = ref<HTMLInputElement | null>(null);
     const openColorPicker = () => {
@@ -37,6 +38,7 @@
     onMounted(() => {
         if (props.categoryData) {
             category.value = props.categoryData.description;
+            categoryType.value = props.categoryData.type || 'despesa';
             selectedColor.value = props.categoryData.color;
         }
     });
@@ -63,6 +65,7 @@
                     .update({
                         description: category.value,
                         color: selectedColor.value,
+                        type: categoryType.value,
                         user_id: user.id
                     })
                     .eq('idCategory', props.categoryData.idCategory);
@@ -73,6 +76,7 @@
                     .insert({
                         description: category.value,
                         color: selectedColor.value,
+                        type: categoryType.value,
                         user_id: user.id
                     });
                     if (error) throw error;
@@ -98,6 +102,16 @@
                 <div class="form-group">
                     <label>Nome da Categoria <span class="required">*</span></label>
                     <input type="text" v-model="category" class="input-field" placeholder="Ex: Alimentação..." />
+                </div>
+
+                <div class="form-group">
+                    <label>Tipo da Categoria <span class="required">*</span></label>
+                    <div class="select-wrapper">
+                        <select v-model="categoryType" class="input-field">
+                            <option value="despesa">Despesa</option>
+                            <option value="receita">Entrada</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group">

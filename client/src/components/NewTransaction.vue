@@ -35,9 +35,13 @@
 
     onMounted(async () => {
         try {
+            const tipoCategoria = isIncome.value ? 'receita' : 'despesa';
+
             const { data, error } = await supabase
-                .from('fin_category') // Confere se no banco está maiúsculo ou minúsculo
-                .select('*');
+                .from('fin_category')
+                .select('*')
+                .eq('type', tipoCategoria);
+                
             if (error) throw error;
             categories.value = data;
         } catch (error) {
@@ -79,7 +83,7 @@
                 categoryId: categoryId.value || null,
                 date: date.value,
                 user_id: user.id,
-                total_installments: isInstallment.value ? Number(installmentNumber.value) : 1
+                ...(!isIncome.value ? { total_installments: isInstallment.value ? Number(installmentNumber.value) : 1 } : {})
             };
             
             const table = isIncome.value ? 'fin_income' : 'fin_purchase';
