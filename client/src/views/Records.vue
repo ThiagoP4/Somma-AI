@@ -16,11 +16,12 @@
     const { showAlert } = useAlertStore();
 
     interface Registry {
-        idPurchase: number;
+        idPurchase?: number; /* Opcional devido a Entradas */
+        idIncome?: number;   /* Opcional devido a Compras */
         title: string;
         value: number;
         date: string;
-        Category: {
+        fin_category: { /* O Join retorna com o nome da tabela no Supabase */
             description: string;
             color: string;
         } | null; 
@@ -35,6 +36,26 @@
     const dateStore = useDateStore();
     const { selectedMonth, selectedYear } = storeToRefs(dateStore);
     
+    const search = ref('');
+    const searchCategory = ref('');
+    const searchData = ref('');
+
+    const categories = ref<any[]>([]);
+
+    const fetchCategories = async () => {
+        try {
+            const { data, error } = await supabase
+            .from('fin_category')
+            .select('*')
+            .order('description', { ascending: true });
+            if(error) throw error;
+            categories.value = data || [];
+        } catch (error) {
+            console.error(error);
+            showAlert('Erro ao carregar categorias', 'error');
+        }
+    }
+    
 
     const touchArea = ref<HTMLElement | null>(null);
     const { tabs, currentTab: currentTab, moveTab: moveTab } = useTabsSwipe(['compras', 'entradas', 'categorias'], touchArea);
@@ -45,8 +66,17 @@
     });
 
     const totalValue = computed(() => {
-        if(currentTab.value === 'categorias') return 0; 
-        return registries.value.reduce((acc, item) => acc + item.value, 0);
+        if (currentTab.value === 'categorias') return 0;
+        
+        // Se for receitas, soma tudo (pois não tem botão de pago ainda)
+        if (currentTab.value === 'entradas') {
+            return registries.value.reduce((acc, item) => acc + (item.value || 0), 0);
+        }
+
+        // Se for compras, soma APENAS as efetivadas (item.paid === true)
+        return registries.value.reduce((acc, item) => {
+            return item.paid ? acc + (item.value || 0) : acc;
+        }, 0);
     });
 
     const openEditModal = (item: Registry) => {
@@ -69,6 +99,32 @@
         }
     };
 
+    const togglePaymentStatus = async (item: any) => {
+        if(currentTab.value === 'entradas' || currentTab.value === 'categorias') return;
+        
+        const newStatus = !item.paid;
+        
+        try {
+            const { error } = await supabase
+            .from('fin_installment')
+            .update({ paid: newStatus })
+            .eq('idInstallment', item.idInstallment);
+
+            if(error) throw error;
+
+            item.paid = newStatus;
+            if(item.paid === true) {
+                showAlert('Status atualizado para Efetivado', 'success');
+            } else {
+                showAlert('Status atualizado para Pendente', 'success');
+            }
+        } catch (error) {
+            console.error(error);
+            showAlert('Erro ao atualizar status', 'error');
+        }
+    
+    }
+
     const fetchRegistries = async () => {
         loading.value = true;
         try {
@@ -76,14 +132,14 @@
             const endDate = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
             if (currentTab.value === 'categorias') {
                 const { data, error } = await supabase
-                    .from('Category')
-                    .select('*, Purchase(value)') // Faz join para somar valores por categoria
-                    .gte('Purchase.date', startDate)
-                    .lte('Purchase.date', endDate);
+                    .from('fin_category')
+                    .select('*, fin_purchase(value)') // Faz join para somar valores por categoria
+                    .gte('fin_purchase.date', startDate)
+                    .lte('fin_purchase.date', endDate);
                     if (error) throw error;
                 // Transforma os dados para o formato esperado pela tabela
                     registries.value = (data || []).map((cat: any) => {
-                     const listaCompras = cat.Purchase || []; 
+                     const listaCompras = cat.fin_purchase || []; 
             
                     return {
                         idCategory: cat.idCategory,
@@ -96,15 +152,62 @@
                 });
                 return; // Para a execução aqui se for categoria
             }
-            const { data, error } = await supabase
-            .from('Purchase')
-            .select('*, Category(description, color)')
-            .gte('date', startDate)
-            .lte('date', endDate)
-            .order('date', { ascending: false })
 
+            if (currentTab.value === 'entradas') {
+                const { data, error } = await supabase
+                .from('fin_income')
+                .select('*, fin_category(description, color)')
+                .order('date', { ascending: false })
+                .gte('date', startDate)
+                .lte('date', endDate);
+                if (error) throw error;
+                registries.value = data || [];
+                return;
+            }
+
+            const { data, error } = await supabase
+            .from('fin_installment')
+            .select(`
+            idInstallment,
+            installmentNumber,
+            value,
+            dueDate,
+            paid,
+            purchaseId,
+            fin_purchase!inner(
+                title, 
+                value, 
+                date, 
+                total_installments,
+                fin_category(
+                    description, 
+                    color
+                )
+            )
+            `)
+            .order('dueDate', { ascending: false })
+            .gte('dueDate', startDate)
+            .lte('dueDate', endDate)
+           
             if(error) throw error;
-            registries.value = data || [];
+            registries.value = (data || []).map((item: any) => {
+                const sufixo = item.fin_purchase.total_installments > 1
+                    ? `(${item.installmentNumber}/${item.fin_purchase.total_installments}x)`
+                    : '';
+
+                return {
+                    idPurchase: item.purchaseId,
+                    idInstallment: item.idInstallment,
+                    title: `${item.fin_purchase.title} ${sufixo}`.trim(),
+                    value: item.value,
+                    date: item.dueDate,
+                    paid: item.paid,
+                    fin_category: item.fin_purchase.fin_category
+                };
+            });
+           
+
+            console.log('Dados recebidos Compras:', data, 'Start:', startDate, 'End:', endDate);
         } catch (error) { 
             console.error(error);
             showAlert('Erro ao carregar registros', 'error');
@@ -113,11 +216,23 @@
     };
 
     const deleteRegistry = async (id: number) => {
-        const msg = currentTab.value === 'categorias' ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' : currentTab.value === 'compras' ? 'Excluir Compra' : 'Excluir Entrada';
+        const msg = currentTab.value === 'categorias' 
+        ? 'Excluir Categoria (todas as compras associadas também serão excluídas)' 
+        : currentTab.value === 'compras' ? 'Excluir Compra' : 'Excluir Entrada';
         if (!confirm(`Deseja realmente ${msg}?`)) return
         try {
-            const table = currentTab.value === 'categorias' ? 'Category' : 'Purchase';
-            const columnId = table === 'Category' ? 'idCategory' : 'idPurchase';
+            let table = '';
+            let columnId = '';
+            if(currentTab.value === 'categorias'){
+                table = 'fin_category';
+                columnId = 'idCategory';
+            } else if (currentTab.value === 'compras') {
+                table = 'fin_purchase';
+                columnId = 'idPurchase';
+            } else {
+                table = 'fin_income';
+                columnId = 'idIncome';
+            }
             const { error } = await supabase.from(table).delete().eq(columnId, id);
             if (error) throw error;
             showAlert('Registro excluído com sucesso', 'success');
@@ -126,7 +241,10 @@
     };
 
 
-    onMounted(fetchRegistries);
+    onMounted(() => {
+        fetchCategories();
+        fetchRegistries();
+    });
     
 </script>
 
@@ -158,18 +276,18 @@
                 <div class="filter-row">
                     <div class="input-group">
                         <label>Buscar</label>
-                        <input type="text" placeholder="Digite para buscar..." />
+                        <input type="text" placeholder="Digite para buscar..." v-model="search" />
                     </div>
                     <div class="input-group">
                         <label>Categoria</label>
-                        <select>
+                        <select v-model="searchCategory">
                             <option value="">Todas</option>
-                            <option value="alimentacao">Alimentação</option>
+                            <option v-for="category in categories" :key="category.idCategory" :value="category.idCategory">{{ category.description }}</option>
                         </select> 
                     </div>
                     <div class="input-group">
                         <label>Data</label>
-                        <input type="date" />
+                        <input type="date" v-model="searchData"/>
                     </div>
                     <div class="filter-footer">
                         <button class="btn-clean" @click="showFilter = false">Limpar</button>
@@ -186,6 +304,7 @@
                 :currentTab="currentTab"
                 @edit="openEditModal"
                 @delete="deleteRegistry"
+                @toggle-paid="togglePaymentStatus"
             />
 
             <CategoryGrid 
@@ -200,6 +319,7 @@
         <NewTransaction 
             v-if="isModalOpen" 
             :transactionData="registryToEdit"
+            :type="currentTab"
             @close="isModalOpen = false" 
             @saved="fetchRegistries" />
 

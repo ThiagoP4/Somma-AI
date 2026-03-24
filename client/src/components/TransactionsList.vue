@@ -1,16 +1,19 @@
-<script setup lang="ts">
+ <script setup lang="ts">
     import { computed } from 'vue';
-    import { PhArrowUpRight, PhPencilSimple, PhTrash } from '@phosphor-icons/vue';
+    import { PhArrowUpRight, PhPencilSimple, PhTrash, PhCheckCircle, PhCircle } from '@phosphor-icons/vue';
 
     const props = defineProps<{
         items: any[];
         currentTab: string;
     }>();
 
-    const emit = defineEmits(['edit', 'delete']);
+    const emit = defineEmits(['edit', 'delete', 'toggle-paid']);
 
     const totalValue = computed(() => {
-        return props.items.reduce((acc, item) => acc + (item.value || 0), 0);
+        if (props.currentTab === 'entradas') {
+            return props.items.reduce((acc, item) => acc + (item.value || 0), 0);
+        }
+        return props.items.reduce((acc, item) => item.paid ? acc + (item.value || 0) : acc, 0);
     });
 
     const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL'}).format(v);
@@ -26,34 +29,41 @@
             </span>
         </div>
 
-        <div class="record-row hover-lift" v-for="item in items" :key="item.idPurchase">
+        <div class="record-row hover-lift" v-for="item in items" :key="item.idPurchase || item.idIncome">
             <div class="record-main">
                 <div v-if="currentTab === 'entradas'" class="icon-entrada">
                     <PhArrowUpRight size="16" weight="bold" />
                 </div>
-                <span v-else class="category-dot" :style="{ backgroundColor: item.Category?.color || 'var(--text-secondary)' }"></span>
+                <span v-else class="category-dot" :style="{ backgroundColor: item.fin_category?.color || 'var(--text-secondary)' }"></span>
                 
                 <div class="record-info">
                     <span class="title">{{ item.title }}</span>
                     <span class="subtitle">
-                        <template v-if="item.Category?.description">{{ item.Category.description }} &bull; </template>
+                        <template v-if="item.fin_category?.description">{{ item.fin_category.description }} &bull; </template>
                         {{ toDate(item.date) }}
                     </span>
-                </div>
+                 </div>
             </div>
             
-            <div class="record-actions">
+             <div class="record-actions">
                 <div class="record-value" :class="currentTab === 'entradas' ? 'text-success' : 'text-danger'">
                     {{ toBRL(item.value) }}
                 </div>
                 <div class="action-buttons">
+                    <button v-if="currentTab === 'compras'" 
+                        class="icon-btn" 
+                        :class="item.paid ? 'paid-btn' : 'unpaid-btn'" 
+                        @click="emit('toggle-paid', item)" 
+                        :title="item.paid ? 'Voltar para pendente' : 'Efetivar gasto'">
+                        <component :is="item.paid ? PhCheckCircle : PhCircle" size="22" :weight="item.paid ? 'fill' : 'regular'" />
+                    </button>
                     <button class="icon-btn edit-btn" @click="emit('edit', item)" title="Editar">
                         <PhPencilSimple size="18" />
                     </button>
-                    <button class="icon-btn delete-btn" @click="emit('delete', item.idPurchase)" title="Excluir">
+                    <button class="icon-btn delete-btn" @click="emit('delete', item.idPurchase || item.idIncome)" title="Excluir">
                         <PhTrash size="18" />
                     </button>
-                </div>
+                 </div>
             </div>
         </div>
 
@@ -134,6 +144,13 @@
         align-items: center; 
         gap: 1.5rem; 
     }
+
+    .paid-btn { color: var(--success-color); }
+    .paid-btn:hover { color: var(--danger-color); } /* Se passar o mouse, ele avisa que vai desfazer */
+    
+    .unpaid-btn { color: var(--text-secondary); }
+    .unpaid-btn:hover { color: var(--success-color); } /* Se passar o mouse, avisa que vai ficar verdinho */
+
 
     .record-value { font-weight: 600; font-size: 1rem; }
     
