@@ -44,7 +44,7 @@
                         <div class="logo-icon">
                             <PhTrendUp size="18" weight="fill" />
                         </div>
-                        <span class="brand-text">Finance <strong>AI</strong></span>
+                        <span class="brand-text">Somma <strong>AI</strong></span>
                     </div>
                     <button class="close-btn" @click="emit('close')">
                         <PhX size="16" />
