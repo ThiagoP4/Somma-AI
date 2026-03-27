@@ -47,7 +47,7 @@
         </button>
         <div class="logo">
           <PhTrendUp size="28" weight="fill" class="logo-icon" />
-          <span>Finance <span class="ai">AI</span></span>
+          <span>Somma <span class="ai">AI</span></span>
         </div>
       </div>
 
@@ -358,7 +358,7 @@
       .content-area {
         padding: 1rem !important; /* Reduz de 2rem para 1rem */
       }
-      /* 2. Esconder o texto "Finance AI" do logo (deixa só o ícone) */
+      /* 2. Esconder o texto "Somma AI" do logo (deixa só o ícone) */
       .logo span, .nav-links a span, .logout-btn span {
           display: none; 
       }
