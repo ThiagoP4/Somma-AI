@@ -5,41 +5,45 @@
 }
 
 :root {
-  /* --- TEMA CLARO (O padrão atual) --- */
-  --bg-page: hsl(220, 20%, 97%);       /* Fundo da página */
-  --bg-card: hsl(0, 0%, 100%);     /* Fundo do cartão */
-  --bg-input: hsl(220, 13%, 90%);      /* Fundo do input */
+  /* --- TEMA CLARO (Novo visual) --- */
+  --bg-page: hsl(30, 30%, 98%);
+  --bg-card: hsl(30, 25%, 97%);
+  --bg-input: hsl(30, 20%, 88%);
   
-  --text-primary: hsl(224, 30%, 12%);  /* Títulos e textos fortes */
-  --text-secondary: hsl(220, 10%, 46%);/* Legendas e ícones */
-  --text-inverse: hsl(0, 0%, 100%);  /* Texto dentro de botões */
+  --text-primary: hsl(20, 20%, 10%);
+  --text-secondary: hsl(20, 10%, 50%);
+  --text-inverse: hsl(0, 0%, 100%);
   
-  --border-color: hsl(220, 13%, 90%);  /* Bordas sutis */
+  --border-color: hsl(30, 20%, 88%);
   
-  --primary-color: hsl(250, 85%, 60%); /* Roxo principal */
-  --primary-hover: hsl(250, 85%, 50%);
-  --success-color: hsl(152, 76%, 40%); 
-  --danger-color: hsl(0, 84%, 60%);  /* destructive: 0 84.2% 60.2% */
+  --primary-color: hsl(24, 80%, 55%);
+  --primary-hover: hsl(24, 80%, 45%);
+  --accent-color: hsl(346, 77%, 50%);
+  --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+  
+  --success-color: hsl(142, 71%, 45%); 
+  --danger-color: hsl(0, 84%, 60%);
 }
 
 /* Quando a classe .dark for adicionada no HTML */
 .dark {
-  /* --- TEMA ESCURO (Novas cores) --- */
-  --bg-page: hsl(228, 28%, 6%);      /* Slate 900 */
-  --bg-card: hsl(228, 24%, 10%);      /* Slate 800 */
-  --bg-input: hsl(228, 16%, 16%);      /* Slate 700 (Input mais claro que o card) */
+  /* --- TEMA ESCURO (Novo visual) --- */
+  --bg-page: hsl(20, 20%, 7%);
+  --bg-card: hsl(20, 18%, 10%);
+  --bg-input: hsl(20, 12%, 18%);
   
-  --text-primary: hsl(220, 20%, 93%);  /* Slate 50 (Quase branco) */
-  --text-secondary: hsl(220, 12%, 52%);/* Slate 400 */
+  --text-primary: hsl(30, 20%, 92%);
+  --text-secondary: hsl(30, 10%, 60%);
   --text-inverse: hsl(0, 0%, 100%);
   
-  --border-color: hsl(228, 16%, 16%);  /* Slate 700 */
+  --border-color: hsl(20, 12%, 18%);
   
-  /* O Primary geralmente brilha mais no escuro, mantive igual por enquanto */
-  --primary-color: hsl(250, 85%, 65%);
-  --primary-hover: hsl(250, 85%, 75%);
+  --primary-color: hsl(24, 80%, 50%);
+  --primary-hover: hsl(24, 80%, 40%);
+  --accent-color: hsl(346, 77%, 55%);
+  --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
 
-  --danger-color: hsl(0, 84%, 60%);  /* destructive dark */
+  --danger-color: hsl(0, 62%, 35%);
   --success-color: hsl(152, 76%, 40%);
 }
 
@@ -95,7 +99,7 @@ input, select, textarea {
 .btn-active { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--border-color); }
 
 .btn-apply {
-    background-color: var(--primary-color);
+    background: var(--primary-gradient);
     color: var(--text-inverse);
     border: none;
     padding: 0.6rem 1.2rem;
@@ -103,7 +107,7 @@ input, select, textarea {
     cursor: pointer;
     font-weight: 500;
 }
-.btn-apply:hover { background-color: var(--primary-hover); }
+.btn-apply:hover { opacity: 0.9; }
 
 .btn-clean {
     background: transparent;

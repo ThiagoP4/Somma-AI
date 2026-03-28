@@ -44,7 +44,7 @@
                         <div class="logo-icon">
                             <PhTrendUp size="18" weight="fill" />
                         </div>
-                        <span class="brand-text">Finance <strong>AI</strong></span>
+                        <span class="brand-text">Somma <strong>AI</strong></span>
                     </div>
                     <button class="close-btn" @click="emit('close')">
                         <PhX size="16" />
@@ -138,7 +138,7 @@
         gap: 10px;
     }
     .logo-icon {
-        background: linear-gradient(135deg, #8B5CF6, #6366F1);
+        background: var(--primary-gradient);
         width: 26px;
         height: 26px;
         border-radius: 8px;

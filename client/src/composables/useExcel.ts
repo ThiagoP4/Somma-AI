@@ -3,7 +3,7 @@ import { useAlertStore } from '../stores/useAlertStore';
 
 export function useExcel() {
     const { showAlert } = useAlertStore();
-    const exportToExcel = (data: any[], fileName: string = 'FinanceAI_Registros') => {
+    const exportToExcel = (data: any[], fileName: string = 'SommaAI_Registros') => {
         try {
             if (!data || data.length === 0) {
                 return;
