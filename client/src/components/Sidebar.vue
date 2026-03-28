@@ -4,6 +4,7 @@
         PhTrendUp, PhX, PhMoon, PhUser, PhHeart, 
         PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut 
     } from '@phosphor-icons/vue';
+    import { supabase } from '../services/supabase';
 
     const props = defineProps<{ isOpen: boolean }>();
     const emit = defineEmits(['close']);
@@ -20,6 +21,15 @@
                 localStorage.removeItem('theme')
             }
     };
+
+    const handleLogout = async () => {
+        try {
+            emit('close')
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error('Erro ao fazer logout:', error)
+        }
+    }
 
     // Lista de itens do menu para não repetir HTML
     const menuItems = [
@@ -74,7 +84,7 @@
                         </nav>
                     </div>
                 <div class="sidebar-footer">
-                    <button class="logout-btn">
+                    <button class="logout-btn" @click="handleLogout">
                         <PhSignOut size="18" />
                         <span>Sair</span>
                     </button>

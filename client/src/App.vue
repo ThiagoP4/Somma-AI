@@ -1,7 +1,20 @@
 <script setup lang="ts">
 import DefaultLayout from './layouts/DefaultLayout.vue'
 import CustomAlert from './components/CustomAlert.vue';
-import { RouterView } from 'vue-router'; 
+import { RouterView, useRouter } from 'vue-router'; 
+import { onMounted } from 'vue';
+import { supabase } from './services/supabase';
+
+const router = useRouter();
+
+onMounted(() => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' && !session) {
+      router.push('/login');
+    }
+  })
+})
+
 </script>
 
 <template>

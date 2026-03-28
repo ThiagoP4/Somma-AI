@@ -1,39 +1,53 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { supabase } from '../services/supabase';
 
+const INACTIVITY_TIMEOUT = 24 * 60 * 60 * 1000;
+
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-        path: '/login',
-        name: 'login',
-        component: () => import('../views/Login.vue'),
-        meta: { requiresGuest: true }
-    },
-    {    
-        path: '/',
-        name: 'dashboard',
-        component: () => import('../views/Dashboard.vue'),
-        meta: { requiresAuth: true }
-    },
-    {
-        path: '/records',
-        name: 'records',
-        component: () => import('../views/Records.vue'),
-        meta: { requiresAuth: true }
-    },
-    {
-        path: '/copilot',
-        name: 'copilot',
-        component: () => import('../views/Copilot.vue'),
-        meta: { requiresAuth: true }
-    }
+    history: createWebHistory(import.meta.env.BASE_URL),
+    routes: [
+        {
+            path: '/login',
+            name: 'login',
+            component: () => import('../views/Login.vue'),
+            meta: { requiresGuest: true }
+        },
+        {
+            path: '/',
+            name: 'dashboard',
+            component: () => import('../views/Dashboard.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/records',
+            name: 'records',
+            component: () => import('../views/Records.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/copilot',
+            name: 'copilot',
+            component: () => import('../views/Copilot.vue'),
+            meta: { requiresAuth: true }
+        }
     ]
 });
 
 router.beforeEach(async (to, _from, next) => {
     const { data: { session } } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
+
+    if (isAuthenticated) {
+        const lastActivity = localStorage.getItem('lastActivity');
+        const now = Date.now();
+
+        if (lastActivity && (now - parseInt(lastActivity)) > INACTIVITY_TIMEOUT) {
+            await supabase.auth.signOut();
+            localStorage.removeItem('lastActivity');
+            return next('/login');
+        }
+        localStorage.setItem('lastActivity', now.toString());
+    }
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login');
