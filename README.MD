@@ -1,4 +1,4 @@
-# Finance AI - Personal Finance Dashboard
+# Somma AI - Personal Finance Dashboard
 
 Projeto de gestão financeira pessoal focado em automação e análise de dados.
 
