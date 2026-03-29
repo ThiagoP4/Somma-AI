@@ -46,8 +46,13 @@
           <PhList size="26" />
         </button>
         <div class="logo">
-          <PhTrendUp size="28" weight="fill" class="logo-icon" />
-          <span>Somma <span class="ai">AI</span></span>
+          <div class="logo-icon">
+            <PhTrendUp size="18" weight="bold" />
+          </div>
+          <span class="brand-text">
+             <strong style="color: var(--accent-color)">Somma</strong>
+             <strong style="color: var(--primary-color)"> AI</strong>
+          </span>
         </div>
       </div>
 
@@ -64,7 +69,7 @@
             </RouterLink>
         </li>
         <li>
-        <RouterLink to="/copilot" active-class="active">
+        <RouterLink to="/copilot" class="btn-ia" active-class="active-ai">
             <PhSparkle size="20" /> Modo IA
         </RouterLink>
         </li>
@@ -162,8 +167,20 @@
         letter-spacing: -0.5px;
     }
     
-    .logo-icon { color: var(--primary-color); }
-    .ai { color: var(--primary-color); }
+    .logo-icon {
+      background: var(--primary-gradient);
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-inverse);
+    }
+
+    .brand-text {
+      font-size: 1.25rem;
+    }
 
     .nav-links {
       list-style: none;
@@ -182,15 +199,37 @@
       align-items: center;
       gap: 0.5rem;
       transition: all 0.2s ease;
-      padding: 0.5rem 0;
-      border-bottom: 2px solid transparent;
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
     }
 
-    .nav-links a:hover { color: var(--primary-color); }
+    .nav-links a:hover { 
+      background-color: var(--bg-page);
+      color: var(--primary-color); 
+    }
     
     .nav-links a.active {
-      color: var(--text-primary);
-      border-bottom: 2px solid var(--primary-color);
+      color: var(--text-inverse);
+      background: var(--primary-gradient);
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2);
+    }
+
+    /* Estilo do botão Modo IA (Contorno Rosa/Accent) */
+    .nav-links a.btn-ia {
+      color: var(--accent-color);
+      border: 1.5px solid var(--accent-color);
+      padding: 0.55rem 1.15rem; /* compensate for border */
+    }
+    
+    .nav-links a.btn-ia:hover {
+      background-color: var(--accent-color);
+      color: var(--text-inverse);
+    }
+
+    .nav-links a.active-ai {
+      background-color: var(--accent-color);
+      color: var(--text-inverse);
       font-weight: 600;
     }
 
@@ -358,7 +397,6 @@
       .content-area {
         padding: 1rem !important; /* Reduz de 2rem para 1rem */
       }
-      /* 2. Esconder o texto "Somma AI" do logo (deixa só o ícone) */
       .logo span, .nav-links a span, .logout-btn span {
           display: none; 
       }

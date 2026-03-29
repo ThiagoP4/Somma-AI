@@ -4,9 +4,17 @@
         PhTrendUp, PhX, PhMoon, PhUser, PhHeart, 
         PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut 
     } from '@phosphor-icons/vue';
+    import { useRouter } from 'vue-router';
+    import { supabase } from '../services/supabase';
 
     const props = defineProps<{ isOpen: boolean }>();
     const emit = defineEmits(['close']);
+    const router = useRouter();
+
+    const navigateTo = (route: string) => {
+        emit('close');
+        router.push(route);
+    };
 
     const isDarkMode = ref(true);
 
@@ -21,9 +29,18 @@
             }
     };
 
+    const handleLogout = async () => {
+        try {
+            emit('close')
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error('Erro ao fazer logout:', error)
+        }
+    }
+
     // Lista de itens do menu para não repetir HTML
     const menuItems = [
-        { icon: PhUser, title: 'Meu Perfil', subtitle: 'Suas informações pessoais', route: '/perfil' },
+        { icon: PhUser, title: 'Meu Perfil', subtitle: 'Suas informações pessoais', route: '/profile' },
         { icon: PhHeart, title: 'Casal', subtitle: 'Finanças em casal', route: '/casal' },
         { icon: PhArrowsClockwise, title: 'Assinaturas', subtitle: 'Gerencie seus serviços', route: '/assinaturas' },
         { icon: PhGear, title: 'Configurações', subtitle: 'Preferências do app', route: '/config' },
@@ -62,7 +79,7 @@
                     <div class="menu-section">
                         <span class="section-label">MENU</span>
                         <nav class="menu-list">
-                            <button class="menu-item" v-for="item in menuItems" :key="item.title">
+                            <button class="menu-item" v-for="item in menuItems" :key="item.title" @click="navigateTo(item.route)">
                                 <div class="item-icon">
                                     <component :is="item.icon" size="18" />
                                 </div>
@@ -74,7 +91,7 @@
                         </nav>
                     </div>
                 <div class="sidebar-footer">
-                    <button class="logout-btn">
+                    <button class="logout-btn" @click="handleLogout">
                         <PhSignOut size="18" />
                         <span>Sair</span>
                     </button>
@@ -138,7 +155,7 @@
         gap: 10px;
     }
     .logo-icon {
-        background: linear-gradient(135deg, #8B5CF6, #6366F1);
+        background: var(--primary-gradient);
         width: 26px;
         height: 26px;
         border-radius: 8px;

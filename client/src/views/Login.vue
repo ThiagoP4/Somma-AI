@@ -82,7 +82,7 @@
     <div class="login-container">
         <div class="login-card">
             <div class="header">
-                <h1>{{ isSignUp ? 'Crie sua conta' : 'Bem-vindo ao Somma' }}</h1>
+                <h1>{{ isSignUp ? 'Crie sua conta' : 'Bem-vindo ao Somma AI' }}</h1>
                 <p>{{ isSignUp ? 'Preencha seus dados para começar' : 'Faça login para acessar seu painel' }}</p>
             </div>
             <form @submit.prevent="handleAuth">
