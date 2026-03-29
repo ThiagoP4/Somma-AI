@@ -1,12 +1,19 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
     import { supabase } from '../services/supabase';
+    import { useAlertStore } from '../stores/useAlertStore';
+
+    const alertStore = useAlertStore();
 
     const userName = ref('');
     const userEmail = ref('');
     const userCpf = ref('');
     const userPhone = ref('');
+    const userSecondPhone = ref('');
     const userPassword = ref('');
+    const avatarUrl = ref('');
+    const isUploading = ref(false);
+    const fileInput = ref<HTMLInputElement | null>(null);
 
     const myCards = ref<any[]>([]);
 
@@ -27,6 +34,8 @@
             if (profileData && !profileError) {
                 userName.value = profileData.first_name + ' ' + profileData.last_name;
                 userCpf.value = profileData.cpf;
+                userSecondPhone.value = profileData.second_phone;
+                avatarUrl.value = profileData.avatar_url;
             }
 
             const { data: cardsData, error: cardsError } = await supabase
@@ -40,28 +49,71 @@
         }
     });
 
+    const triggerFileInput = () => {
+        if(!isUploading.value) fileInput.value?.click();
+    };
+
+    const handleFileUpload = async (event: Event) => {
+        const input = event.target as HTMLInputElement;
+        if(!input.files || input.files.length === 0) return;
+
+        const file = input.files[0];
+        if(!file) return;
+
+        const fileExt = file.name.split('.').pop();
+        const { data: authData } = await supabase.auth.getUser();
+        if(!authData.user) return;
+
+        const filePath = `${authData.user.id}/avatar-${Date.now()}.${fileExt}`;
+
+        isUploading.value = true;
+        alertStore.showAlert('Enviando nova imagem para a nuvem...', 'warning');
+
+        try {
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(filePath, file, { upsert: true });
+
+            if(uploadError) {
+                alertStore.showAlert('Erro ao enviar imagem: ' + uploadError.message, 'error');
+                return;
+            }
+
+            const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+            avatarUrl.value = data.publicUrl;
+
+            const { error: profileError } = await supabase
+                .from('usr_profile')
+                .update({ avatar_url: avatarUrl.value })
+                .eq('id_profile', authData.user.id);
+
+            if(profileError) throw profileError;
+
+            alertStore.showAlert('Imagem atualizada com sucesso!', 'success');
+        } catch (error: any) {
+            console.error('Falha de Comunicação / Script Code Failure:', error);
+            alertStore.showAlert('Erro ao atualizar perfil: ' + error.message, 'error');
+        } finally {
+            isUploading.value = false;
+        }
+
+    }
+
     const savePersonalData = async () => {
-        console.log("Iniciando savePersonalData...");
         const { data: authData } = await supabase.auth.getUser();
         if(!authData.user) {
              console.error("Erro: Nenhum usuário autenticado detectado no momento do salvamento.");
              return;
         }
 
-        // Tratando null/undefined que vêm da Auth como strings vazias.
         const currentEmail = authData.user.email || '';
-        const currentPhone = authData.user.phone || '';
 
         try {
             let authUpdates: any = {};
             
-            // 1. Verificamos pacotes válidos. Só atualiza Auth se os novos valores diferirem dos atuais no Supabase
             if (userEmail.value.trim() !== '' && userEmail.value !== currentEmail) {
                 authUpdates.email = userEmail.value;
             }
-            if (userPhone.value !== currentPhone) {
-                authUpdates.phone = userPhone.value;
-            } 
 
             // Tenta atualizar a tabela Secundária de Segurança apenas se os campos existirem no authUpdates
             if (Object.keys(authUpdates).length > 0) {
@@ -71,7 +123,7 @@
                 // Se O Telefone do cara for um caracter que o Supabase odeia, o supabase vai retornar um AuthError como FormatInvalid.
                 if (authError) {
                     console.error('Erro de Autenticação:', authError);
-                    alert('Falha ao tentar mudar seu E-mail ou Telefone: ' + authError.message);
+                    alertStore.showAlert('Falha ao tentar mudar E-mail ou Telefone: ' + authError.message, 'error');
                     return; // Aborta e impede de salvar Nome e CPF pra frente.
                 }
             } else {
@@ -79,7 +131,6 @@
             }
 
             // 2. Sempre tenta atualizar Nome e CPF na Tabela Principal Livre
-            console.log("Iniciando Upsert Perfil (usr_profile)...");
             const { error: profileError } = await supabase
                 .from('usr_profile')
                 .upsert({
@@ -87,16 +138,17 @@
                     first_name: userName.value.split(' ')[0] || '',
                     last_name: userName.value.split(' ').slice(1).join(' ') || '',
                     cpf: userCpf.value,
+                    second_phone: userSecondPhone.value,
+                    avatar_url: avatarUrl.value,
                     role_id: 1, 
                     updated_at: new Date().toISOString()
                 });
             
             if(!profileError) {
-                console.log("Operação Finalizada Total!");
-                alert('✅ Seu perfil foi salvo por completo com sucesso! (Se alterou o e-mail verifique a confirmação em breve)');
+                alertStore.showAlert('Perfil salvo com sucesso!', 'success');
             } else {
                  console.error('Erro Inesperado na Tabela Perfil (Supabase BD):', profileError);
-                 alert('Aconteceu um erro técnico ao atualizar seu Nome/CPF. Tente novamente mais tarde.');
+                 alertStore.showAlert('Ocorreu um erro técnico ao atualizar seus dados. Tente novamente mais tarde.', 'error');
             }
         } catch (error) {
             console.error('Falha de Comunicação / Script Code Failure:', error);
@@ -109,11 +161,25 @@
     <div class="page-container">
         <div class="profile-header-card">
             <div class="avatar-wrapper">
-                <div class="avatar-placeholder">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <div class="avatar-placeholder" :class="{'uploading': isUploading}">
+                    <img v-if="avatarUrl" :src="avatarUrl" alt="Foto de Perfil" class="custom-avatar-img">
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </div>
-                <button type="button" class="avatar-edit-btn" title="Alterar foto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <input type="file" accept="image/png, image/jpeg, image/webp" hidden ref="fileInput" @change="handleFileUpload">
+                <button type="button" class="avatar-edit-btn" title="Alterar foto" @click="triggerFileInput" :disabled="isUploading">
+                     <svg v-if="!isUploading" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <svg v-else class="spin-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" 
+                    fill="none" stroke="currentColor" stroke-width="2" 
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="2" x2="12" y2="6"></line>
+                    <line x1="12" y1="18" x2="12" y2="22"></line>
+                    <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                    <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                    <line x1="2" y1="12" x2="6" y2="12"></line>
+                    <line x1="18" y1="12" x2="22" y2="12"></line>
+                    <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                    <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
                 </button>
             </div>
             
@@ -136,13 +202,17 @@
                             <label for="email">E-mail</label>
                             <input type="email" id="email" v-model="userEmail" placeholder="Digite seu novo E-mail de login">
                         </div>
-                        <div class="profile-card-content-item">
+                        <div class="profile-card-content-item full-width">
                             <label for="cpf">CPF</label>
                             <input type="text" id="cpf" v-model="userCpf">
                         </div>
                         <div class="profile-card-content-item">
-                            <label for="phone">Telefone</label>
-                            <input type="tel" id="phone" v-model="userPhone" placeholder="(XX) 99999-9999">
+                            <label for="phone">Telefone Principal</label>
+                            <input type="tel" id="phone" v-model="userPhone" disabled title="Gerenciado pelo provedor de segurança.">
+                        </div>
+                        <div class="profile-card-content-item">
+                            <label for="second_phone">Telefone Adicional</label>
+                            <input type="tel" id="second_phone" v-model="userSecondPhone" placeholder="(XX) 99999-9999">
                         </div>
                         <div class="profile-card-content-item full-width">
                             <label for="password">Senha</label>
@@ -193,7 +263,7 @@
     .page-container {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 2rem;
+        padding: 0.75rem;
         color: var(--text-primary);
     }
 
@@ -352,6 +422,17 @@
         color: var(--primary-color);
     }
 
+    .custom-avatar-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 1.5rem;
+    }
+
+    .avatar-placeholder.uploading {
+        opacity: 0.5;
+    }
+
     .avatar-edit-btn {
         position: absolute;
         bottom: -8px;
@@ -375,6 +456,10 @@
         filter: brightness(1.1);
     }
 
+    .avatar-edit-btn:disabled {
+        cursor: not-allowed;
+    }
+
     .user-intro h2 {
         color: var(--text-primary);
         font-size: 1.5rem;
@@ -386,6 +471,14 @@
         color: var(--text-secondary);
         margin: 0;
         font-size: 1rem;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .spin-icon {
+        animation: spin 1s linear infinite;
     }
 
 </style>

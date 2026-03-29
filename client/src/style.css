@@ -1,62 +1,66 @@
 /* src/style.css */
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
 }
 
 :root {
-  /* --- TEMA CLARO (Novo visual) --- */
-  --bg-page: hsl(30, 30%, 98%);
-  --bg-card: hsl(30, 25%, 97%);
-  --bg-input: hsl(30, 20%, 88%);
-  
-  --text-primary: hsl(20, 20%, 10%);
-  --text-secondary: hsl(20, 10%, 50%);
-  --text-inverse: hsl(0, 0%, 100%);
-  
-  --border-color: hsl(30, 20%, 88%);
-  
-  --primary-color: hsl(24, 80%, 55%);
-  --primary-hover: hsl(24, 80%, 45%);
-  --accent-color: hsl(346, 77%, 50%);
-  --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
-  
-  --success-color: hsl(142, 71%, 45%); 
-  --danger-color: hsl(0, 84%, 60%);
+    /* --- TEMA CLARO (Novo visual) --- */
+    --bg-page: hsl(30, 30%, 98%);
+    --bg-card: hsl(30, 25%, 97%);
+    --bg-input: hsl(30, 20%, 88%);
+
+    --text-primary: hsl(20, 20%, 10%);
+    --text-secondary: hsl(20, 10%, 50%);
+    --text-inverse: hsl(0, 0%, 100%);
+
+    --border-color: hsl(30, 20%, 88%);
+
+    --primary-color: hsl(24, 80%, 55%);
+    --primary-hover: hsl(24, 80%, 45%);
+    --accent-color: hsl(346, 77%, 50%);
+    --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+
+    --success-color: hsl(142, 71%, 45%);
+    --danger-color: hsl(0, 84%, 60%);
 }
 
 /* Quando a classe .dark for adicionada no HTML */
 .dark {
-  /* --- TEMA ESCURO (Novo visual) --- */
-  --bg-page: hsl(20, 20%, 7%);
-  --bg-card: hsl(20, 18%, 10%);
-  --bg-input: hsl(20, 12%, 18%);
-  
-  --text-primary: hsl(30, 20%, 92%);
-  --text-secondary: hsl(30, 10%, 60%);
-  --text-inverse: hsl(0, 0%, 100%);
-  
-  --border-color: hsl(20, 12%, 18%);
-  
-  --primary-color: hsl(24, 80%, 50%);
-  --primary-hover: hsl(24, 80%, 40%);
-  --accent-color: hsl(346, 77%, 55%);
-  --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+    /* --- TEMA ESCURO (Novo visual) --- */
+    --bg-page: hsl(20, 20%, 7%);
+    --bg-card: hsl(20, 18%, 10%);
+    --bg-input: hsl(20, 12%, 18%);
 
-  --danger-color: hsl(0, 62%, 35%);
-  --success-color: hsl(152, 76%, 40%);
+    --text-primary: hsl(30, 20%, 92%);
+    --text-secondary: hsl(30, 10%, 60%);
+    --text-inverse: hsl(0, 0%, 100%);
+
+    --border-color: hsl(20, 12%, 18%);
+
+    --primary-color: hsl(24, 80%, 50%);
+    --primary-hover: hsl(24, 80%, 40%);
+    --accent-color: hsl(346, 77%, 55%);
+    --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+
+    --danger-color: hsl(0, 62%, 35%);
+    --success-color: hsl(152, 76%, 40%);
 }
 
 /* Reset que já existia */
-html, body {
+html,
+body {
     margin: 0;
     padding: 0;
     width: 100%;
     min-height: 100vh;
     box-sizing: border-box;
-    background-color: var(--bg-page); 
-    color: var(--text-primary);       
-    transition: background-color 0.3s, color 0.3s; /* Suaviza a troca de tema */
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    transition: background-color 0.3s, color 0.3s;
+    /* Suaviza a troca de tema */
     font-family: 'Inter', sans-serif;
     scroll-behavior: smooth;
 }
@@ -68,7 +72,9 @@ html, body {
     flex-direction: column;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
     background-color: var(--bg-input) !important;
     color: var(--text-primary) !important;
     border: 1px solid var(--border-color) !important;
@@ -95,8 +101,18 @@ input, select, textarea {
     transition: all 0.2s;
     height: 42px;
 }
-.btn-secondary:hover { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--text-secondary); }
-.btn-active { background-color: var(--bg-page); color: var(--text-primary); border-color: var(--border-color); }
+
+.btn-secondary:hover {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.btn-active {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
 
 .btn-apply {
     background: var(--primary-gradient);
@@ -107,7 +123,10 @@ input, select, textarea {
     cursor: pointer;
     font-weight: 500;
 }
-.btn-apply:hover { opacity: 0.9; }
+
+.btn-apply:hover {
+    opacity: 0.9;
+}
 
 .btn-clean {
     background: transparent;
@@ -115,7 +134,11 @@ input, select, textarea {
     color: var(--text-secondary);
     cursor: pointer;
 }
-.btn-clean:hover { text-decoration: underline; color: var(--text-primary); }
+
+.btn-clean:hover {
+    text-decoration: underline;
+    color: var(--text-primary);
+}
 
 .action-btn {
     background: transparent;
@@ -130,10 +153,21 @@ input, select, textarea {
     justify-content: center;
     transition: all 0.2s;
 }
-.action-btn:hover { background-color: rgba(239, 68, 68, 0.1); color: var(--danger-color); }
 
-.action-btn.edit-btn { color: var(--text-secondary); border-color: var(--border-color); }
-.action-btn.edit-btn:hover { background-color: var(--bg-page); color: var(--primary-color); }
+.action-btn:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.action-btn.edit-btn {
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+.action-btn.edit-btn:hover {
+    background-color: var(--bg-page);
+    color: var(--primary-color);
+}
 
 /* --- CARD DE FILTROS E FORMULÁRIOS --- */
 .filter-card {
@@ -145,12 +179,38 @@ input, select, textarea {
     animation: fadeIn 0.2s ease-out;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
-.filter-row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
-.filter-footer { display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem; }
 
-.input-group { display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-width: 200px; }
-.input-group label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; }
-.input-group input, .input-group select {
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 200px;
+}
+
+.input-group label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.input-group input,
+.input-group select {
     padding: 0.6rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -158,5 +218,9 @@ input, select, textarea {
     color: var(--text-primary);
     outline: none;
 }
-.input-group input:focus, .input-group select:focus { border-color: var(--text-secondary); background-color: var(--bg-card); }
 
+.input-group input:focus,
+.input-group select:focus {
+    border-color: var(--text-secondary);
+    background-color: var(--bg-card);
+}
