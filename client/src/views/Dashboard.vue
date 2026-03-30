@@ -52,7 +52,7 @@
     legend: {position: 'bottom', fontSize: '14px'},
     dataLabels: {enabled: false},
     stroke: { show: false },
-    plotOptions: { pie: { donut: { size: '70%', labels: { show: true, total: { show: true, label: 'Total', fontSize: '16px', fontWeight: 600 } } } } }
+    plotOptions: { pie: { donut: { size: '70%', labels: { show: true, total: { show: true, label: 'Total', fontSize: '16px', fontWeight: 600, formatter: (w: any) => 'R$ ' + w.globals.seriesTotals.reduce((a: number, b: number) => a + b, 0).toFixed(2) } } } } }
     });
 
   // --- CONFIGURAÇÃO DO GRÁFICO DE LINHAS ---
@@ -363,4 +363,10 @@
     border-radius: 8px;
   }
 
+ @media (max-width: 640px) {
+  .page-header {
+    display: flex;
+    flex-direction: column;
+  }
+ }
 </style>

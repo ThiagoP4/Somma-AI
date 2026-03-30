@@ -96,24 +96,40 @@ const goBack = () => emit('close');
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 640px) {
+    /* Overlay alinha o card ao rodapé da tela */
+    .modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    /* Bottom sheet: sobe da parte inferior */
     .form-card {
-        padding: 1.25rem; /* Reduz de 40px para 20px */
+        width: 100%;
+        max-width: 100%;
+        max-height: 92vh;
+        border-radius: 20px 20px 0 0;
+        padding: 1.5rem 1.75rem 2rem; /* Mais respiro lateral para inputs não parecerem tão largos */
+        animation: slideUpMobile 0.3s ease-out;
     }
 
     .card-header {
-        margin-bottom: 1.5rem; /* Aproxima o título do formulário */
+        margin-bottom: 1.5rem;
         gap: 0.75rem;
     }
 
     .header-text h2 {
-        font-size: 1.25rem; /* Título menor (20px) */
+        font-size: 1.25rem;
     }
 
-    /* Ajuste o botão de voltar para não ficar gigante */
     .back-btn {
         width: 36px;
         height: 36px;
     }
+}
+
+@keyframes slideUpMobile {
+    from { opacity: 1; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 </style>
@@ -196,9 +212,15 @@ body.dark .btn-whatsapp:hover {
 
 @media (max-width: 640px) {
     .form-group {
-        margin-bottom: 1.5rem; 
+        margin-bottom: 1.25rem;
     }
-    
+
+    /* Inputs mais compactos no mobile */
+    .input-field {
+        padding: 0.6rem 0.75rem;
+        font-size: 0.95rem;
+    }
+
     .btn-primary {
         padding: 0.75rem;
     }

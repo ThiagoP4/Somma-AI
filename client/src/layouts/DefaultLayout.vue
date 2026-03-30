@@ -331,48 +331,6 @@
       background-color: var(--primary-color);
       color: var(--bg-card);
     }
-
-/*    .theme-btn {
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
-      border-radius: 50%;
-      transition: all 0.2s;
-    }
-
-    .theme-btn:hover {
-      background-color: var(--bg-page);
-      color: var(--primary-color);
-      transform: rotate(15deg);
-    }
-
-    .logout-btn {
-      background: transparent;
-      border: 1px solid var(--border-color);
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      color: #B91C1C;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-family: 'Inter', sans-serif;
-      transition: all 0.2s;
-    }
-
-    .logout-btn:hover {
-      background-color: rgba(239, 68, 68, 0.1);
-      border-color: #FECACA;
-      color: #B91C1C;
-    }
-      */
-    
     .content-area {
       padding: 2rem;
       max-width: 1200px;
@@ -400,24 +358,38 @@
       .logo span, .nav-links a span, .logout-btn span {
           display: none; 
       }
+
+      .date-btn span {
+        display: none;
+      }
       
       .left-actions { justify-self: start; }
 
-      .logo-icon { width: 24px; height: 24px; }
+      .logo-icon { width: 40px; height: 40px; border-radius: 10px; }
       
       /* 3. Ajustar os links do meio (Dashboard, etc) */
       .nav-links {
           justify-self: center;
-          gap: 1.5rem; /* Diminui o espaço entre eles */
+          gap: 0.5rem;
       }
 
       .nav-links a {
-          font-size: 0; /* TRUQUE: Esconde o texto do link */
+          font-size: 0;
+          padding: 0.6rem; /* Padding igual em todos os lados = botão quadrado */
+          justify-content: center; /* Centraliza o ícone horizontalmente */
+          align-items: center;     /* Centraliza o ícone verticalmente */
+          gap: 0; /* Remove gap do nó de texto invisível que deslocava o ícone */
+      }
+
+      /* O btn-ia tem borda, então compensamos 1.5px pra não mudar o tamanho visual */
+      .nav-links a.btn-ia {
+          padding: calc(0.6rem - 1.5px);
       }
       
       .nav-links a svg {
-          /* Aumenta um pouco o ícone já que o texto sumiu */
-          font-size: 22px !important; 
+          display: block; /* Garante que o SVG não herde font-size: 0 */
+          width: 22px;
+          height: 22px;
       }
 
       /* 4. Ajustar botão de Sair */
@@ -437,6 +409,11 @@
       }
       .navbar {
         padding: 0 1rem !important; /* Ajusta o menu também */
+      }
+      .date-dropdown {
+          right: 0;
+          left: auto;
+          width: 240px;
       }
     }
 </style>

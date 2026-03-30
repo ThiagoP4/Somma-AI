@@ -154,4 +154,34 @@
         animation: spin 1s linear infinite;
     }
 
+    @media (max-width: 640px) {
+        /* Header vira coluna: título em cima, botões embaixo */
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.25rem;
+        }
+
+        .button-wrapper {
+            width: 100%;
+            gap: 8px;
+        }
+
+        .btn-primary-header,
+        .btn-secondary {
+            flex: 1 1 0 !important;  /* Sobrescreve o width: auto !important do base */
+            width: 0 !important;     /* flex-basis: 0 faz os botões crescerem igualmente */
+            min-width: 0;
+            justify-content: center;
+            padding: 0.6rem 0.8rem;
+            font-size: 0.85rem;
+            height: 36px;
+        }
+    }
+
 </style>
