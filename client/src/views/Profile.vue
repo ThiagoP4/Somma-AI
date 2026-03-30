@@ -65,7 +65,7 @@ onMounted(() => {
     .column-stack { display: flex; flex-direction: column; gap: 2rem; }
     
     @media (min-width: 1024px) {
-        .profile-dashboard-grid { grid-template-columns: 3fr 2fr; }
+        .profile-dashboard-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
     }
 
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

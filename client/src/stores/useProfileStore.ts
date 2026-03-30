@@ -12,6 +12,7 @@ export const useProfileStore = defineStore('profile', {
         userSecondPhone: '',
         avatarUrl: '',
         myCards: [] as any[],
+        financialGoals: [] as any[],
         isLoadingProfile: false,
     }),
 
@@ -50,10 +51,42 @@ export const useProfileStore = defineStore('profile', {
 
                 if (cardsData) this.myCards = cardsData;
 
+                const { data: goalsData } = await supabase
+                    .from('usr_goal')
+                    .select('*')
+                    .eq('user_id', this.userId)
+
+                if (goalsData) this.financialGoals = goalsData;
+
             } catch (error) {
                 console.error('Erro ao montar o Dashboard Central de Perfil:', error);
             } finally {
                 this.isLoadingProfile = false;
+            }
+        },
+        async saveFinancialGoal(description: string, target_amount: number, deadline: string) {
+            if (!this.userId) return { success: false, message: 'Usuário não autenticado.' };
+            try {
+                const { data, error } = await supabase
+                    .from('usr_goal')
+                    .insert({
+                        user_id: this.userId,
+                        description: description,
+                        target_amount: target_amount,
+                        deadline: deadline,
+                        status: 'em andamento'
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                this.financialGoals.push(data);
+                this.financialGoals.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+                return { success: true }
+            } catch (error: any) {
+                console.error('Erro ao salvar meta financeira', error);
+                return { success: false, message: error.message }
             }
         }
     }

@@ -164,7 +164,34 @@
     .empty-state { padding: 3rem; text-align: center; color: var(--text-secondary); }
 
     @media (max-width: 640px) {
-        .record-row { flex-direction: column; align-items: flex-start; gap: 1rem; }
-        .record-actions { width: 100%; justify-content: space-between; flex-direction: row-reverse; }
+        /* Cada linha vira coluna: info em cima, valor+ações embaixo */
+        .record-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 1rem 1.2rem;
+        }
+
+        .record-main {
+            width: 100%;
+        }
+
+        /* Linha inferior: valor à esquerda, botões à direita */
+        .record-actions {
+            width: 100%;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0;
+        }
+
+        .record-value {
+            font-size: 1rem;
+        }
+
+        /* Reduz padding dos botões de ação para não ficarem grandes demais */
+        .icon-btn {
+            padding: 8px;
+        }
     }
 </style>
