@@ -26,7 +26,7 @@
 
         try {
             if (isSignUp.value) {
-                const { data: authData, error: authError } = await supabase.auth.signUp({
+                const { error: authError } = await supabase.auth.signUp({
                     email: cleanEmail,
                     password: password.value,
                     options: {
@@ -38,24 +38,7 @@
                     }
                 });
                 if (authError) throw authError;
-                if (authData.user) {
-                    const { error: profileError } = await supabase
-                        .from('usr_profile')
-                        .insert({
-                            id: authData.user.id,
-                            first_name: firstName.value,
-                            last_name: lastName.value,
-                            phone: phone.value
-                        });
-                    if (profileError) {
-                        console.error('Falha ao criar perfil:', profileError);
-                        
-                        // Faz logout imediato para não deixar o usuário logado com conta quebrada
-                        await supabase.auth.signOut();
-                        
-                        throw new Error('Erro ao salvar os dados do perfil. O cadastro foi cancelado.');
-                    }
-                }
+                // O trigger handle_new_user() no banco cria o perfil automaticamente
                 showAlert('Cadastro realizado! Verifique seu email para confirmar a conta.', 'success');
                 isSignUp.value = false;
             } else {
