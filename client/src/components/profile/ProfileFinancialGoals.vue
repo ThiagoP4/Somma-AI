@@ -3,6 +3,7 @@
     import { useProfileStore } from '../../stores/useProfileStore';
     import { useAlertStore } from '../../stores/useAlertStore';
     import { PhRocketLaunch, PhClockCounterClockwise, PhCheckCircle, PhPencilSimple, PhTrash } from '@phosphor-icons/vue';
+    import ConfirmModal from '../ConfirmModal.vue';
 
     const profileStore = useProfileStore();
     const alertStore = useAlertStore();
@@ -227,21 +228,13 @@
             </form>
         </div>
 
-        <Teleport to="body">
-            <div v-if="isConfirmingDelete" class="modal-overlay" @click.self="isConfirmingDelete = false">
-                <div class="modal-content">
-                    <div class="modal-icon-wrapper">
-                        <PhTrash :size="32" weight="duotone" color="#ef4444" />
-                    </div>
-                    <h3>Excluir Meta?</h3>
-                    <p>Essa ação deletará esta meta financeira permanentemente do banco de dados. Deseja mesmo continuar?</p>
-                    <div class="modal-actions-row">
-                        <button class="btn-cancel" @click="isConfirmingDelete = false">Cancelar</button>
-                        <button class="btn-danger" @click="executeDelete">Sim, Excluir</button>
-                    </div>
-                </div>
-            </div>
-        </Teleport>
+        <ConfirmModal 
+            :isOpen="isConfirmingDelete"
+            title="Excluir Meta?"
+            message="Essa ação deletará esta meta financeira permanentemente do banco de dados. Deseja mesmo continuar?"
+            @confirm="executeDelete"
+            @cancel="isConfirmingDelete = false"
+        />
     </div>
 </template>
 
@@ -591,77 +584,4 @@
     font-weight: 600;
 }
 
-/* --- ESTILOS DO MODAL DE CONFIRMAÇÃO --- */
-.modal-overlay {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(5px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-}
-
-.modal-content {
-    background: var(--bg-card);
-    padding: 2.5rem 2rem;
-    border-radius: 1.5rem;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    max-width: 420px;
-    width: 90%;
-    text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-    animation: bounceIn 0.3s ease-out;
-}
-
-.modal-icon-wrapper {
-    background: rgba(239, 68, 68, 0.1);
-    width: 64px; height: 64px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 1.5rem auto;
-}
-
-.modal-content h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.modal-content p {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    line-height: 1.5;
-    margin-bottom: 2rem;
-}
-
-.modal-actions-row {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-}
-
-.btn-danger {
-    background: #ef4444;
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.btn-danger:hover {
-    background: #dc2626;
-}
-
-@keyframes bounceIn {
-    0% { transform: scale(0.9); opacity: 0; }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); opacity: 1; }
-}
 </style>
