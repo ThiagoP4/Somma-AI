@@ -1,6 +1,6 @@
- <script setup lang="ts">
+<script setup lang="ts">
     import { computed, ref } from 'vue';
-    import { PhArrowUpRight, PhPencilSimple, PhTrash, PhCheckCircle, PhCircle } from '@phosphor-icons/vue';
+    import { PhArrowUpRight, PhPencilSimple, PhTrash, PhCheckCircle, PhClock, PhCreditCard, PhReceipt } from '@phosphor-icons/vue';
     import ConfirmModal from './ConfirmModal.vue';
 
     const props = defineProps<{
@@ -17,7 +17,12 @@
         return props.items.reduce((acc, item) => item.paid ? acc + (item.value || 0) : acc, 0);
     });
 
-    const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL'}).format(v);
+    const pendingValue = computed(() => {
+        if (props.currentTab === 'entradas') return 0;
+        return props.items.reduce((acc, item) => !item.paid ? acc + (item.value || 0) : acc, 0);
+    });
+
+    const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
     const toDate = (d: string) => d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
 
     const isConfirmingDelete = ref(false);
@@ -40,50 +45,88 @@
 <template>
     <div class="records-wrapper">
         <div class="summary-bar">
-            <span class="count">{{ items.length }} registro<span v-if="items.length !== 1">s</span></span>
-            <span class="total" :class="currentTab === 'entradas' ? 'text-success' : 'text-danger'">
-                {{ toBRL(totalValue) }}
-            </span>
+            <div class="summary-left">
+                <span class="count-badge">{{ items.length }}</span>
+                <span class="count-label">lançamento<span v-if="items.length !== 1">s</span></span>
+            </div>
+            <div class="summary-right">
+                <div v-if="currentTab === 'compras' && pendingValue > 0" class="summary-metric">
+                    <span class="metric-label">Pendente:</span>
+                    <span class="metric-val muted">{{ toBRL(pendingValue) }}</span>
+                </div>
+                <div class="summary-metric">
+                    <span class="metric-label">{{ currentTab === 'entradas' ? 'Total recebido:' : 'Total efetivado:' }}</span>
+                    <span class="metric-val" :class="currentTab === 'entradas' ? 'text-success' : 'text-primary'">
+                        {{ toBRL(totalValue) }}
+                    </span>
+                </div>
+            </div>
         </div>
 
-        <div class="record-row hover-lift" v-for="item in items" :key="item.idPurchase || item.idIncome">
+        <div class="record-row" v-for="item in items" :key="item.idPurchase || item.idIncome">
             <div class="record-main">
-                <div v-if="currentTab === 'entradas'" class="icon-entrada">
-                    <PhArrowUpRight size="16" weight="bold" />
+                <div v-if="currentTab === 'entradas'" class="tx-avatar avatar-income">
+                    <PhArrowUpRight size="18" weight="bold" />
                 </div>
-                <span v-else class="category-dot" :style="{ backgroundColor: item.fin_category?.color || 'var(--text-secondary)' }"></span>
+                <div
+                    v-else
+                    class="tx-avatar"
+                    :style="{
+                        backgroundColor: (item.fin_category?.color || '#6366F1') + '1A',
+                        color: item.fin_category?.color || '#6366F1',
+                        borderColor: (item.fin_category?.color || '#6366F1') + '33'
+                    }"
+                >
+                    <PhReceipt size="18" weight="duotone" />
+                </div>
                 
                 <div class="record-info">
                     <span class="title">{{ item.title }}</span>
-                    <span class="subtitle">
-                        <template v-if="item.fin_category?.description">{{ item.fin_category.description }} &bull; </template>
-                        <template v-if="item.payment?.nickname">
-                            <span class="payment-tag">{{ item.payment.nickname }}</span> &bull; 
-                        </template>
-                        {{ toDate(item.date) }}
-                    </span>
-                 </div>
+                    <div class="meta-row">
+                        <span
+                            v-if="item.fin_category?.description"
+                            class="cat-badge"
+                            :style="{
+                                backgroundColor: (item.fin_category?.color || '#6366F1') + '14',
+                                color: item.fin_category?.color || '#6366F1'
+                            }"
+                        >
+                            {{ item.fin_category.description }}
+                        </span>
+                        <span v-if="item.payment?.nickname" class="payment-tag">
+                            <PhCreditCard size="12" weight="fill" />
+                            {{ item.payment.nickname }}
+                        </span>
+                        <span class="date-text">{{ toDate(item.date) }}</span>
+                    </div>
+                </div>
             </div>
             
-             <div class="record-actions">
-                <div class="record-value" :class="currentTab === 'entradas' ? 'text-success' : 'text-danger'">
-                    {{ toBRL(item.value) }}
+            <div class="record-actions">
+                <button
+                    v-if="currentTab === 'compras'"
+                    class="status-pill"
+                    :class="item.paid ? 'is-paid' : 'is-pending'"
+                    @click="emit('toggle-paid', item)"
+                    :title="item.paid ? 'Clique para marcar como pendente' : 'Clique para efetivar gasto'"
+                >
+                    <PhCheckCircle v-if="item.paid" size="14" weight="fill" />
+                    <PhClock v-else size="14" weight="bold" />
+                    <span>{{ item.paid ? 'Pago' : 'Pendente' }}</span>
+                </button>
+
+                <div class="record-value" :class="currentTab === 'entradas' ? 'text-success' : 'text-primary'">
+                    {{ currentTab === 'entradas' ? '+ ' : '' }}{{ toBRL(item.value) }}
                 </div>
+
                 <div class="action-buttons">
-                    <button v-if="currentTab === 'compras'" 
-                        class="icon-btn" 
-                        :class="item.paid ? 'paid-btn' : 'unpaid-btn'" 
-                        @click="emit('toggle-paid', item)" 
-                        :title="item.paid ? 'Voltar para pendente' : 'Efetivar gasto'">
-                        <component :is="item.paid ? PhCheckCircle : PhCircle" size="22" :weight="item.paid ? 'fill' : 'regular'" />
-                    </button>
                     <button class="icon-btn edit-btn" @click="emit('edit', item)" title="Editar">
-                        <PhPencilSimple size="18" />
+                        <PhPencilSimple size="16" />
                     </button>
                     <button class="icon-btn delete-btn" @click="confirmDelete(item.idPurchase || item.idIncome)" title="Excluir">
-                        <PhTrash size="18" />
+                        <PhTrash size="16" />
                     </button>
-                 </div>
+                </div>
             </div>
         </div>
 
@@ -102,136 +145,264 @@
 </template>
 
 <style scoped>
-    .text-danger { color: var(--danger-color); }
-    .text-success { color: var(--success-color); }
+    .text-primary { color: var(--text-primary); }
+    .text-success { color: var(--success-text); }
 
     .records-wrapper {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: 16px;
         overflow: hidden;
+        box-shadow: var(--shadow-sm);
     }
 
     .summary-bar {
         display: flex;
         justify-content: space-between;
-        padding: 1.2rem 1.5rem;
-        background-color: rgba(255, 255, 255, 0.02);
+        align-items: center;
+        padding: 1rem 1.35rem;
+        background-color: var(--bg-elevated);
         border-bottom: 1px solid var(--border-color);
     }
-    .summary-bar .count { 
-        font-weight: 600; 
-        font-size: 0.95rem; 
-        color: var(--text-primary); 
+
+    .summary-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
-    .summary-bar .total { 
-        font-weight: 700; 
-        font-size: 1.05rem; 
-        font-feature-settings: "tnum"; }
+    .count-badge {
+        background: var(--primary-subtle);
+        color: var(--primary-color);
+        font-weight: 700;
+        font-size: 0.78rem;
+        padding: 2px 8px;
+        border-radius: 99px;
+    }
+
+    .count-label {
+        font-weight: 500;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .summary-right {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+    }
+
+    .summary-metric {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .metric-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .metric-val {
+        font-weight: 700;
+        font-size: 0.95rem;
+        font-feature-settings: "tnum";
+    }
+
+    .metric-val.muted {
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
 
     .record-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border-color);
-        transition: background-color 0.2s;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.35rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.15s ease;
     }
+
     .record-row:last-child { border-bottom: none; }
-    .record-row:hover { background-color: rgba(255,255,255, 0.02); }
+    .record-row:hover { background-color: var(--bg-hover); }
 
     .record-main { 
         display: flex; 
-        align-items: center; gap: 1.2rem; 
+        align-items: center;
+        gap: 1rem; 
     }
-    .category-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
-    .icon-entrada {
-        background-color: rgba(52, 211, 153, 0.1); color: var(--success-color);
-        width: 32px; height: 32px; border-radius: 8px;
-        display: flex; align-items: center; justify-content: center;
+    .tx-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 1px solid transparent;
+    }
+
+    .avatar-income {
+        background-color: var(--success-bg);
+        color: var(--success-text);
     }
 
     .record-info { 
         display: flex; 
         flex-direction: column; 
-        gap: 0.2rem; 
+        gap: 0.3rem; 
     }
     
     .record-info .title { 
         font-weight: 600; 
         color: var(--text-primary); 
-        font-size: 0.95rem; 
+        font-size: 0.925rem; 
     }
 
-    .record-info .subtitle { 
-        font-size: 0.8rem; 
-        color: var(--text-secondary); 
+    .meta-row { 
         display: flex;
         align-items: center;
-        gap: 4px;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+    }
+
+    .cat-badge {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 6px;
     }
 
     .payment-tag {
-        background-color: rgba(255, 255, 255, 0.05);
-        padding: 1px 6px;
-        border-radius: 4px;
-        color: var(--text-primary);
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background-color: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        padding: 2px 7px;
+        border-radius: 6px;
+        color: var(--text-secondary);
         font-weight: 500;
+        font-size: 0.72rem;
+    }
+
+    .date-text {
         font-size: 0.75rem;
+        color: var(--text-muted);
+        font-feature-settings: "tnum";
     }
 
     .record-actions { 
         display: flex; 
         align-items: center; 
-        gap: 1.5rem; 
+        gap: 1.25rem; 
     }
 
-    .paid-btn { color: var(--success-color); }
-    .paid-btn:hover { color: var(--danger-color); } /* Se passar o mouse, ele avisa que vai desfazer */
+    /* Status Pill */
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 99px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.15s ease;
+    }
+
+    .status-pill.is-paid {
+        background-color: var(--success-bg);
+        color: var(--success-text);
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .status-pill.is-paid:hover {
+        background-color: rgba(16, 185, 129, 0.2);
+    }
+
+    .status-pill.is-pending {
+        background-color: var(--bg-elevated);
+        color: var(--text-secondary);
+        border-color: var(--border-color);
+    }
+
+    .status-pill.is-pending:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .record-value {
+        font-weight: 700;
+        font-size: 0.975rem;
+        font-feature-settings: "tnum";
+        min-width: 95px;
+        text-align: right;
+    }
     
-    .unpaid-btn { color: var(--text-secondary); }
-    .unpaid-btn:hover { color: var(--success-color); } /* Se passar o mouse, avisa que vai ficar verdinho */
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
 
+    .icon-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        width: 30px;
+        height: 30px;
+        cursor: pointer;
+        transition: all 0.15s;
+        border-radius: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+    }
 
-    .record-value { font-weight: 600; font-size: 1rem; }
-    
-    .action-buttons { display: flex; gap: 4px; }
-    .icon-btn { background: transparent; border: none; padding: 6px; cursor: pointer; transition: 0.2s; border-radius: 6px; display: flex; align-items: center;}
-    .icon-btn.edit-btn { color: var(--text-secondary); }
-    .icon-btn.edit-btn:hover { color: var(--text-primary); background: rgba(255,255,255, 0.05); }
-    .icon-btn.delete-btn { color: var(--danger-color); }
-    .icon-btn.delete-btn:hover { background: rgba(239, 68, 68, 0.1); }
+    .icon-btn.edit-btn:hover {
+        color: var(--text-primary);
+        background: var(--bg-elevated);
+        border-color: var(--border-color);
+    }
 
-    .empty-state { padding: 3rem; text-align: center; color: var(--text-secondary); }
+    .icon-btn.delete-btn:hover {
+        color: var(--danger-color);
+        background: var(--danger-bg);
+    }
+
+    .empty-state {
+        padding: 3rem;
+        text-align: center;
+        color: var(--text-secondary);
+    }
 
     @media (max-width: 640px) {
-        /* Cada linha vira coluna: info em cima, valor+ações embaixo */
+        .summary-bar {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
         .record-row {
             flex-direction: column;
             align-items: flex-start;
-            gap: 0.75rem;
-            padding: 1rem 1.2rem;
+            gap: 0.85rem;
+            padding: 1rem;
         }
-
         .record-main {
             width: 100%;
         }
-
-        /* Linha inferior: valor à esquerda, botões à direita */
         .record-actions {
             width: 100%;
-            flex-direction: row;
             justify-content: space-between;
-            align-items: center;
-            gap: 0;
+            gap: 0.5rem;
         }
-
         .record-value {
-            font-size: 1rem;
-        }
-
-        /* Reduz padding dos botões de ação para não ficarem grandes demais */
-        .icon-btn {
-            padding: 8px;
+            min-width: auto;
+            text-align: left;
         }
     }
 </style>

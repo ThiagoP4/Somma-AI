@@ -1,264 +1,598 @@
 <script setup lang="ts">
-    import { ref } from 'vue';
+    import { ref, computed } from 'vue';
     import { 
-        PhX, PhMoon, PhUser, PhHeart, 
-        PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut 
+        PhX, PhMoon, PhSun, PhUser, PhHeart, 
+        PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut,
+        PhHouse, PhFolders, PhTrendUp, PhSparkle, PhChartBar
     } from '@phosphor-icons/vue';
-    import { useRouter } from 'vue-router';
+    import { useRouter, useRoute } from 'vue-router';
+    import { storeToRefs } from 'pinia';
     import { supabase } from '../services/supabase';
+    import { useProfileStore } from '../stores/useProfileStore';
     import logoUrl from '../assets/somma-logo.svg';
 
-    const props = defineProps<{ isOpen: boolean }>();
+    defineProps<{ isOpen: boolean }>();
     const emit = defineEmits(['close']);
     const router = useRouter();
+    const route = useRoute();
 
-    const navigateTo = (route: string) => {
+    const profileStore = useProfileStore();
+    const { userName, userEmail, avatarUrl } = storeToRefs(profileStore);
+
+    const navigateTo = (path: string) => {
         emit('close');
-        router.push(route);
+        router.push(path);
     };
 
-    const isDarkMode = ref(true);
+    const isDarkMode = ref(document.body.classList.contains('dark') || localStorage.getItem('theme') !== 'light');
 
     const toggleTheme = () => {
         isDarkMode.value = !isDarkMode.value;
         if (isDarkMode.value) {
-                document.body.classList.add('dark');
-                localStorage.setItem('theme', 'dark')
-            } else {
-                document.body.classList.remove('dark');
-                localStorage.removeItem('theme')
-            }
+            document.body.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
     };
 
     const handleLogout = async () => {
         try {
-            emit('close')
+            emit('close');
             await supabase.auth.signOut();
         } catch (error) {
-            console.error('Erro ao fazer logout:', error)
+            console.error('Erro ao fazer logout:', error);
         }
-    }
+    };
 
-    // Lista de itens do menu para não repetir HTML
-    const menuItems = [
-        { icon: PhUser, title: 'Meu Perfil', subtitle: 'Suas informações pessoais', route: '/profile' },
-        { icon: PhHeart, title: 'Casal', subtitle: 'Finanças em casal', route: '/casal' },
-        { icon: PhArrowsClockwise, title: 'Assinaturas', subtitle: 'Gerencie seus serviços', route: '/assinaturas' },
-        { icon: PhGear, title: 'Configurações', subtitle: 'Preferências do app', route: '/config' },
-        { icon: PhQuestion, title: 'Ajuda', subtitle: 'Dúvidas e suporte', route: '/ajuda' },
-        { icon: PhInfo, title: 'Sobre', subtitle: 'Informações do app', route: '/sobre' },
+    const userInitials = computed(() => {
+        if (!userName.value) return 'U';
+        const parts = userName.value.trim().split(' ');
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return parts[0].substring(0, 2).toUpperCase();
+    });
+
+    const primaryNav = [
+        { icon: PhHouse, title: 'Visão Geral', route: '/' },
+        { icon: PhChartBar, title: 'Dashboard', route: '/dashboard' },
+        { icon: PhFolders, title: 'Registros', route: '/records' },
+        { icon: PhTrendUp, title: 'Investimentos', route: '/investments' },
+        { icon: PhSparkle, title: 'Copilot IA', route: '/copilot', badge: 'AI' },
     ];
+
+    const accountNav = [
+        { icon: PhUser, title: 'Meu Perfil', route: '/profile' },
+        { icon: PhHeart, title: 'Modo Casal', route: '/casal', soon: true },
+        { icon: PhArrowsClockwise, title: 'Assinaturas', route: '/assinaturas', soon: true },
+        { icon: PhGear, title: 'Configurações', route: '/config', soon: true },
+    ];
+
+    const supportNav = [
+        { icon: PhQuestion, title: 'Central de Ajuda', route: '/ajuda' },
+        { icon: PhInfo, title: 'Sobre o Somma', route: '/sobre' },
+    ];
+
+    const isRouteActive = (itemRoute: string) => {
+        if (itemRoute === '/') return route.path === '/';
+        return route.path.startsWith(itemRoute);
+    };
 </script>
 
 <template>
-    <Teleport to="body">
-        <Transition name="fade">
-            <div v-if="isOpen" class="sidebar-backdrop" @click="emit('close')"></div>
-        </Transition>
-        <Transition name="slide">
-            <aside v-if="isOpen" class="sidebar">
-                <div class="sidebar-header">
-                    <div class="brand">
-                        <img :src="logoUrl" alt="Somma Logo" class="logo-img" />
-                        <span class="brand-text">Somma <strong>AI</strong></span>
-                    </div>
-                    <button class="close-btn" @click="emit('close')">
-                        <PhX size="16" />
-                    </button>
-                </div>
-                <div class="theme-toggle-wrapper">
-                    <div class="theme-info">
-                        <PhMoon size="18" :weight="isDarkMode ? 'fill' : 'regular'" color="var(--primary-color)" />
-                        <span>Tema Escuro</span>
-                    </div>
-                    <button class="switch" :class="{ 'active': isDarkMode }" @click="toggleTheme">
-                        <span class="switch-thumb"></span>
-                    </button>
-                </div>
-                    <div class="menu-section">
-                        <span class="section-label">MENU</span>
-                        <nav class="menu-list">
-                            <button class="menu-item" v-for="item in menuItems" :key="item.title" @click="navigateTo(item.route)">
-                                <div class="item-icon">
-                                    <component :is="item.icon" size="18" />
-                                </div>
-                                <div class="item-text">
-                                    <span class="item-title">{{ item.title }}</span>
-                                    <span class="item-subtitle">{{ item.subtitle }}</span>
-                                </div>
-                            </button>
-                        </nav>
-                    </div>
-                <div class="sidebar-footer">
-                    <button class="logout-btn" @click="handleLogout">
-                        <PhSignOut size="18" />
-                        <span>Sair</span>
-                    </button>
-                </div>
-            </aside>
-        </Transition>
-    </Teleport>
+    <!-- Backdrop apenas no Mobile quando o drawer está aberto -->
+    <Transition name="fade">
+        <div v-if="isOpen" class="sidebar-backdrop" @click="emit('close')"></div>
+    </Transition>
 
+    <aside class="sidebar" :class="{ 'is-open': isOpen }">
+        <!-- Topo: Marca -->
+        <div class="sidebar-header">
+            <div class="brand" @click="navigateTo('/')">
+                <img :src="logoUrl" alt="Somma Logo" class="logo-img" />
+                <div class="brand-info">
+                    <div class="brand-row">
+                        <span class="brand-name">Somma</span>
+                        <span class="brand-badge">AI</span>
+                    </div>
+                    <span class="brand-plan">Workspace Financeiro</span>
+                </div>
+            </div>
+            <button class="close-btn mobile-only" @click="emit('close')" title="Fechar menu">
+                <PhX size="18" />
+            </button>
+        </div>
 
+        <!-- Navegação Scrollável -->
+        <div class="sidebar-scroll">
+            <!-- Grupo 1: Principal -->
+            <div class="nav-group">
+                <span class="group-label">Principal</span>
+                <nav class="nav-list">
+                    <button
+                        v-for="item in primaryNav"
+                        :key="item.route"
+                        class="nav-item"
+                        :class="{ active: isRouteActive(item.route) }"
+                        @click="navigateTo(item.route)"
+                    >
+                        <component
+                            :is="item.icon"
+                            size="18"
+                            :weight="isRouteActive(item.route) ? 'fill' : 'regular'"
+                            class="nav-icon"
+                        />
+                        <span class="nav-label">{{ item.title }}</span>
+                        <span v-if="item.badge" class="item-badge">{{ item.badge }}</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Grupo 2: Conta & Gestão -->
+            <div class="nav-group">
+                <span class="group-label">Conta & Gestão</span>
+                <nav class="nav-list">
+                    <button
+                        v-for="item in accountNav"
+                        :key="item.route"
+                        class="nav-item"
+                        :class="{ active: isRouteActive(item.route) }"
+                        @click="navigateTo(item.route)"
+                    >
+                        <component
+                            :is="item.icon"
+                            size="18"
+                            :weight="isRouteActive(item.route) ? 'fill' : 'regular'"
+                            class="nav-icon"
+                        />
+                        <span class="nav-label">{{ item.title }}</span>
+                        <span v-if="item.soon" class="soon-pill">Breve</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Grupo 3: Suporte & Aparência -->
+            <div class="nav-group">
+                <span class="group-label">Preferências</span>
+                <nav class="nav-list">
+                    <!-- Switch de Tema Integrado -->
+                    <div class="theme-row" @click="toggleTheme">
+                        <div class="theme-left">
+                            <PhMoon v-if="isDarkMode" size="18" weight="duotone" class="nav-icon theme-icon" />
+                            <PhSun v-else size="18" weight="duotone" class="nav-icon theme-icon" />
+                            <span class="nav-label">{{ isDarkMode ? 'Modo Escuro' : 'Modo Claro' }}</span>
+                        </div>
+                        <button type="button" class="switch" :class="{ active: isDarkMode }" @click.stop="toggleTheme">
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+
+                    <button
+                        v-for="item in supportNav"
+                        :key="item.route"
+                        class="nav-item"
+                        :class="{ active: isRouteActive(item.route) }"
+                        @click="navigateTo(item.route)"
+                    >
+                        <component :is="item.icon" size="18" class="nav-icon" />
+                        <span class="nav-label">{{ item.title }}</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Rodapé: Perfil do Usuário + Logout -->
+        <div class="sidebar-footer">
+            <div class="user-card" @click="navigateTo('/profile')" title="Ver Meu Perfil">
+                <div class="user-avatar">
+                    <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
+                    <span v-else>{{ userInitials }}</span>
+                </div>
+                <div class="user-meta">
+                    <span class="user-name">{{ userName || 'Thiago Silva' }}</span>
+                    <span class="user-email">{{ userEmail || 'Minha Conta' }}</span>
+                </div>
+            </div>
+            <button class="logout-icon-btn" @click="handleLogout" title="Sair da conta">
+                <PhSignOut size="18" />
+            </button>
+        </div>
+    </aside>
 </template>
 
 <style scoped>
-
     .fade-enter-active, .fade-leave-active {
-        transition: opacity 0.3s ease;
+        transition: opacity 0.25s ease;
     }
     .fade-enter-from, .fade-leave-to {
         opacity: 0;
     }
 
-    .slide-enter-active, .slide-leave-active {
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .slide-enter-from, .slide-leave-to {
-        transform: translateX(-100%);
-    }
-
     .sidebar-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 9998;
+        display: none;
     }
 
     .sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 300px;
+        width: 256px;
         height: 100vh;
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
         background-color: var(--bg-card);
-        z-index: 9999;
+        border-right: 1px solid var(--border-color);
         display: flex;
         flex-direction: column;
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+        z-index: 200;
+        user-select: none;
     }
 
+    /* === TOPO / BRAND === */
     .sidebar-header {
+        height: 64px;
+        padding: 0 1.25rem;
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 1rem;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border-subtle);
     }
 
     .brand {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 0.75rem;
+        cursor: pointer;
     }
+
     .logo-img {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         object-fit: contain;
+        flex-shrink: 0;
     }
-    .brand-text {
-        font-size: 1rem;
+
+    .brand-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+    }
+
+    .brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .brand-name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         color: var(--text-primary);
+    }
+
+    .brand-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: var(--primary-subtle);
+        color: var(--primary-color);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .brand-plan {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    .mobile-only {
+        display: none;
     }
 
     .close-btn {
         background: transparent;
         border: none;
-        cursor: pointer;
         color: var(--text-secondary);
-        display: flex;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
         align-items: center;
         justify-content: center;
-        padding: 4px;
-        border-radius: 50%;
-        transition: 0.2s
+        cursor: pointer;
     }
+
     .close-btn:hover {
-        background-color: var(--bg-page);
+        background-color: var(--bg-hover);
         color: var(--text-primary);
     }
 
-    .theme-toggle-wrapper {
+    /* === ÁREA DE NAVEGAÇÃO === */
+    .sidebar-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.15rem 0.85rem;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0 1.2rem 1.5rem;
-        padding: 0.5rem 0.8rem;
-        background-color: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
+        flex-direction: column;
+        gap: 1.5rem;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color) transparent;
     }
-    .theme-info {
+
+    .nav-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .group-label {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        padding: 0 0.65rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .nav-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .nav-item {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 0.7rem;
+        width: 100%;
+        padding: 0.55rem 0.65rem;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.875rem;
         font-weight: 500;
-        font-size: 0.85rem;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.15s ease;
+    }
+
+    .nav-item:hover {
+        background-color: var(--bg-hover);
         color: var(--text-primary);
+    }
+
+    .nav-icon {
+        flex-shrink: 0;
+        color: var(--text-muted);
+        transition: color 0.15s ease;
+    }
+
+    .nav-item:hover .nav-icon {
+        color: var(--text-primary);
+    }
+
+    .nav-item.active {
+        background-color: var(--primary-subtle);
+        color: var(--text-primary);
+        font-weight: 600;
+        border-color: rgba(99, 102, 241, 0.2);
+    }
+
+    .nav-item.active .nav-icon {
+        color: var(--primary-color);
+    }
+
+    .nav-label {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .item-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 1px 6px;
+        border-radius: 99px;
+        background: var(--primary-gradient);
+        color: white;
+    }
+
+    .soon-pill {
+        font-size: 0.65rem;
+        font-weight: 600;
+        padding: 1px 6px;
+        border-radius: 6px;
+        background-color: var(--bg-elevated);
+        color: var(--text-muted);
+        border: 1px solid var(--border-color);
+    }
+
+    /* === LINHA DO TEMA === */
+    .theme-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 0.65rem;
+        border-radius: 9px;
+        cursor: pointer;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .theme-row:hover {
+        background-color: var(--bg-hover);
+        color: var(--text-primary);
+    }
+
+    .theme-left {
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+    }
+
+    .theme-icon {
+        color: var(--primary-color);
     }
 
     .switch {
-        width: 40px; 
-        height: 24px; 
+        width: 36px;
+        height: 20px;
         border-radius: 99px;
-        background-color: var(--border-color); border: none;
-        position: relative; 
-        cursor: pointer; 
-        transition: background-color 0.3s;
+        background-color: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        position: relative;
+        cursor: pointer;
+        padding: 0;
+        transition: background-color 0.2s ease, border-color 0.2s ease;
     }
-    .switch.active {  background-color: var(--primary-color); }
+
+    .switch.active {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
     .switch-thumb {
-        position: absolute; top: 3px; left: 3px;
-        width: 18px; height: 18px; border-radius: 50%;
-        background-color: white; transition: transform 0.3s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: white;
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
-    .switch.active .switch-thumb {  transform: translateX(16px); }
 
-    .menu-section {
-        flex: 1; 
-        padding: 0 1rem; 
-        overflow-y: auto;
+    .switch.active .switch-thumb {
+        transform: translateX(16px);
     }
-    .section-label {
-        display: block; 
-        padding: 0 0.5rem; 
-        margin-bottom: 0.8rem;
-        font-size: 0.75rem; 
-        font-weight: 600; 
-        color: var(--text-secondary); letter-spacing: 0.05em;
-    }
-    
-    .menu-list { display: flex; flex-direction: column; gap: 4px; }
-    
-    .menu-item {
-        display: flex; 
-        align-items: center; 
-        gap: 16px;
-        background: transparent; border: none; width: 100%; text-align: left;
-        padding: 0.8rem 1rem; border-radius: 10px; cursor: pointer; transition: 0.2s;
-    }
-    .menu-item:hover { background-color: rgba(255,255,255, 0.03); }
-    
-    .item-icon { color: var(--text-secondary); display: flex; align-items: center; }
-    .menu-item:hover .item-icon { color: var(--text-primary); }
-    
-    .item-text { display: flex; flex-direction: column; gap: 2px; }
-    .item-title { color: var(--text-primary); font-size: 0.95rem; font-weight: 500; }
-    .item-subtitle { color: var(--text-secondary); font-size: 0.75rem; }
 
-    /* Rodapé */
-    .sidebar-footer { padding: 1.5rem; border-top: 1px solid var(--border-color); }
-    .logout-btn {
-        display: flex; align-items: center; gap: 12px;
-        background: transparent; border: none; width: 100%;
-        padding: 0.8rem 1rem; border-radius: 10px; cursor: pointer; transition: 0.2s;
-        color: var(--danger-color); font-weight: 500; font-size: 0.95rem;
+    /* === RODAPÉ DO USUÁRIO === */
+    .sidebar-footer {
+        padding: 0.85rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
     }
-    .logout-btn:hover { background-color: rgba(239, 68, 68, 0.1); }
-    
 
+    .user-card {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        flex: 1;
+        min-width: 0;
+        padding: 0.35rem 0.45rem;
+        border-radius: 9px;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
 
+    .user-card:hover {
+        background-color: var(--bg-hover);
+    }
+
+    .user-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: var(--primary-gradient);
+        color: white;
+        font-weight: 700;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+
+    .user-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .user-meta {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .user-name {
+        font-size: 0.825rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .user-email {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .logout-icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.15s ease;
+    }
+
+    .logout-icon-btn:hover {
+        background-color: var(--danger-bg);
+        color: var(--danger-color);
+    }
+
+    /* === RESPONSIVIDADE MOBILE (< 1024px vira Drawer) === */
+    @media (max-width: 1024px) {
+        .sidebar-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(2px);
+            z-index: 9998;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 9999;
+            transform: translateX(-100%);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-md);
+        }
+
+        .sidebar.is-open {
+            transform: translateX(0);
+        }
+
+        .mobile-only {
+            display: flex;
+        }
+    }
 </style>

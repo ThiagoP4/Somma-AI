@@ -7,78 +7,115 @@
 }
 
 :root {
-    /* --- TEMA CLARO (Novo visual) --- */
-    --bg-page: hsl(30, 30%, 98%);
-    --bg-card: hsl(30, 25%, 97%);
-    --bg-input: hsl(30, 20%, 88%);
+    /* --- TEMA CLARO (Fintech Clean: Slate & Indigo) --- */
+    --bg-page: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #F1F5F9;
+    --bg-input: #F1F5F9;
+    --bg-hover: rgba(15, 23, 42, 0.04);
 
-    --text-primary: hsl(20, 20%, 10%);
-    --text-secondary: hsl(20, 10%, 50%);
-    --text-inverse: hsl(0, 0%, 100%);
+    --text-primary: #0F172A;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+    --text-inverse: #FFFFFF;
 
-    --border-color: hsl(30, 20%, 88%);
+    --border-color: #E2E8F0;
+    --border-subtle: #F1F5F9;
+    --shadow-color: rgba(15, 23, 42, 0.05);
+    --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.02);
+    --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
 
-    --primary-color: hsl(24, 80%, 55%);
-    --primary-hover: hsl(24, 80%, 45%);
-    --accent-color: hsl(346, 77%, 50%);
-    --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+    /* --- Cor Única da Marca (Electric Indigo & Violet) --- */
+    --primary-color: #6366F1;
+    --primary-hover: #4F46E5;
+    --accent-color: #8B5CF6;
+    --primary-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+    --primary-subtle: rgba(99, 102, 241, 0.1);
+    --primary-glow: rgba(99, 102, 241, 0.25);
 
-    /* --- Estados Globais (Sucesso / Perigo) --- */
-    --success-color: hsl(142, 71%, 35%);
-    --success-bg: hsla(142, 71%, 45%, 0.12);
-    --danger-color: hsl(0, 84%, 50%);
-    --danger-bg: hsla(0, 84%, 60%, 0.12);
+    /* --- Estados Semânticos Padronizados --- */
+    --success-color: #10B981;
+    --success-text: #059669;
+    --success-bg: rgba(16, 185, 129, 0.1);
 
-    /* --- Cartões de Destaque (Destaques da UI) --- */
-    --card-highlight-bg: linear-gradient(145deg, hsl(346, 80%, 97%) 0%, hsl(346, 80%, 93%) 100%);
-    --card-highlight-border: hsla(346, 77%, 50%, 0.12);
-    --card-highlight-text: hsl(346, 77%, 15%);
-    --card-highlight-title: hsl(346, 70%, 30%);
-    
+    --danger-color: #F43F5E;
+    --danger-text: #E11D48;
+    --danger-bg: rgba(244, 63, 94, 0.1);
+
+    --info-color: #3B82F6;
+    --info-bg: rgba(59, 130, 246, 0.1);
+
+    --purple-color: #8B5CF6;
+    --purple-bg: rgba(139, 92, 246, 0.1);
+
+    /* --- Cartão de Destaque (Saldo Principal) --- */
+    --card-highlight-bg: linear-gradient(135deg, #EEF2FF 0%, #F5F3FF 100%);
+    --card-highlight-border: rgba(99, 102, 241, 0.2);
+    --card-highlight-text: #1E1B4B;
+    --card-highlight-title: #4F46E5;
+
     /* --- Cartões Aninhados ou Secundários --- */
-    --card-nested-bg: hsl(30, 20%, 92%);
-    --card-nested-border: hsl(30, 15%, 85%);
+    --card-nested-bg: #F8FAFC;
+    --card-nested-border: #E2E8F0;
 }
 
-/* Quando a classe .dark for adicionada no HTML */
+/* Quando a classe .dark for adicionada no HTML/body */
 .dark {
-    /* --- TEMA ESCURO (Novo visual) --- */
-    --bg-page: hsl(20, 20%, 7%);
-    --bg-card: hsl(20, 18%, 10%);
-    --bg-input: hsl(20, 12%, 18%);
+    /* --- TEMA ESCURO (Obsidian / Linear / Stripe Dark) --- */
+    --bg-page: #090A0F;
+    --bg-card: #12141C;
+    --bg-elevated: #1A1D28;
+    --bg-input: #181B26;
+    --bg-hover: rgba(255, 255, 255, 0.04);
 
-    --text-primary: hsl(30, 20%, 92%);
-    --text-secondary: hsl(30, 10%, 60%);
-    --text-inverse: hsl(0, 0%, 100%);
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --text-inverse: #FFFFFF;
 
-    --border-color: hsl(20, 12%, 18%);
+    --border-color: rgba(255, 255, 255, 0.07);
+    --border-subtle: rgba(255, 255, 255, 0.04);
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 16px 36px -8px rgba(0, 0, 0, 0.6);
 
-    --primary-color: hsl(24, 80%, 50%);
-    --primary-hover: hsl(24, 80%, 40%);
-    --accent-color: hsl(346, 77%, 55%);
-    --primary-gradient: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+    /* --- Cor Única da Marca (Electric Indigo & Violet) --- */
+    --primary-color: #6366F1;
+    --primary-hover: #818CF8;
+    --accent-color: #A855F7;
+    --primary-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+    --primary-subtle: rgba(99, 102, 241, 0.14);
+    --primary-glow: rgba(99, 102, 241, 0.28);
 
-    --danger-color: hsl(0, 62%, 35%);
-    --success-color: hsl(152, 76%, 40%);
+    /* --- Estados Semânticos --- */
+    --success-color: #10B981;
+    --success-text: #34D399;
+    --success-bg: rgba(16, 185, 129, 0.12);
 
-    /* --- Estados Globais (Sucesso / Perigo) --- */
-    --success-color: #22c55e;
-    --success-bg: rgba(34, 197, 94, 0.15);
-    --danger-color: #ef4444;
-    --danger-bg: rgba(239, 68, 68, 0.15);
+    --danger-color: #F43F5E;
+    --danger-text: #FB7185;
+    --danger-bg: rgba(244, 63, 94, 0.12);
 
-    /* --- Cartões de Destaque (Destaques da UI) --- */
-    --card-highlight-bg: linear-gradient(145deg, #2a1f1f 0%, #1e1515 100%);
-    --card-highlight-border: rgba(239, 68, 68, 0.1);
-    --card-highlight-text: hsl(30, 20%, 92%);
-    --card-highlight-title: hsl(30, 10%, 60%);
-    
+    --info-color: #38BDF8;
+    --info-bg: rgba(56, 189, 248, 0.12);
+
+    --purple-color: #A855F7;
+    --purple-bg: rgba(168, 85, 247, 0.12);
+
+    /* --- Cartão de Destaque (Saldo Principal) --- */
+    --card-highlight-bg: radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.18) 0%, rgba(18, 20, 28, 0.95) 75%);
+    --card-highlight-border: rgba(99, 102, 241, 0.28);
+    --card-highlight-text: #F8FAFC;
+    --card-highlight-title: #A5B4FC;
+
     /* --- Cartões Aninhados ou Secundários --- */
-    --card-nested-bg: hsl(20, 12%, 14%);
-    --card-nested-border: hsl(20, 12%, 18%);
+    --card-nested-bg: #171A24;
+    --card-nested-border: rgba(255, 255, 255, 0.07);
 }
 
-/* Reset que já existia */
+/* =========================================
+   RESET & BASE TIPOGRAFIA
+   ========================================= */
 html,
 body {
     margin: 0;
@@ -88,10 +125,10 @@ body {
     box-sizing: border-box;
     background-color: var(--bg-page);
     color: var(--text-primary);
-    transition: background-color 0.3s, color 0.3s;
-    /* Suaviza a troca de tema */
-    font-family: 'Inter', sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
 }
 
 #app {
@@ -104,57 +141,135 @@ body {
 input,
 select,
 textarea {
-    background-color: var(--bg-input) !important;
-    color: var(--text-primary) !important;
-    border: 1px solid var(--border-color) !important;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    font-family: inherit;
+    font-size: 0.925rem;
+    border-radius: 10px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-subtle);
+    background-color: var(--bg-card);
+}
 
 /* =========================================
-   UI GERAL - COMPONENTES GLOBAIS
+   UI GERAL - COMPONENTES GLOBAIS & BOTÕES
    ========================================= */
 
-/* --- BOTÕES --- */
+/* Botão Primário (CTA Principal da tela) */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--primary-color);
+    color: var(--text-inverse);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.6rem 1.15rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.875rem;
+    font-family: inherit;
+    height: 40px;
+    box-shadow: 0 2px 10px var(--primary-glow);
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px var(--primary-glow);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Botão Secundário (Ações de apoio: Filtrar, Exportar, etc.) */
 .btn-secondary {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     justify-content: center;
     background-color: var(--bg-card);
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
-    padding: 0.8rem 1rem;
-    border-radius: 8px;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
     cursor: pointer;
     font-weight: 500;
-    transition: all 0.2s;
-    height: 42px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: all 0.15s ease;
+    height: 40px;
+    white-space: nowrap;
 }
 
-.btn-secondary:hover {
-    background-color: var(--bg-page);
+.btn-secondary:hover:not(:disabled) {
+    background-color: var(--bg-hover);
     color: var(--text-primary);
-    border-color: var(--text-secondary);
+    border-color: var(--text-muted);
 }
 
 .btn-active {
-    background-color: var(--bg-page);
+    background-color: var(--primary-subtle);
+    color: var(--primary-color);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+/* Botão Outline */
+.btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
     color: var(--text-primary);
-    border-color: var(--border-color);
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-outline:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--text-muted);
 }
 
 .btn-apply {
-    background: var(--primary-gradient);
+    background: var(--primary-color);
     color: var(--text-inverse);
     border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 6px;
+    padding: 0.55rem 1.15rem;
+    border-radius: 8px;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 0.875rem;
+    font-family: inherit;
+    transition: background-color 0.15s ease;
 }
 
 .btn-apply:hover {
-    opacity: 0.9;
+    background: var(--primary-hover);
 }
 
 .btn-clean {
@@ -162,51 +277,54 @@ textarea {
     border: none;
     color: var(--text-secondary);
     cursor: pointer;
+    font-weight: 500;
+    font-size: 0.875rem;
+    font-family: inherit;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    transition: color 0.15s, background-color 0.15s;
 }
 
 .btn-clean:hover {
-    text-decoration: underline;
+    background-color: var(--bg-hover);
     color: var(--text-primary);
 }
 
 .action-btn {
     background: transparent;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: 8px;
     width: 32px;
     height: 32px;
     cursor: pointer;
-    color: var(--danger-color);
+    color: var(--text-secondary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s;
+    transition: all 0.15s;
 }
 
 .action-btn:hover {
-    background-color: rgba(239, 68, 68, 0.1);
+    background-color: var(--danger-bg);
+    border-color: transparent;
     color: var(--danger-color);
 }
 
-.action-btn.edit-btn {
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-}
-
 .action-btn.edit-btn:hover {
-    background-color: var(--bg-page);
+    background-color: var(--primary-subtle);
     color: var(--primary-color);
+    border-color: transparent;
 }
 
 /* --- CARD DE FILTROS E FORMULÁRIOS --- */
 .filter-card {
     background-color: var(--bg-card);
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
+    padding: 1.25rem;
+    border-radius: 14px;
+    margin-bottom: 1.25rem;
     border: 1px solid var(--border-color);
     animation: fadeIn 0.2s ease-out;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
 }
 
 .filter-row {
@@ -219,7 +337,8 @@ textarea {
 .filter-footer {
     display: flex;
     justify-content: flex-end;
-    gap: 1rem;
+    width: 100%;
+    gap: 0.75rem;
     border-top: 1px solid var(--border-color);
     padding-top: 1rem;
 }
@@ -227,50 +346,44 @@ textarea {
 .input-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex: 1;
     min-width: 200px;
 }
 
 .input-group label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .input-group input,
 .input-group select {
-    padding: 0.6rem;
+    padding: 0.6rem 0.85rem;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border-radius: 10px;
     background-color: var(--bg-input);
     color: var(--text-primary);
     outline: none;
-}
-
-.input-group input:focus,
-.input-group select:focus {
-    border-color: var(--text-secondary);
-    background-color: var(--bg-card);
 }
 
 /* =========================================
    PERFIL - COMPONENTES REUTILIZÁVEIS
    ========================================= */
 
-/* O Card Base */
 .profile-card {
     background: var(--bg-card);
-    border-radius: 1rem;
-    padding: 2rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: var(--shadow-sm);
     display: flex;
     flex-direction: column;
 }
 
 .profile-card h2 {
     color: var(--text-primary);
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 600;
     margin-bottom: 0;
 }
@@ -280,18 +393,17 @@ textarea {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
+    padding-bottom: 0.85rem;
     border-bottom: 1px solid var(--border-color);
 }
 
 .empty-state {
     text-align: center;
     color: var(--text-secondary);
-    padding: 2rem 0;
-    font-size: 0.95rem;
+    padding: 2.5rem 1rem;
+    font-size: 0.9rem;
 }
 
-/* Estilos do Drawer e Animações de Sobreposição */
 .card-body-wrapper {
     position: relative;
     overflow: hidden;
@@ -326,39 +438,31 @@ textarea {
 }
 
 .form-title {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
-    font-weight: 500;
+    font-weight: 600;
 }
 
-/* Itens e Inputs de Formulário de Perfil */
 .profile-card-content-item {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .profile-card-content-item label {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: var(--text-secondary);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .profile-card-content-item input,
 .profile-card-content-item select {
-    padding: 0.6rem;
+    padding: 0.6rem 0.85rem;
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
-    background: var(--bg-card);
+    border-radius: 10px;
+    background: var(--bg-input);
     color: var(--text-primary);
     font-family: inherit;
     font-size: 0.9rem;
-    transition: border-color 0.2s;
-}
-
-.profile-card-content-item input:focus,
-.profile-card-content-item select:focus {
-    outline: none;
-    border-color: var(--primary-color);
 }

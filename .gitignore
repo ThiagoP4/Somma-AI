@@ -10,6 +10,8 @@ build/
 .env
 .env.local
 .env.*.local
+.env.mock
+client/.env.mock
 
 # Arquivos de Sistema Operacional
 .DS_Store
@@ -29,6 +31,8 @@ supabase/.temp/
 # Pastas antigas ou ignoradas
 exc/
 obsidian/
+mock-data/
+client/src/mock-data/
 
 # --- Capacitor & Android ---
 # Ignorar arquivos compilados do Android

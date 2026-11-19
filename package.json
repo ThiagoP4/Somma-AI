@@ -1,4 +1,12 @@
 {
+  "name": "web-bpa-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix client run dev",
+    "dev:mock": "npm --prefix client run dev:mock",
+    "build": "npm --prefix client run build",
+    "preview": "npm --prefix client run preview"
+  },
   "dependencies": {
     "vue-router": "^5.0.1"
   }

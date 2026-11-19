@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { PhPlus, PhSpinner, PhSmileySad } from '@phosphor-icons/vue';
 
-    const props = defineProps({
+    defineProps({
         title: { type: String, required: true },
         totalValue: { type: Number, default: 0 },
         buttonText: { type: String, default: 'Novo' },
@@ -10,115 +10,96 @@
     });
 
     defineEmits(['addNew']);
-
 </script>
 
-
 <template>
-    <div class="page-container">
-    <header class="page-header">
-        <div>
-            <h1> {{ title }}</h1>
+    <div class="list-layout">
+        <header class="page-header">
+            <div class="title-area">
+                <h1>{{ title }}</h1>
+            </div>
+            <div class="button-wrapper">
+                <button 
+                    class="btn-primary" 
+                    @click="$emit('addNew')" 
+                    :disabled="loading"
+                >
+                    <PhSpinner v-if="loading" size="18" class="spin" />
+                    <PhPlus v-else size="18" weight="bold" />
+                    <span>{{ buttonText }}</span>
+                </button>
+                <slot name="actions"></slot>
+            </div>
+        </header>
+
+        <div class="list-body">
+            <div v-if="$slots.filters" class="filters-wrapper">
+                <slot name="filters" />
+            </div>
+
+            <div v-if="loading" class="loading-state">
+                <PhSpinner size="36" class="spin" />
+                <span>Carregando dados...</span>
+            </div>
+
+            <div v-else-if="items.length === 0" class="state-container">
+                <PhSmileySad size="42" color="var(--text-secondary)" />
+                <p>Nenhum item cadastrado ainda.</p>
+                <small>Clique em "{{ buttonText }}" acima para adicionar o primeiro registro.</small>
+            </div>
+
+            <div v-else class="records-container">
+                <slot name="header" />
+                <div class="records-list">
+                    <slot name="body" />
+                </div>
+            </div>
         </div>
-        <div class="button-wrapper">
-            <button 
-                class="btn-primary-header" 
-                @click="$emit('addNew')" 
-                :disabled="loading" 
-                :class="{ 'btn-disabled': loading }"
-            >
-                <PhSpinner v-if="loading" size="20" class="spin" />
-                <PhPlus v-else size="20" weight="bold" />
-                
-                <span>{{ buttonText }}</span>
-            </button>
-            <slot name="actions"></slot>
-        </div>
-    </header>
-    <main class="content-area">
-        <div v-if="$slots.filters" class="filters-wrapper">
-            <slot name="filters" />
-        </div>
-        <div v-if="loading" class="loading">
-            <PhSpinner size="40" class="spin" />
-            Carregando dados...
-        </div>
-        <div v-else-if="items.length === 0" class="state-container">
-            <PhSmileySad size="40" color="var(--text-secondary)"/>
-            <p>Nenhum item cadastrado ainda.</p>
-            <small>Clique no botão acima para adicionar.</small>
-        </div>
-        <div  v-else class="records-container">
-           <slot name="header" />
-           <div class="records-list">
-                <slot name="body" />
-           </div>
-        </div>
-    </main>
     </div>
 </template>
 
-<style>
-
-    .page-container {
-        padding: 1rem;
-        max-width: 1200px;
-        margin: 0 auto;
+<style scoped>
+    .list-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
     }
 
     .page-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.5rem;
+        gap: 1rem;
     }
 
     .page-header h1 {
-        font-size: 1.5rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
         color: var(--text-primary);
         margin: 0;
-    }
-
-    .btn-primary-header {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        justify-content: center;
-        background-color: var(--bg-card);
-        color: var(--text-secondary);
-        border: 1px solid var(--border-color);
-        padding: 0.8rem 1rem;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: 500;
-        transition: all 0.2s;
-        height: 42px;
-        width: auto !important;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-    .btn-primary-header:hover:not(:disabled) {
-        background-color: var(--bg-page);
-        color: var(--text-primary);
-        border-color: var(--text-secondary);
     }
 
     .button-wrapper {
         display: flex;
         align-items: center;
-        gap: 12px;
-    }
-
-    .btn-disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-        background-color: var(--bg-page); /* Ou mantenha a cor primária mais clara */
+        gap: 0.75rem;
     }
 
     .filters-wrapper {
         margin-bottom: 1rem;
         animation: slideDown 0.2s ease-out;
+    }
+
+    .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 4rem 2rem;
+        color: var(--text-secondary);
+        font-weight: 500;
     }
 
     .state-container {
@@ -129,15 +110,15 @@
         padding: 4rem 2rem;
         background-color: var(--bg-card);
         border: 1px dashed var(--border-color);
-        border-radius: 12px;
+        border-radius: 16px;
         color: var(--text-secondary);
         text-align: center;
-        margin-top: 1rem;
     }
 
     .state-container p {
-        margin: 1rem 0 0.25rem 0;
-        font-weight: 500;
+        margin: 0.85rem 0 0.25rem 0;
+        font-weight: 600;
+        font-size: 1rem;
         color: var(--text-primary);
     }
 
@@ -146,7 +127,7 @@
     }
 
     @keyframes slideDown {
-        from { opacity: 0; transform: translateY(-10px); }
+        from { opacity: 0; transform: translateY(-8px); }
         to { opacity: 1; transform: translateY(0); }
     }
 
@@ -155,33 +136,27 @@
     }
 
     @media (max-width: 640px) {
-        /* Header vira coluna: título em cima, botões embaixo */
         .page-header {
             flex-direction: column;
             align-items: flex-start;
-            gap: 0.75rem;
-            margin-bottom: 1rem;
+            gap: 0.85rem;
         }
 
         .page-header h1 {
-            font-size: 1.25rem;
+            font-size: 1.4rem;
         }
 
         .button-wrapper {
             width: 100%;
-            gap: 8px;
+            gap: 0.5rem;
         }
 
-        .btn-primary-header,
-        .btn-secondary {
-            flex: 1 1 0 !important;  /* Sobrescreve o width: auto !important do base */
-            width: 0 !important;     /* flex-basis: 0 faz os botões crescerem igualmente */
+        .button-wrapper :deep(button) {
+            flex: 1 1 0;
             min-width: 0;
-            justify-content: center;
-            padding: 0.6rem 0.8rem;
+            padding: 0.6rem 0.75rem;
             font-size: 0.85rem;
-            height: 36px;
+            height: 38px;
         }
     }
-
 </style>
