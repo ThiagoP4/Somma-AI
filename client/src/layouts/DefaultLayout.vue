@@ -26,7 +26,8 @@
             '/records': 'Registros Financeiros',
             '/investments': 'Investimentos & Cofrinhos',
             '/copilot': 'Copilot IA',
-            '/profile': 'Meu Perfil'
+            '/profile': 'Meu Perfil',
+            '/assinaturas': 'Assinaturas & Recorrências'
         };
         return map[route.path] || 'Workspace';
     });

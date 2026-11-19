@@ -48,6 +48,12 @@ const router = createRouter({
             name: 'copilot',
             component: () => import('../views/Copilot.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/assinaturas',
+            name: 'subscriptions',
+            component: () => import('../views/Subscriptions.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 });
@@ -75,7 +81,7 @@ router.beforeEach(async (to, _from, next) => {
 
     if (to.meta.requiresAuth && !isAuthenticated) {
         next('/login');
-    } else if (to.meta.requiresGuest && isAuthenticated) {
+    } else if (to.meta.requiresGuest && isAuthenticated && import.meta.env.MODE !== 'mock') {
         next('/');
     } else {
         next();

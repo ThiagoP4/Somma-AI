@@ -23,7 +23,7 @@ const tabInfo: Record<string, { icon: any; label: string }> = {
             :class="{ active: currentTab === aba }"
             @click="emit('select', aba)"
         >
-            <component :is="tabInfo[aba].icon" size="18" :weight="currentTab === aba ? 'fill' : 'regular'" />
+            <component :is="tabInfo[aba]?.icon" size="18" :weight="currentTab === aba ? 'fill' : 'regular'" />
             <span class="dock-label">{{ tabInfo[aba]?.label }}</span>
         </button>
     </div>

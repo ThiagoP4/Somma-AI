@@ -48,11 +48,13 @@
 
     const userInitials = computed(() => {
         if (!userName.value) return 'U';
-        const parts = userName.value.trim().split(' ');
+        const parts = userName.value.trim().split(' ').filter(Boolean);
+        const first = parts[0] || 'U';
+        const last = parts[parts.length - 1] || first;
         if (parts.length >= 2) {
-            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            return ((first[0] || '') + (last[0] || '')).toUpperCase();
         }
-        return parts[0].substring(0, 2).toUpperCase();
+        return first.substring(0, 2).toUpperCase();
     });
 
     const primaryNav = [
@@ -65,8 +67,8 @@
 
     const accountNav = [
         { icon: PhUser, title: 'Meu Perfil', route: '/profile' },
+        { icon: PhArrowsClockwise, title: 'Assinaturas', route: '/assinaturas' },
         { icon: PhHeart, title: 'Modo Casal', route: '/casal', soon: true },
-        { icon: PhArrowsClockwise, title: 'Assinaturas', route: '/assinaturas', soon: true },
         { icon: PhGear, title: 'Configurações', route: '/config', soon: true },
     ];
 
