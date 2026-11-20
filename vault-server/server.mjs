@@ -1,4 +1,5 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import pg from 'pg';
 
 const { Pool } = pg;
@@ -58,8 +59,23 @@ const ensureSchema = async () => {
                 target_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
                 current_amount NUMERIC(15, 2) NOT NULL DEFAULT 0,
                 composes_balance BOOLEAN NOT NULL DEFAULT true,
+                bank_name VARCHAR(100),
+                product_type VARCHAR(80),
+                indexer VARCHAR(40),
+                rate_value NUMERIC(10, 2),
+                liquidity VARCHAR(40),
+                maturity_date DATE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
+
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100);
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS product_type VARCHAR(80);
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS indexer VARCHAR(40);
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS rate_value NUMERIC(10, 2);
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS liquidity VARCHAR(40);
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS maturity_date DATE;
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS last_yield_date DATE;
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS total_yield_earned NUMERIC(15, 2) NOT NULL DEFAULT 0;
 
             CREATE INDEX IF NOT EXISTS idx_piggybank_user_id ON fin_piggybank(user_id);
 
@@ -98,23 +114,46 @@ const isAuthorizedNetwork = (remoteAddress = '') => {
     return false;
 };
 
-// Decodifica o JWT do Supabase para isolar os cofrinhos por user_id
+// Decodifica e valida o JWT do Supabase para isolar os cofrinhos por user_id (Zero-Trust)
+const SUPABASE_JWT_SECRET = process.env.SUPABASE_JWT_SECRET || '';
+
 const extractUserFromAuthHeader = (authHeader = '') => {
     if (!authHeader.startsWith('Bearer ')) return null;
     const token = authHeader.slice(7).trim();
-    if (token === 'mock-jwt-token') {
+    if (!token) return null;
+
+    if (token === 'mock-jwt-token' && process.env.ALLOW_MOCK_AUTH === 'true') {
         return { id: 'mock-user-123', email: 'thiago@somma.ai' };
     }
+
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     try {
+        // Se SUPABASE_JWT_SECRET estiver configurado no container, valida assinatura HMAC-SHA256 criptograficamente
+        if (SUPABASE_JWT_SECRET) {
+            const signingInput = `${parts[0]}.${parts[1]}`;
+            const expectedSig = crypto
+                .createHmac('sha256', SUPABASE_JWT_SECRET)
+                .update(signingInput)
+                .digest('base64url');
+            if (expectedSig !== parts[2]) {
+                return null;
+            }
+        }
+
         const payloadJson = Buffer.from(parts[1], 'base64url').toString('utf-8');
         const payload = JSON.parse(payloadJson);
+        if (!payload || typeof payload.sub !== 'string' || !payload.sub.trim()) {
+            return null;
+        }
         if (payload.exp && Date.now() >= payload.exp * 1000) {
             return null;
         }
+        if (payload.role !== 'authenticated' && payload.aud !== 'authenticated') {
+            return null;
+        }
         return {
-            id: payload.sub || null,
+            id: payload.sub,
             email: payload.email || null
         };
     } catch {
@@ -190,12 +229,23 @@ const server = http.createServer(async (req, res) => {
         }
     }
 
+    // Blindagem A: Exige obrigatoriamente um JWT válido de usuário autenticado em todas as rotas /api/vault/*
     const user = extractUserFromAuthHeader(req.headers.authorization || '');
-    const userId = user?.id || 'default-owner';
+    if (!user?.id) {
+        return sendJson(res, 401, {
+            error: 'Unauthorized: Token de sessão Supabase válido é obrigatório para acessar o Cofre Tailscale.'
+        });
+    }
+    const userId = user.id;
 
     try {
         // GET /api/vault/piggybanks
         if (req.method === 'GET' && pathname === '/api/vault/piggybanks') {
+            // Migra automaticamente registros antigos que tenham ficado com 'default-owner' para o userId autenticado
+            await pool.query(
+                `UPDATE fin_piggybank SET user_id = $1 WHERE user_id = 'default-owner'`,
+                [userId]
+            );
             const { rows } = await pool.query(
                 `SELECT * FROM fin_piggybank WHERE user_id = $1 ORDER BY created_at ASC`,
                 [userId]
@@ -206,17 +256,26 @@ const server = http.createServer(async (req, res) => {
         // POST /api/vault/piggybanks
         if (req.method === 'POST' && pathname === '/api/vault/piggybanks') {
             const body = await parseJsonBody(req);
-            const owner = body.user_id || userId;
-            const title = String(body.title || 'Novo Cofrinho').trim();
+            const owner = userId; // Blindagem B: Ignora user_id enviado no body e usa sempre o sub do JWT autenticado
+            const title = String(body.title || 'Nova Conta').trim();
             const targetAmount = Number(body.target_amount) || 0;
             const currentAmount = Number(body.current_amount) || 0;
             const composesBalance = Boolean(body.composes_balance);
+            const bankName = body.bank_name || null;
+            const productType = body.product_type || null;
+            const indexer = body.indexer || null;
+            const rateValue = body.rate_value !== undefined ? Number(body.rate_value) : null;
+            const liquidity = body.liquidity || null;
+            const maturityDate = body.maturity_date || null;
 
             const { rows } = await pool.query(
-                `INSERT INTO fin_piggybank (user_id, title, target_amount, current_amount, composes_balance)
-                 VALUES ($1, $2, $3, $4, $5)
+                `INSERT INTO fin_piggybank (
+                    user_id, title, target_amount, current_amount, composes_balance,
+                    bank_name, product_type, indexer, rate_value, liquidity, maturity_date
+                 )
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                  RETURNING *`,
-                [owner, title, targetAmount, currentAmount, composesBalance]
+                [owner, title, targetAmount, currentAmount, composesBalance, bankName, productType, indexer, rateValue, liquidity, maturityDate]
             );
             return sendJson(res, 201, normalizeRow(rows[0]));
         }
@@ -247,19 +306,56 @@ const server = http.createServer(async (req, res) => {
                 fields.push(`composes_balance = $${idx++}`);
                 values.push(Boolean(body.composes_balance));
             }
+            if (body.bank_name !== undefined) {
+                fields.push(`bank_name = $${idx++}`);
+                values.push(body.bank_name || null);
+            }
+            if (body.product_type !== undefined) {
+                fields.push(`product_type = $${idx++}`);
+                values.push(body.product_type || null);
+            }
+            if (body.indexer !== undefined) {
+                fields.push(`indexer = $${idx++}`);
+                values.push(body.indexer || null);
+            }
+            if (body.rate_value !== undefined) {
+                fields.push(`rate_value = $${idx++}`);
+                values.push(Number(body.rate_value));
+            }
+            if (body.liquidity !== undefined) {
+                fields.push(`liquidity = $${idx++}`);
+                values.push(body.liquidity || null);
+            }
+            if (body.maturity_date !== undefined) {
+                fields.push(`maturity_date = $${idx++}`);
+                values.push(body.maturity_date || null);
+            }
+            if (body.last_yield_date !== undefined) {
+                fields.push(`last_yield_date = $${idx++}`);
+                values.push(body.last_yield_date || null);
+            }
+            if (body.total_yield_earned !== undefined) {
+                fields.push(`total_yield_earned = $${idx++}`);
+                values.push(Number(body.total_yield_earned) || 0);
+            }
 
             if (fields.length === 0) {
                 return sendJson(res, 400, { error: 'Nenhum campo para atualizar.' });
             }
 
             values.push(piggyId);
+            const idParamIdx = idx++;
+            values.push(userId);
+            const userParamIdx = idx++;
+
+            // Blindagem B: Filtra por id_piggybank E user_id autenticado
             const { rows } = await pool.query(
-                `UPDATE fin_piggybank SET ${fields.join(', ')} WHERE id_piggybank = $${idx} RETURNING *`,
+                `UPDATE fin_piggybank SET ${fields.join(', ')} WHERE id_piggybank = $${idParamIdx} AND user_id = $${userParamIdx} RETURNING *`,
                 values
             );
 
             if (rows.length === 0) {
-                return sendJson(res, 404, { error: 'Cofrinho não encontrado.' });
+                return sendJson(res, 404, { error: 'Cofrinho não encontrado ou acesso negado.' });
             }
             return sendJson(res, 200, normalizeRow(rows[0]));
         }
@@ -267,7 +363,13 @@ const server = http.createServer(async (req, res) => {
         // DELETE /api/vault/piggybanks/:id
         if (req.method === 'DELETE' && matchItem) {
             const piggyId = matchItem[1];
-            await pool.query(`DELETE FROM fin_piggybank WHERE id_piggybank = $1`, [piggyId]);
+            const result = await pool.query(
+                `DELETE FROM fin_piggybank WHERE id_piggybank = $1 AND user_id = $2`,
+                [piggyId, userId]
+            );
+            if (result.rowCount === 0) {
+                return sendJson(res, 404, { error: 'Cofrinho não encontrado ou acesso negado.' });
+            }
             return sendJson(res, 200, { deleted: true, id_piggybank: piggyId });
         }
 
@@ -276,15 +378,23 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'POST' && matchTx) {
             const piggyId = matchTx[1];
             const body = await parseJsonBody(req);
-            const owner = body.user_id || userId;
             const txType = body.transaction_type === 'withdraw' ? 'withdraw' : 'deposit';
             const amount = Number(body.amount) || 0;
+
+            // Garante que a caixinha pertence ao usuário autenticado antes de gravar a transação
+            const checkOwner = await pool.query(
+                `SELECT 1 FROM fin_piggybank WHERE id_piggybank = $1 AND user_id = $2`,
+                [piggyId, userId]
+            );
+            if (checkOwner.rowCount === 0) {
+                return sendJson(res, 403, { error: 'Acesso negado a esta conta/caixinha.' });
+            }
 
             const { rows } = await pool.query(
                 `INSERT INTO fin_piggybank_transaction (piggybank_id, user_id, transaction_type, amount)
                  VALUES ($1, $2, $3, $4)
                  RETURNING *`,
-                [piggyId, owner, txType, amount]
+                [piggyId, userId, txType, amount]
             );
             return sendJson(res, 201, rows[0]);
         }
