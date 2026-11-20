@@ -76,6 +76,7 @@ const ensureSchema = async () => {
             ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS maturity_date DATE;
             ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS last_yield_date DATE;
             ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS total_yield_earned NUMERIC(15, 2) NOT NULL DEFAULT 0;
+            ALTER TABLE fin_piggybank ADD COLUMN IF NOT EXISTS effective_tax_rate NUMERIC(6, 2);
 
             CREATE INDEX IF NOT EXISTS idx_piggybank_user_id ON fin_piggybank(user_id);
 
@@ -267,15 +268,18 @@ const server = http.createServer(async (req, res) => {
             const rateValue = body.rate_value !== undefined ? Number(body.rate_value) : null;
             const liquidity = body.liquidity || null;
             const maturityDate = body.maturity_date || null;
+            const effectiveTaxRate = body.effective_tax_rate !== undefined && body.effective_tax_rate !== null
+                ? Number(body.effective_tax_rate)
+                : null;
 
             const { rows } = await pool.query(
                 `INSERT INTO fin_piggybank (
                     user_id, title, target_amount, current_amount, composes_balance,
-                    bank_name, product_type, indexer, rate_value, liquidity, maturity_date
+                    bank_name, product_type, indexer, rate_value, liquidity, maturity_date, effective_tax_rate
                  )
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                  RETURNING *`,
-                [owner, title, targetAmount, currentAmount, composesBalance, bankName, productType, indexer, rateValue, liquidity, maturityDate]
+                [owner, title, targetAmount, currentAmount, composesBalance, bankName, productType, indexer, rateValue, liquidity, maturityDate, effectiveTaxRate]
             );
             return sendJson(res, 201, normalizeRow(rows[0]));
         }
@@ -337,6 +341,10 @@ const server = http.createServer(async (req, res) => {
             if (body.total_yield_earned !== undefined) {
                 fields.push(`total_yield_earned = $${idx++}`);
                 values.push(Number(body.total_yield_earned) || 0);
+            }
+            if (body.effective_tax_rate !== undefined) {
+                fields.push(`effective_tax_rate = $${idx++}`);
+                values.push(body.effective_tax_rate !== null ? Number(body.effective_tax_rate) : null);
             }
 
             if (fields.length === 0) {

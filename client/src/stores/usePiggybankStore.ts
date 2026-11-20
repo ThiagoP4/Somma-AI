@@ -16,6 +16,7 @@ export interface PiggybankMeta {
     maturity_date?: string | null; // YYYY-MM-DD
     last_yield_date?: string | null; // YYYY-MM-DD (último dia útil capitalizado automaticamente)
     total_yield_earned?: number; // Total acumulado em R$ gerado pelo motor automático de juros
+    effective_tax_rate?: number | null; // Alíquota efetiva calibrada de IR + IOF (%) aprendida com as conciliações do usuário
 }
 
 export interface BcbMarketRates {
@@ -218,9 +219,19 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         return false;
     };
 
-    // Tabela Regressiva de Imposto de Renda de Renda Fixa (22.5% -> 20% -> 17.5% -> 15%) ou 0% se LCI/LCA
+    // Verifica se a conta já possui uma alíquota de IR/IOF calibrada pelo aprendizado das conciliações
+    const hasCalibratedTaxRate = (piggy: Piggybank): boolean => {
+        if (isTaxExemptProduct(piggy)) return false;
+        return piggy.effective_tax_rate !== undefined && piggy.effective_tax_rate !== null && !Number.isNaN(Number(piggy.effective_tax_rate));
+    };
+
+    // Retorna a alíquota efetiva calibrada (se já aprendida) ou a Tabela Regressiva de IR (22.5% -> 20% -> 17.5% -> 15%), ou 0% se LCI/LCA
     const getEstimatedIrRatePct = (piggy: Piggybank): number => {
         if (isTaxExemptProduct(piggy)) return 0;
+        if (hasCalibratedTaxRate(piggy)) {
+            const calibrated = Number(piggy.effective_tax_rate);
+            return Math.min(95, Math.max(0, calibrated));
+        }
         const createdStr = (piggy.created_at || '').slice(0, 10);
         if (!createdStr) return 22.5;
         const createdTime = new Date(`${createdStr}T12:00:00`).getTime();
@@ -269,17 +280,113 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         };
     };
 
-    // Ação de 1 Clique: Incorpora a estimativa líquida (ou bruta) ao saldo real
-    const applyEstimatedYield = async (id_piggybank: string, mode: 'net' | 'gross' = 'net') => {
+    // Upsert automático na aba Registros -> Entradas (fin_income) sob a categoria "Proventos" do mês atual
+    const upsertMonthlyProventoIncome = async (piggy: Piggybank, gainAmount: number) => {
+        const cleanGain = Math.round(Number(gainAmount) * 100) / 100;
+        if (cleanGain < 0.01) return null;
+
+        try {
+            if (!profileStore.userId) await profileStore.fetchProfileData();
+            const userId = profileStore.userId;
+            if (!userId) return null;
+
+            // 1. Localiza a categoria "Proventos" (ou "Rendimentos") do tipo receita; se não existir, cria automaticamente
+            const { data: categories } = await supabase
+                .from('fin_category')
+                .select('*')
+                .eq('type', 'receita');
+
+            let proventosCat = (categories || []).find((c: any) =>
+                /provento/i.test(String(c.description || ''))
+            ) || (categories || []).find((c: any) =>
+                /rendimento/i.test(String(c.description || ''))
+            );
+
+            if (!proventosCat) {
+                const { data: createdCat } = await supabase
+                    .from('fin_category')
+                    .insert({
+                        description: 'Proventos',
+                        type: 'receita',
+                        color: '#10B981',
+                        user_id: userId
+                    })
+                    .select()
+                    .single();
+                proventosCat = createdCat;
+            }
+
+            const categoryId = proventosCat?.idCategory || null;
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const todayStr = now.toISOString().slice(0, 10);
+            const firstDayOfMonth = `${year}-${month}-01`;
+            const lastDayOfMonth = `${year}-${month}-${String(new Date(year, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
+
+            const entryTitle = `Rendimento • ${piggy.title}`;
+
+            // 2. Verifica se já existe uma entrada de Proventos para esta conta/caixinha no mês atual
+            const { data: existingIncomes } = await supabase
+                .from('fin_income')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('date', firstDayOfMonth)
+                .lte('date', lastDayOfMonth);
+
+            const normalizedTarget = entryTitle.trim().toLowerCase();
+            const existing = (existingIncomes || []).find((inc: any) =>
+                String(inc.title || '').trim().toLowerCase() === normalizedTarget
+            );
+
+            if (existing) {
+                const newMonthTotal = Math.round((Number(existing.value || 0) + cleanGain) * 100) / 100;
+                const { error } = await supabase
+                    .from('fin_income')
+                    .update({
+                        value: newMonthTotal,
+                        date: todayStr,
+                        ...(categoryId ? { categoryId } : {})
+                    })
+                    .eq('idIncome', existing.idIncome);
+
+                if (error) throw error;
+                return { action: 'updated' as const, title: entryTitle, totalMonthValue: newMonthTotal };
+            } else {
+                const { error } = await supabase
+                    .from('fin_income')
+                    .insert({
+                        title: entryTitle,
+                        value: cleanGain,
+                        categoryId,
+                        date: todayStr,
+                        user_id: userId
+                    });
+
+                if (error) throw error;
+                return { action: 'created' as const, title: entryTitle, totalMonthValue: cleanGain };
+            }
+        } catch (err) {
+            console.error('[PiggybankStore] Falha ao sincronizar Proventos em fin_income:', err);
+            return null;
+        }
+    };
+
+    // Ação de 1 Clique: Incorpora a estimativa líquida (ou bruta) ao saldo real e opcionalmente lança nos Proventos do mês
+    const applyEstimatedYield = async (
+        id_piggybank: string,
+        mode: 'net' | 'gross' = 'net',
+        syncToProventos = true
+    ) => {
         const piggy = piggybanks.value.find(p => p.id_piggybank === id_piggybank);
-        if (!piggy) return;
+        if (!piggy) return null;
 
         const todayStr = new Date().toISOString().slice(0, 10);
         const estimate = getPendingYieldEstimate(piggy);
         const gainToApply = mode === 'net' ? estimate.netGain : estimate.grossGain;
         if (gainToApply <= 0) {
             await updatePiggybank(id_piggybank, { last_yield_date: todayStr });
-            return;
+            return { gain: 0, proventoSync: null };
         }
 
         const newAmount = Math.round((Number(piggy.current_amount) + gainToApply) * 100) / 100;
@@ -290,12 +397,28 @@ export const usePiggybankStore = defineStore('piggybank', () => {
             last_yield_date: todayStr,
             total_yield_earned: totalEarned
         });
+
+        let proventoSync = null;
+        if (syncToProventos) {
+            proventoSync = await upsertMonthlyProventoIncome(piggy, gainToApply);
+        }
+
+        return { gain: gainToApply, proventoSync };
     };
 
-    // Conciliação com o App do Banco: Ajusta o saldo para o valor exato exibido hoje no banco (sem descontar das Receitas do mês!)
-    const reconcileRealBankBalance = async (id_piggybank: string, exactBankBalance: number) => {
+    // Conciliação Inteligente com Auto-Calibração (Machine Learning / Implied Tax Calibration):
+    // 1. Ajusta o saldo para o valor exato do app do banco (sem descontar das Receitas do mês)
+    // 2. Se o usuário informou a % (ou R$ de imposto sobre o bruto) OU se houve dias úteis com ganho bruto estimado,
+    //    calcula a alíquota real retida pelo banco e recalibra `effective_tax_rate` para que as próximas projeções sejam cirúrgicas!
+    // 3. Opcionalmente soma o ganho líquido automaticamente na entrada "Proventos" do mês atual em fin_income.
+    const reconcileRealBankBalance = async (
+        id_piggybank: string,
+        exactBankBalance: number,
+        explicitTaxRatePct?: number | null,
+        syncToProventos = true
+    ) => {
         const piggy = piggybanks.value.find(p => p.id_piggybank === id_piggybank);
-        if (!piggy) return;
+        if (!piggy) return null;
 
         const todayStr = new Date().toISOString().slice(0, 10);
         const cleanBalance = Math.round(Math.max(0, Number(exactBankBalance)) * 100) / 100;
@@ -307,11 +430,57 @@ export const usePiggybankStore = defineStore('piggybank', () => {
             ? Math.round((prevEarned + diff) * 100) / 100
             : prevEarned;
 
-        await updatePiggybank(id_piggybank, {
+        let newEffectiveTaxRate: number | null | undefined = piggy.effective_tax_rate;
+        let calibrationSource: 'manual' | 'implied-from-balance' | 'none' = 'none';
+
+        if (!isTaxExemptProduct(piggy)) {
+            if (explicitTaxRatePct !== undefined && explicitTaxRatePct !== null && !Number.isNaN(Number(explicitTaxRatePct))) {
+                // Caso B: Usuário informou diretamente a alíquota efetiva (ou calculou via Bruto vs. Desconto R$ do app do banco)
+                newEffectiveTaxRate = Math.round(Math.min(95, Math.max(0, Number(explicitTaxRatePct))) * 100) / 100;
+                calibrationSource = 'manual';
+            } else {
+                // Caso A: Dedução matemática reversa a partir do ganho líquido real vs. ganho bruto BCB no período
+                const pending = getPendingYieldEstimate(piggy);
+                if (pending.businessDays > 0 && pending.grossGain >= 0.05 && diff > 0) {
+                    const impliedTax = (1 - diff / pending.grossGain) * 100;
+                    // Faixa realista de retenção (entre 0% e 92% considerando IOF regressivo de 30 dias + IR de 22.5%)
+                    if (impliedTax >= 0 && impliedTax <= 92) {
+                        if (hasCalibratedTaxRate(piggy)) {
+                            // Média móvel exponencial (70% peso para a medição mais recente, 30% histórico) para suavizar centavos de arredondamento
+                            const prevRate = Number(piggy.effective_tax_rate);
+                            newEffectiveTaxRate = Math.round((0.7 * impliedTax + 0.3 * prevRate) * 100) / 100;
+                        } else {
+                            newEffectiveTaxRate = Math.round(impliedTax * 100) / 100;
+                        }
+                        calibrationSource = 'implied-from-balance';
+                    }
+                }
+            }
+        }
+
+        const payload: Partial<Piggybank> = {
             current_amount: cleanBalance,
             last_yield_date: todayStr,
             total_yield_earned: newTotalEarned
-        });
+        };
+
+        if (newEffectiveTaxRate !== undefined) {
+            payload.effective_tax_rate = newEffectiveTaxRate;
+        }
+
+        await updatePiggybank(id_piggybank, payload);
+
+        let proventoSync = null;
+        if (syncToProventos && diff >= 0.01) {
+            proventoSync = await upsertMonthlyProventoIncome(piggy, diff);
+        }
+
+        return {
+            diff,
+            calibratedTaxPct: newEffectiveTaxRate,
+            calibrationSource,
+            proventoSync
+        };
     };
 
     const getLocalMetaMap = (): Record<string, PiggybankMeta> => {
@@ -496,6 +665,7 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 if (updates.maturity_date !== undefined) metaFields.maturity_date = updates.maturity_date;
                 if (updates.last_yield_date !== undefined) metaFields.last_yield_date = updates.last_yield_date;
                 if (updates.total_yield_earned !== undefined) metaFields.total_yield_earned = updates.total_yield_earned;
+                if (updates.effective_tax_rate !== undefined) metaFields.effective_tax_rate = updates.effective_tax_rate;
                 if (Object.keys(metaFields).length > 0) {
                     saveLocalMeta(id, metaFields);
                 }
@@ -628,6 +798,7 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         fetchBcbMarketRates,
         getDailyBusinessYieldRate,
         isTaxExemptProduct,
+        hasCalibratedTaxRate,
         getEstimatedIrRatePct,
         getPendingYieldEstimate,
         applyEstimatedYield,

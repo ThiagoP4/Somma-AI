@@ -3,6 +3,7 @@
     import { storeToRefs } from 'pinia';
     import { usePiggybankStore, type Piggybank } from '../stores/usePiggybankStore';
     import { useVaultStore } from '../stores/useVaultStore';
+    import { useAlertStore } from '../stores/useAlertStore';
     import {
         PhWallet, PhTrendUp, PhPlus, PhTrash, PhPencilSimple, PhArrowDownLeft,
         PhArrowUpRight, PhVault, PhLockKey, PhShieldCheck, PhArrowsClockwise,
@@ -14,6 +15,7 @@
 
     const piggybankStore = usePiggybankStore();
     const vaultStore = useVaultStore();
+    const { showAlert } = useAlertStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
 
     const activeTab = ref<'cofrinhos' | 'ativos'>('cofrinhos');
@@ -70,24 +72,92 @@
         return calc > 100 ? 100 : Math.round(calc);
     };
 
-    // Estado de conciliação rápida com o saldo real do app do banco (por card)
+    // Estado de conciliação rápida + auto-calibração de IR/IOF + sync automático para Proventos do mês (Registros -> Entradas)
     const reconcilingId = ref<string | null>(null);
     const reconcileInputAmount = ref<number>(0);
+    const reconcileTaxMode = ref<'auto' | 'pct' | 'brl'>('auto');
+    const reconcileCustomTaxPct = ref<number | null>(null);
+    const reconcileGrossYieldBrl = ref<number | null>(null);
+    const reconcileTaxDeductedBrl = ref<number | null>(null);
+    const syncToMonthlyProventos = ref(true);
 
     const startReconcile = (piggy: Piggybank) => {
         reconcilingId.value = piggy.id_piggybank;
         const pending = piggybankStore.getPendingYieldEstimate(piggy);
-        // Sugere o saldo atual + estimativa líquida, mas deixa o usuário digitar o valor exato do app do banco
         reconcileInputAmount.value = Math.round((Number(piggy.current_amount) + pending.netGain) * 100) / 100;
+        reconcileTaxMode.value = 'auto';
+        reconcileCustomTaxPct.value = piggybankStore.hasCalibratedTaxRate(piggy)
+            ? Number(piggy.effective_tax_rate)
+            : piggybankStore.getEstimatedIrRatePct(piggy);
+        reconcileGrossYieldBrl.value = null;
+        reconcileTaxDeductedBrl.value = null;
+        syncToMonthlyProventos.value = true;
     };
 
-    const confirmReconcile = async (id: string) => {
-        await piggybankStore.reconcileRealBankBalance(id, reconcileInputAmount.value);
+    // Calcula em tempo real qual alíquota efetiva (%) o motor vai aprender ao confirmar a conciliação
+    const getPreviewCalibratedTaxPct = (piggy: Piggybank): number | null => {
+        if (piggybankStore.isTaxExemptProduct(piggy)) return 0;
+
+        if (reconcileTaxMode.value === 'pct' && reconcileCustomTaxPct.value !== null && !Number.isNaN(Number(reconcileCustomTaxPct.value))) {
+            return Math.round(Math.min(95, Math.max(0, Number(reconcileCustomTaxPct.value))) * 100) / 100;
+        }
+
+        if (
+            reconcileTaxMode.value === 'brl' &&
+            reconcileGrossYieldBrl.value &&
+            reconcileGrossYieldBrl.value > 0 &&
+            reconcileTaxDeductedBrl.value !== null &&
+            reconcileTaxDeductedBrl.value >= 0
+        ) {
+            const pct = (Number(reconcileTaxDeductedBrl.value) / Number(reconcileGrossYieldBrl.value)) * 100;
+            return Math.round(Math.min(95, Math.max(0, pct)) * 100) / 100;
+        }
+
+        // Modo 'auto': deduz pela diferença entre o novo saldo digitado e o ganho bruto BCB dos dias úteis passados
+        const pending = piggybankStore.getPendingYieldEstimate(piggy);
+        const diff = Math.round((Number(reconcileInputAmount.value) - Number(piggy.current_amount)) * 100) / 100;
+        if (pending.businessDays > 0 && pending.grossGain >= 0.05 && diff > 0) {
+            const implied = (1 - diff / pending.grossGain) * 100;
+            if (implied >= 0 && implied <= 92) {
+                return Math.round(implied * 100) / 100;
+            }
+        }
+        return null;
+    };
+
+    const confirmReconcile = async (piggy: Piggybank) => {
+        let explicitTaxPct: number | null | undefined = undefined;
+        if (reconcileTaxMode.value === 'pct' || reconcileTaxMode.value === 'brl') {
+            explicitTaxPct = getPreviewCalibratedTaxPct(piggy);
+        }
+        const res = await piggybankStore.reconcileRealBankBalance(
+            piggy.id_piggybank,
+            reconcileInputAmount.value,
+            explicitTaxPct,
+            syncToMonthlyProventos.value
+        );
         reconcilingId.value = null;
+
+        if (res?.proventoSync) {
+            showAlert(
+                `Saldo conciliado! +${formatCurrency(res.diff)} somados em "${res.proventoSync.title}" nos Proventos do mês (Total: ${formatCurrency(res.proventoSync.totalMonthValue)}).`,
+                'success'
+            );
+        } else {
+            showAlert('Saldo real conciliado e salvo no Cofre Tailscale!', 'success');
+        }
     };
 
     const handleApplyEstimatedYield = async (id: string) => {
-        await piggybankStore.applyEstimatedYield(id, 'net');
+        const res = await piggybankStore.applyEstimatedYield(id, 'net', true);
+        if (res?.proventoSync) {
+            showAlert(
+                `+${formatCurrency(res.gain)} incorporados ao saldo e lançados em "${res.proventoSync.title}" (Total do mês: ${formatCurrency(res.proventoSync.totalMonthValue)}).`,
+                'success'
+            );
+        } else {
+            showAlert('Rendimento estimado incorporado ao saldo!', 'success');
+        }
     };
 
     // Calcula o rendimento por dia útil (Bruto e Líquido de IR, base 252 dias úteis do Banco Central)
@@ -507,11 +577,25 @@
                                 }}
                             </span>
 
-                            <span class="fin-badge" :class="piggybankStore.isTaxExemptProduct(piggy) ? 'badge-composes' : 'badge-daily'">
+                            <span
+                                class="fin-badge"
+                                :class="
+                                    piggybankStore.isTaxExemptProduct(piggy)
+                                        ? 'badge-composes'
+                                        : (piggybankStore.hasCalibratedTaxRate(piggy) ? 'badge-calibrated' : 'badge-daily')
+                                "
+                                :title="
+                                    piggybankStore.hasCalibratedTaxRate(piggy)
+                                        ? 'Alíquota efetiva (IR + IOF) aprendida e calibrada pelas suas conciliações'
+                                        : 'Estimativa padrão pela tabela regressiva de IR'
+                                "
+                            >
                                 {{
                                     piggybankStore.isTaxExemptProduct(piggy)
                                         ? 'Isento de IR'
-                                        : `IR ~${piggybankStore.getEstimatedIrRatePct(piggy).toString().replace('.', ',')}%`
+                                        : (piggybankStore.hasCalibratedTaxRate(piggy)
+                                            ? `🎯 IR/IOF Calibrado: ${piggybankStore.getEstimatedIrRatePct(piggy).toFixed(1).replace('.', ',')}%`
+                                            : `IR ~${piggybankStore.getEstimatedIrRatePct(piggy).toString().replace('.', ',')}%`)
                                 }}
                             </span>
 
@@ -580,23 +664,84 @@
                             <div class="reconcile-section">
                                 <template v-if="reconcilingId === piggy.id_piggybank">
                                     <div class="reconcile-inline-box">
-                                        <label>Saldo exato hoje no app do {{ parseBankTitle(piggy).bankName }} (R$):</label>
+                                        <label>1. Saldo Líquido Exato hoje no {{ parseBankTitle(piggy).bankName }} (R$):</label>
                                         <div class="reconcile-input-row">
                                             <input
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
                                                 v-model.number="reconcileInputAmount"
-                                                @keyup.enter="confirmReconcile(piggy.id_piggybank)"
+                                                @keyup.enter="confirmReconcile(piggy)"
                                             />
-                                            <button class="btn-reconcile-confirm" @click="confirmReconcile(piggy.id_piggybank)">
-                                                Salvar
+                                            <button class="btn-reconcile-confirm" @click="confirmReconcile(piggy)">
+                                                Salvar & Calibrar
                                             </button>
                                             <button class="btn-reconcile-cancel" @click="reconcilingId = null">
                                                 ✕
                                             </button>
                                         </div>
-                                        <small>A diferença positiva será contabilizada como rendimento bancário (sem descontar das suas receitas).</small>
+
+                                        <!-- Calibração de Taxas (IR / IOF) quando não for isento -->
+                                        <div v-if="!piggybankStore.isTaxExemptProduct(piggy)" class="tax-calibration-panel">
+                                            <div class="tax-mode-pills">
+                                                <button
+                                                    type="button"
+                                                    class="tax-pill"
+                                                    :class="{ active: reconcileTaxMode === 'auto' }"
+                                                    @click="reconcileTaxMode = 'auto'"
+                                                >
+                                                    Auto-Deduzir
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="tax-pill"
+                                                    :class="{ active: reconcileTaxMode === 'brl' }"
+                                                    @click="reconcileTaxMode = 'brl'"
+                                                >
+                                                    Informar R$ Descontado
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="tax-pill"
+                                                    :class="{ active: reconcileTaxMode === 'pct' }"
+                                                    @click="reconcileTaxMode = 'pct'"
+                                                >
+                                                    Informar % IR/IOF
+                                                </button>
+                                            </div>
+
+                                            <!-- Opção: Informar Bruto e Imposto em R$ direto do extrato do app do banco -->
+                                            <div v-if="reconcileTaxMode === 'brl'" class="tax-brl-grid">
+                                                <div>
+                                                    <span>Rendimento Bruto no App (R$)</span>
+                                                    <input type="number" step="0.01" min="0" placeholder="Ex: 120.00" v-model.number="reconcileGrossYieldBrl" />
+                                                </div>
+                                                <div>
+                                                    <span>IR + IOF Descontado (R$)</span>
+                                                    <input type="number" step="0.01" min="0" placeholder="Ex: 21.60" v-model.number="reconcileTaxDeductedBrl" />
+                                                </div>
+                                            </div>
+
+                                            <!-- Opção: Informar % direta de IR + IOF -->
+                                            <div v-if="reconcileTaxMode === 'pct'" class="tax-pct-row">
+                                                <span>Alíquota Efetiva de IR + IOF (%):</span>
+                                                <input type="number" step="0.1" min="0" max="95" v-model.number="reconcileCustomTaxPct" />
+                                            </div>
+
+                                            <!-- Feedback em tempo real do aprendizado do motor -->
+                                            <div v-if="getPreviewCalibratedTaxPct(piggy) !== null" class="calibration-learned-preview">
+                                                🎯 O motor calibrará esta caixinha para <strong>{{ getPreviewCalibratedTaxPct(piggy)?.toFixed(1).replace('.', ',') }}% de IR/IOF</strong> nas próximas projeções!
+                                            </div>
+                                            <small v-else>
+                                                Dica: Se o app do banco mostrar quanto está descontando de IR/IOF, clique em "Informar R$ Descontado" para calibrar na hora!
+                                            </small>
+                                        </div>
+
+                                        <!-- Checkbox de Upsert Automático em Registros -> Entradas (Proventos) -->
+                                        <label class="proventos-sync-checkbox">
+                                            <input type="checkbox" v-model="syncToMonthlyProventos" />
+                                            <span>Somar ganho automaticamente nos <strong>Proventos</strong> deste mês (Registros → Entradas)</span>
+                                        </label>
                                     </div>
                                 </template>
 
@@ -1401,6 +1546,107 @@
         background: var(--bg-elevated);
         color: var(--text-secondary);
         border: 1px solid var(--border-color);
+    }
+
+    .badge-calibrated {
+        background: rgba(16, 185, 129, 0.14);
+        color: var(--success-text);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .tax-calibration-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        padding-top: 0.35rem;
+        border-top: 1px dashed var(--border-color);
+    }
+
+    .tax-mode-pills {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .tax-pill {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.66rem;
+        font-weight: 600;
+        padding: 3px 7px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .tax-pill.active {
+        background: var(--primary-subtle);
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+
+    .tax-brl-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+    }
+
+    .tax-brl-grid span,
+    .tax-pct-row span {
+        display: block;
+        font-size: 0.66rem;
+        color: var(--text-secondary);
+        margin-bottom: 2px;
+    }
+
+    .tax-brl-grid input,
+    .tax-pct-row input {
+        width: 100%;
+        padding: 0.3rem 0.5rem;
+        font-size: 0.78rem;
+    }
+
+    .tax-pct-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .tax-pct-row input {
+        max-width: 90px;
+    }
+
+    .calibration-learned-preview {
+        background: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid rgba(16, 185, 129, 0.28);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 0.68rem;
+        line-height: 1.35;
+    }
+
+    .proventos-sync-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding-top: 0.4rem;
+        margin-top: 0.15rem;
+        border-top: 1px dashed var(--border-color);
+        font-size: 0.7rem !important;
+        font-weight: 500 !important;
+        color: var(--text-secondary) !important;
+        cursor: pointer;
+    }
+
+    .proventos-sync-checkbox input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+        accent-color: #10B981;
+        cursor: pointer;
+        flex-shrink: 0;
     }
 
     .badge-locked-date {
