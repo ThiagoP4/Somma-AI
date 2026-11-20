@@ -17,7 +17,12 @@ export const useVaultStore = defineStore('vault', () => {
             if (savedPrefs) {
                 const parsed = JSON.parse(savedPrefs);
                 if (parsed?.tailscaleVaultUrl) {
-                    return String(parsed.tailscaleVaultUrl).replace(/\/+$/, '');
+                    const savedUrl = String(parsed.tailscaleVaultUrl).replace(/\/+$/, '');
+                    // Se o site estiver rodando em HTTPS (ex: Vercel), ignora URLs HTTP antigas salvas no localStorage para evitar bloqueio de Mixed Content/CSP
+                    const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                    if (!isHttpsPage || savedUrl.startsWith('https://')) {
+                        return savedUrl;
+                    }
                 }
             }
         } catch {
