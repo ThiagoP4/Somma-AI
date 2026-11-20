@@ -33,6 +33,7 @@ exc/
 obsidian/
 mock-data/
 client/src/mock-data/
+vault-server/data/
 
 # --- Capacitor & Android ---
 # Ignorar arquivos compilados do Android

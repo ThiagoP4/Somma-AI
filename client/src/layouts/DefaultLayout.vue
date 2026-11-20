@@ -1,23 +1,33 @@
 <script setup lang="ts">
     import { ref, onMounted, computed } from 'vue';
-    import { useRoute } from 'vue-router'
-    import { PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhCreditCard, PhList, PhSparkle } from '@phosphor-icons/vue'
+    import { useRoute } from 'vue-router';
+    import {
+        PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhCreditCard,
+        PhList, PhSparkle, PhShieldCheck, PhLockKey, PhArrowsClockwise, PhEye, PhEyeSlash
+    } from '@phosphor-icons/vue';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
     import Sidebar from '../components/Sidebar.vue';
     import { useFilterStore } from '../stores/useFilterStore';
     import { useProfileStore } from '../stores/useProfileStore';
+    import { useVaultStore } from '../stores/useVaultStore';
+    import { usePiggybankStore } from '../stores/usePiggybankStore';
 
     const route = useRoute();
     const isSidebarOpen = ref(false);
 
     const filterStore = useFilterStore();
     const profileStore = useProfileStore();
+    const vaultStore = useVaultStore();
+    const piggybankStore = usePiggybankStore();
 
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
     const { selectMonth, nextYear, previousYear, monthNames, toggleCardSelection } = filterStore;
     const isDateDropdownOpen = ref(false);
     const dateDropdownRef = ref<HTMLElement | null>(null);
+
+    const isVaultDropdownOpen = ref(false);
+    const vaultDropdownRef = ref<HTMLElement | null>(null);
 
     const currentSectionLabel = computed(() => {
         const map: Record<string, string> = {
@@ -27,7 +37,11 @@
             '/investments': 'Investimentos & Cofrinhos',
             '/copilot': 'Copilot IA',
             '/profile': 'Meu Perfil',
-            '/assinaturas': 'Assinaturas & Recorrências'
+            '/assinaturas': 'Assinaturas & Recorrências',
+            '/casal': 'Finanças em Casal',
+            '/config': 'Configurações do Sistema',
+            '/ajuda': 'Central de Ajuda',
+            '/sobre': 'Sobre o Somma AI'
         };
         return map[route.path] || 'Workspace';
     });
@@ -36,9 +50,28 @@
         isDateDropdownOpen.value = false;
     });
 
+    onClickOutside(vaultDropdownRef, () => {
+        isVaultDropdownOpen.value = false;
+    });
+
     const handleMonthSelection = (index: number) => {
         selectMonth(index);
         isDateDropdownOpen.value = false;
+    };
+
+    const handleReconnectVault = async () => {
+        await vaultStore.checkTailscaleConnection();
+        await piggybankStore.fetchPiggybanks();
+    };
+
+    const handleToggleSimulatedNetwork = async () => {
+        await vaultStore.toggleSimulatedOffline();
+        await piggybankStore.fetchPiggybanks();
+    };
+
+    const handleToggleStealth = async () => {
+        vaultStore.toggleStealthMode();
+        await piggybankStore.fetchPiggybanks();
     };
 
     onMounted(async () => {
@@ -49,6 +82,7 @@
         } else {
             document.body.classList.remove('dark');
         }
+        await vaultStore.checkTailscaleConnection();
         await profileStore.fetchProfileData();
 
         if (filterMode.value === 'invoice' && selectedCardIds.value.length === 0 && profileStore.myCards.length > 0) {
@@ -58,12 +92,10 @@
 </script>
 
 <template>
-  <!-- Se for tela de login, renderiza direto sem Shell -->
   <div v-if="route.path === '/login'" class="login-shell">
     <slot />
   </div>
 
-  <!-- App Shell Desktop: Sidebar Fixa na Esquerda + Coluna Principal na Direita -->
   <div v-else class="app-shell">
     <Sidebar :isOpen="isSidebarOpen" @close="isSidebarOpen = false" />
 
@@ -81,6 +113,80 @@
         </div>
 
         <div class="topbar-right">
+          <!-- TAILSCALE VAULT STATUS PILL (Arquitetura A Zero-Trust) -->
+          <div class="vault-selector-container" ref="vaultDropdownRef">
+            <button
+              class="vault-pill-btn"
+              :class="{
+                'is-unlocked': vaultStore.isVaultUnlocked,
+                'is-locked': !vaultStore.isVaultUnlocked
+              }"
+              @click="isVaultDropdownOpen = !isVaultDropdownOpen"
+              title="Status do Cofre Tailscale VPN"
+            >
+              <span class="status-dot"></span>
+              <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="16" weight="fill" />
+              <PhLockKey v-else size="16" weight="fill" />
+              <span class="vault-pill-text">
+                {{ vaultStore.isVaultUnlocked ? 'Tailscale Vault' : 'Cofre Isolado' }}
+              </span>
+              <PhCaretDown size="13" class="caret" />
+            </button>
+
+            <div class="vault-dropdown" v-if="isVaultDropdownOpen">
+              <div class="vault-drop-header">
+                <div class="vault-badge-icon" :class="vaultStore.isVaultUnlocked ? 'unlocked' : 'locked'">
+                  <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="20" weight="duotone" />
+                  <PhLockKey v-else size="20" weight="duotone" />
+                </div>
+                <div class="vault-drop-titles">
+                  <h4>{{ vaultStore.isVaultUnlocked ? 'Tailscale VPN Conectada' : 'Fora da Rede Tailscale' }}</h4>
+                  <p>
+                    {{
+                      vaultStore.isVaultUnlocked
+                        ? 'Saldos bancários e cofrinhos sincronizados via túnel privado (.ts.net).'
+                        : 'Saldos de contas e cofrinhos não são carregados fora da sua VPN.'
+                    }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="vault-meta-box">
+                <div class="meta-line">
+                  <span>Arquitetura</span>
+                  <strong>Dual-DB (Zero-Trust)</strong>
+                </div>
+                <div class="meta-line">
+                  <span>Host Tailnet</span>
+                  <strong>{{ vaultStore.tailscaleBaseUrl || 'tailnet-local.ts.net' }}</strong>
+                </div>
+                <div class="meta-line" v-if="vaultStore.lastCheckedAt">
+                  <span>Último ping</span>
+                  <strong>{{ vaultStore.lastCheckedAt }}</strong>
+                </div>
+              </div>
+
+              <div class="vault-actions-list">
+                <button type="button" class="vault-act-item" @click="handleToggleStealth">
+                  <PhEyeSlash v-if="!vaultStore.manualStealthMode" size="16" />
+                  <PhEye v-else size="16" />
+                  <span>{{ vaultStore.manualStealthMode ? 'Desativar Modo Furtivo' : 'Ocultar Patrimônio Agora' }}</span>
+                </button>
+
+                <button type="button" class="vault-act-item" @click="handleToggleSimulatedNetwork">
+                  <PhLockKey size="16" />
+                  <span>{{ vaultStore.simulatedOffline ? 'Simular: Conectar Tailscale' : 'Simular: Desconectar VPN' }}</span>
+                </button>
+
+                <button type="button" class="vault-act-item primary" @click="handleReconnectVault">
+                  <PhArrowsClockwise size="16" />
+                  <span>Testar Conexão Tailscale</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- SELETOR DE MÊS / FATURA -->
           <div class="date-selector-container" ref="dateDropdownRef">
             <button class="date-btn" :class="{ 'mode-invoice-active': filterMode === 'invoice' }" @click="isDateDropdownOpen = !isDateDropdownOpen">
               <PhCalendarBlank size="16" v-if="filterMode === 'month'" />
@@ -166,6 +272,7 @@
       display: flex;
       min-height: 100vh;
       width: 100%;
+      overflow-x: clip;
       background-color: var(--bg-page);
       color: var(--text-primary);
     }
@@ -243,9 +350,181 @@
     .topbar-right {
       display: flex;
       align-items: center;
+      gap: 0.65rem;
+    }
+
+    /* === TAILSCALE VAULT STATUS PILL === */
+    .vault-selector-container {
+      position: relative;
+    }
+
+    .vault-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      height: 36px;
+      padding: 0 0.85rem;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+    }
+
+    .vault-pill-btn .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .vault-pill-btn.is-unlocked {
+      border-color: rgba(16, 185, 129, 0.3);
+      background-color: rgba(16, 185, 129, 0.08);
+      color: var(--success-text);
+    }
+
+    .vault-pill-btn.is-unlocked .status-dot {
+      background-color: var(--success-color);
+      box-shadow: 0 0 8px var(--success-color);
+    }
+
+    .vault-pill-btn.is-locked {
+      border-color: var(--border-color);
+      background-color: var(--bg-elevated);
+      color: var(--text-secondary);
+    }
+
+    .vault-pill-btn.is-locked .status-dot {
+      background-color: #F59E0B;
+    }
+
+    .vault-dropdown {
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      width: 310px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 1.1rem;
+      box-shadow: var(--shadow-md);
+      z-index: 210;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .vault-drop-header {
+      display: flex;
+      align-items: flex-start;
       gap: 0.75rem;
     }
 
+    .vault-badge-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .vault-badge-icon.unlocked {
+      background: var(--success-bg);
+      color: var(--success-text);
+    }
+
+    .vault-badge-icon.locked {
+      background: rgba(245, 158, 11, 0.12);
+      color: #F59E0B;
+    }
+
+    .vault-drop-titles h4 {
+      margin: 0 0 0.2rem 0;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .vault-drop-titles p {
+      margin: 0;
+      font-size: 0.76rem;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    .vault-meta-box {
+      background-color: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.65rem 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .meta-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.74rem;
+    }
+
+    .meta-line span {
+      color: var(--text-muted);
+    }
+
+    .meta-line strong {
+      color: var(--text-primary);
+      font-weight: 600;
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .vault-actions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .vault-act-item {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .vault-act-item:hover {
+      background-color: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .vault-act-item.primary {
+      background-color: var(--primary-subtle);
+      color: var(--primary-color);
+      border-color: rgba(99, 102, 241, 0.25);
+      font-weight: 600;
+    }
+
+    /* === SELETOR DE DATA === */
     .date-selector-container {
       position: relative;
     }
@@ -494,6 +773,12 @@
       }
       .content-area {
         padding: 1.5rem 1.25rem 5.5rem;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .vault-pill-text {
+        display: none;
       }
     }
 </style>

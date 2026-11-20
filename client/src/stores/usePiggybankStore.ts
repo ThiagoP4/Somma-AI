@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '../services/supabase';
 import { useProfileStore } from './useProfileStore';
+import { useVaultStore } from './useVaultStore';
 
 export interface Piggybank {
     id_piggybank: string;
@@ -17,13 +18,39 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     const piggybanks = ref<Piggybank[]>([]);
     const isLoading = ref(false);
     
-    // Pegamos a store de profile para ter acesso ao ID do usuário logado
     const profileStore = useProfileStore();
+    const vaultStore = useVaultStore();
+
+    // Se a URL do Cofre Tailscale estiver configurada (via .env ou tela de Configurações) e não estivermos em modo mock puro,
+    // opera 100% na Arquitetura A (Dual-DB: busca do servidor privado .ts.net / vault-server).
+    const usePrivateTailscaleApi = () => {
+        if (import.meta.env.VITE_TAILSCALE_VAULT_URL) return true;
+        return Boolean(vaultStore.tailscaleBaseUrl && !vaultStore.tailscaleBaseUrl.includes('somma-vault.tailnet.ts.net'));
+    };
 
     const fetchPiggybanks = async () => {
         isLoading.value = true;
         try {
-            if(!profileStore.userId) await profileStore.fetchProfileData();
+            if (!profileStore.userId) await profileStore.fetchProfileData();
+
+            // Garante que o status do Tailscale foi verificado
+            if (vaultStore.status === 'checking') {
+                await vaultStore.checkTailscaleConnection();
+            }
+
+            // REGRA ZERO-TRUST (Arquitetura A):
+            // Se o usuário NÃO estiver na rede Tailscale (ou ativou Stealth Mode),
+            // limpamos os dados da memória RAM e NÃO fazemos requisição de patrimônio!
+            if (!vaultStore.isVaultUnlocked) {
+                piggybanks.value = [];
+                return;
+            }
+
+            if (usePrivateTailscaleApi()) {
+                const data = await vaultStore.vaultFetch('/api/vault/piggybanks');
+                piggybanks.value = Array.isArray(data) ? data : (data?.items || []);
+                return;
+            }
 
             const { data, error } = await supabase
                 .from('fin_piggybank')
@@ -31,18 +58,38 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 .eq('user_id', profileStore.userId)
                 .order('created_at', { ascending: true });
 
-            if(error) throw error;
+            if (error) throw error;
             piggybanks.value = data || [];
 
         } catch (error) {
             console.error('[PiggybankStore] Error fetching piggybanks:', error);
+            piggybanks.value = [];
         } finally {
             isLoading.value = false;
         }
     };
 
     const createPiggybank = async (title: string, target_amount: number, composes_balance: boolean) => {
+        if (!vaultStore.isVaultUnlocked) {
+            throw new Error('Conecte-se à VPN Tailscale para criar ou alterar cofrinhos no Cofre.');
+        }
+
         try {
+            if (usePrivateTailscaleApi()) {
+                const created = await vaultStore.vaultFetch('/api/vault/piggybanks', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_id: profileStore.userId,
+                        title,
+                        target_amount,
+                        composes_balance,
+                        current_amount: 0
+                    })
+                });
+                if (created) piggybanks.value.push(created);
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('fin_piggybank')
                 .insert([{
@@ -55,8 +102,8 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 .select()
                 .single();
 
-                if(error) throw error;
-                if(data) piggybanks.value.push(data);
+            if (error) throw error;
+            if (data) piggybanks.value.push(data);
         } catch (error) {
             console.error('[PiggybankStore] Error creating piggybank:', error);
             throw error;
@@ -64,33 +111,53 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
     
     const updatePiggybank = async (id: string, updates: Partial<Piggybank>) => {
+        if (!vaultStore.isVaultUnlocked) {
+            throw new Error('Conecte-se à VPN Tailscale para modificar cofrinhos.');
+        }
+
         try {
-            const { error } = await supabase
-                .from('fin_piggybank')
-                .update(updates)
-                .eq('id_piggybank', id)
+            if (usePrivateTailscaleApi()) {
+                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(updates)
+                });
+            } else {
+                const { error } = await supabase
+                    .from('fin_piggybank')
+                    .update(updates)
+                    .eq('id_piggybank', id);
 
-            if (error) throw error;
-
-            const index = piggybanks.value.findIndex(p => p.id_piggybank === id);
-            if(index !== -1) {
-                piggybanks.value[index] = { ...piggybanks.value[index], ...updates } as Piggybank;
+                if (error) throw error;
             }
 
-        } catch(error) {
+            const index = piggybanks.value.findIndex(p => p.id_piggybank === id);
+            if (index !== -1) {
+                piggybanks.value[index] = { ...piggybanks.value[index], ...updates } as Piggybank;
+            }
+        } catch (error) {
             console.error('Erro ao atualizar cofrinho:', error);
             throw error;
         }
     };
 
     const deletePiggybank = async (id: string) => {
+        if (!vaultStore.isVaultUnlocked) {
+            throw new Error('Conecte-se à VPN Tailscale para excluir cofrinhos.');
+        }
+
         try {
-            const { error } = await supabase
-                .from('fin_piggybank')
-                .delete()
-                .eq('id_piggybank', id);
-            
-            if (error) throw error;
+            if (usePrivateTailscaleApi()) {
+                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id}`, {
+                    method: 'DELETE'
+                });
+            } else {
+                const { error } = await supabase
+                    .from('fin_piggybank')
+                    .delete()
+                    .eq('id_piggybank', id);
+                
+                if (error) throw error;
+            }
 
             piggybanks.value = piggybanks.value.filter(p => p.id_piggybank !== id);
         } catch (error) {
@@ -100,14 +167,15 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
 
     const getAvailableToDeposit = async () => {
+        if (!vaultStore.isVaultUnlocked) return 0;
         try {
             const { data: incomes } = await supabase
                 .from('fin_income')
                 .select('value')
                 .eq('user_id', profileStore.userId);
             
-            const totalIncomes = (incomes || []).reduce((acc, curr) => acc + Number(curr.value), 0);
-            const totalAlreadySaved = piggybanks.value.reduce((acc, curr) => acc + Number(curr.current_amount), 0);
+            const totalIncomes = (incomes || []).reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
+            const totalAlreadySaved = piggybanks.value.reduce((acc: number, curr: Piggybank) => acc + Number(curr.current_amount), 0);
             
             return totalIncomes - totalAlreadySaved;
         } catch (error) {
@@ -117,26 +185,25 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
 
     const addTransaction = async (id_piggybank: string, type: 'deposit' | 'withdraw', amount: number) => {
+        if (!vaultStore.isVaultUnlocked) {
+            throw new Error('Conecte-se à VPN Tailscale para movimentar valores do Cofre.');
+        }
+
         try {
             const piggybank = piggybanks.value.find(p => p.id_piggybank === id_piggybank);
 
-            if(!piggybank) {
+            if (!piggybank) {
                 throw new Error('Cofrinho não encontrado');
             }
 
             if (type === 'deposit') {
-                // Calcula o total de entradas (incomes) de todos os tempos
                 const { data: incomes } = await supabase
                     .from('fin_income')
                     .select('value')
                     .eq('user_id', profileStore.userId);
                 
-                const totalIncomes = (incomes || []).reduce((acc, curr) => acc + Number(curr.value), 0);
-
-                // Calcula quanto o usuário já tem guardado em todos os cofrinhos
-                const totalAlreadySaved = piggybanks.value.reduce((acc, curr) => acc + Number(curr.current_amount), 0);
-
-                // O valor máximo disponível para depositar é o Total de Entradas - O que já foi guardado
+                const totalIncomes = (incomes || []).reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
+                const totalAlreadySaved = piggybanks.value.reduce((acc: number, curr: Piggybank) => acc + Number(curr.current_amount), 0);
                 const maxAvailable = totalIncomes - totalAlreadySaved;
 
                 if (amount > maxAvailable) {
@@ -144,20 +211,32 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 }
             }
 
-            const { error: txError } = await supabase
-                .from('fin_piggybank_transaction')
-                .insert([{
-                    piggybank_id: id_piggybank,
-                    user_id: profileStore.userId,
-                    transaction_type: type,
-                    amount
-                }])
-                
-            if (txError) throw txError;
+            if (usePrivateTailscaleApi()) {
+                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id_piggybank}/transactions`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        piggybank_id: id_piggybank,
+                        user_id: profileStore.userId,
+                        transaction_type: type,
+                        amount
+                    })
+                });
+            } else {
+                const { error: txError } = await supabase
+                    .from('fin_piggybank_transaction')
+                    .insert([{
+                        piggybank_id: id_piggybank,
+                        user_id: profileStore.userId,
+                        transaction_type: type,
+                        amount
+                    }]);
+                    
+                if (txError) throw txError;
+            }
 
             const newAmount = type === 'deposit'
-             ? Number(piggybank.current_amount) + Number(amount)
-             : Number(piggybank.current_amount) - Number(amount);
+                ? Number(piggybank.current_amount) + Number(amount)
+                : Number(piggybank.current_amount) - Number(amount);
 
             await updatePiggybank(id_piggybank, { current_amount: newAmount });
 
@@ -165,7 +244,7 @@ export const usePiggybankStore = defineStore('piggybank', () => {
             console.error('[PiggybankStore] Error adding transaction:', error);
             throw error;
         }
-    }
+    };
 
     return {
         piggybanks,
@@ -176,5 +255,5 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         deletePiggybank,
         addTransaction,
         getAvailableToDeposit
-    }
-})
+    };
+});

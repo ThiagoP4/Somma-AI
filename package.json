@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "npm --prefix client run dev",
     "dev:mock": "npm --prefix client run dev:mock",
+    "vault": "node vault-server/server.mjs",
     "build": "npm --prefix client run build",
     "preview": "npm --prefix client run preview"
   },

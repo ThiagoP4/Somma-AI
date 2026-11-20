@@ -54,6 +54,30 @@ const router = createRouter({
             name: 'subscriptions',
             component: () => import('../views/Subscriptions.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/casal',
+            name: 'couple',
+            component: () => import('../views/CoupleMode.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/config',
+            name: 'settings',
+            component: () => import('../views/Settings.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/ajuda',
+            name: 'help',
+            component: () => import('../views/HelpCenter.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/sobre',
+            name: 'about',
+            component: () => import('../views/About.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 });

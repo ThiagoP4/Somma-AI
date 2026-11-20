@@ -1,21 +1,72 @@
 <script setup lang="ts">
-    import { ref, onMounted, computed } from 'vue';
+    import { ref, onMounted, computed, watch } from 'vue';
+    import { useRouter } from 'vue-router';
     import { storeToRefs } from "pinia";
-    import { PhArrowDownLeft, PhArrowUpRight, PhChartBar, PhCreditCard, PhListDashes, PhReceipt, PhWifiHigh } from '@phosphor-icons/vue';
+    import {
+        PhArrowDownLeft, PhArrowUpRight, PhChartBar, PhCreditCard,
+        PhListDashes, PhReceipt, PhWifiHigh, PhShieldCheck, PhLockKey,
+        PhArrowsClockwise, PhX, PhCalendarCheck
+    } from '@phosphor-icons/vue';
     import VueApexCharts from 'vue3-apexcharts';
     import type { ApexOptions } from 'apexcharts';
     import { useProfileStore } from "../stores/useProfileStore";
     import { usePiggybankStore } from "../stores/usePiggybankStore";
+    import { useVaultStore } from "../stores/useVaultStore";
+    import { useFilterStore } from "../stores/useFilterStore";
     import { supabase } from '../services/supabase';
 
+    const router = useRouter();
     const profileStore = useProfileStore();
     const piggybankStore = usePiggybankStore();
+    const vaultStore = useVaultStore();
+    const filterStore = useFilterStore();
     const { userName, myCards } = storeToRefs(profileStore);
+    const { isVaultUnlocked } = storeToRefs(vaultStore);
+    const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
 
     const totalIncome = ref(0);
     const totalExpense = ref(0);
     const currentBalance = ref(0);
     const recentTransactions = ref<any[]>([]);
+    const allMonthInstallments = ref<any[]>([]);
+
+    // Estado do Cartão 3D em Destaque (Showcase Modal)
+    const activeCard3D = ref<any | null>(null);
+    const isCardFlipped = ref(false);
+
+    const openCardShowcase = (card: any) => {
+        activeCard3D.value = card;
+        isCardFlipped.value = false;
+    };
+
+    const closeCardShowcase = () => {
+        activeCard3D.value = null;
+        isCardFlipped.value = false;
+    };
+
+    const activeCardStats = computed(() => {
+        if (!activeCard3D.value) return { total: 0, count: 0, paid: 0, pending: 0 };
+        const cardId = activeCard3D.value.id_payment || activeCard3D.value.idPayment;
+        const items = allMonthInstallments.value.filter(
+            (i: any) => i.fin_purchase?.payment_id === cardId
+        );
+        const total = items.reduce((acc, curr) => acc + Number(curr.value || 0), 0);
+        const paid = items.filter(i => i.paid).reduce((acc, curr) => acc + Number(curr.value || 0), 0);
+        return {
+            total,
+            count: items.length,
+            paid,
+            pending: total - paid
+        };
+    });
+
+    const viewCardInvoiceInRecords = (card: any) => {
+        const cardId = card.id_payment || card.idPayment;
+        filterStore.setFilterMode('invoice');
+        selectedCardIds.value = [cardId];
+        closeCardShowcase();
+        router.push('/records');
+    };
 
     interface CategoryStat {
         label: string;
@@ -92,27 +143,34 @@
 
     const fetchFinancialSummary = async () => {
         try {
-            const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-            const today = now.toISOString().split('T')[0];
+            const startOfMonth = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
+            const endOfMonth = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
 
             const { data: incomes } = await supabase
                 .from('fin_income')
-                .select('value')
+                .select('title, value, date')
                 .gte('date', startOfMonth)
                 .lte('date', endOfMonth)
+                .order('date', { ascending: false })
                 .eq('user_id', profileStore.userId);
 
             totalIncome.value = (incomes || []).reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
 
-            const { data: expenses } = await supabase
+            let expQuery = supabase
                 .from('fin_installment')
-                .select('value, dueDate, fin_purchase!inner(title, fin_category(description, color))')
+                .select('value, dueDate, fin_purchase!inner(title, payment_id, fin_category(description, color))')
                 .gte('dueDate', startOfMonth)
-                .lte('dueDate', endOfMonth);
+                .lte('dueDate', endOfMonth)
+                .order('dueDate', { ascending: false });
+
+            if (filterMode.value === 'invoice' && selectedCardIds.value.length > 0) {
+                expQuery = expQuery.in('fin_purchase.payment_id', selectedCardIds.value);
+            }
+
+            const { data: expenses } = await expQuery;
 
             const expenseList = expenses || [];
+            allMonthInstallments.value = expenseList;
             totalExpense.value = expenseList.reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
 
             // Agrupa gastos por categoria para o gráfico de Estatísticas
@@ -149,30 +207,14 @@
 
             totalIncome.value = totalIncome.value + totalGuardado;
             currentBalance.value = totalIncome.value - totalExpense.value;
-        
-            const { data: latestIncomes } = await supabase
-                .from('fin_income')
-                .select('title, value, date')
-                .gte('date', startOfMonth)
-                .lte('date', today)
-                .order('date', { ascending: false })
-                .limit(5);
-
-            const { data: latestExpenses } = await supabase
-                .from('fin_installment')
-                .select('value, dueDate, fin_purchase!inner(title)')
-                .gte('dueDate', startOfMonth)
-                .lte('dueDate', today)
-                .order('dueDate', { ascending: false })
-                .limit(5);
             
-            const mappedIncomes = (latestIncomes || []).map((i: any) => ({
+            const mappedIncomes = (incomes || []).slice(0, 5).map((i: any) => ({
                 title: i.title,
                 value: Number(i.value),
                 date: i.date,
                 type: 'income'
             }));
-            const mappedExpenses = (latestExpenses || []).map((e: any) => ({
+            const mappedExpenses = expenseList.slice(0, 5).map((e: any) => ({
                 title: e.fin_purchase?.title || 'Despesa',
                 value: Number(e.value),
                 date: e.dueDate,
@@ -186,6 +228,10 @@
             console.error("Erro ao buscar dados financeiros", error);
         }
     };
+
+    watch([isVaultUnlocked, selectedMonth, selectedYear, filterMode, selectedCardIds], async () => {
+        await fetchFinancialSummary();
+    }, { deep: true });
 
     onMounted(async () => {
         if (myCards.value.length === 0) {
@@ -232,7 +278,14 @@
         <div class="dashboard-grid">
             <!-- CARTÃO DE SALDO -->
             <div class="card balance-card">
-                <span class="balance-badge">Saldo disponível no mês</span>
+                <div class="balance-top-row">
+                    <span class="balance-badge">Saldo disponível no mês</span>
+                    <span class="vault-mini-tag" :class="isVaultUnlocked ? 'tag-unlocked' : 'tag-locked'">
+                        <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
+                        <PhLockKey v-else size="13" weight="fill" />
+                        {{ isVaultUnlocked ? 'Inclui Cofre Tailscale' : 'Cofre Isolado (Apenas Fluxo Mensal)' }}
+                    </span>
+                </div>
                 <h2 class="balance-amount">{{ formatCurrency(currentBalance) }}</h2>
                 <div class="balance-details">
                     <div class="financial-item">
@@ -240,7 +293,7 @@
                             <PhArrowDownLeft size="18" weight="bold" />
                         </div>
                         <div class="financial-text">
-                            <span>Entradas + Reserva</span>
+                            <span>{{ isVaultUnlocked ? 'Entradas + Reserva' : 'Entradas do mês' }}</span>
                             <p class="val-income">{{ formatCurrency(totalIncome) }}</p>
                         </div>
                     </div>
@@ -271,6 +324,8 @@
                         v-for="card in myCards"
                         :key="card.id_payment"
                         :style="{ background: getBankGradient(card.bank_name || card.nickname) }"
+                        @click="openCardShowcase(card)"
+                        title="Clique para inspecionar e girar o cartão em 3D"
                     >
                         <div class="cc-header">
                             <span class="cc-bank">{{ card.bank_name || 'Cartão' }}</span>
@@ -366,6 +421,107 @@
                 </div>
             </div>
         </div>
+
+        <!-- OVERLAY 3D INTERATIVO DO CARTÃO (SHOWCASE & FLIP 180º) -->
+        <Teleport to="body">
+            <Transition name="card-stage">
+                <div v-if="activeCard3D" class="card-3d-backdrop" @click.self="closeCardShowcase">
+                    <div class="card-3d-stage">
+                        <div class="stage-top-hint">
+                            <span>Clique no cartão para girar 180° (Frente / Verso)</span>
+                            <button class="stage-close-btn" @click="closeCardShowcase" title="Fechar">
+                                <PhX size="18" weight="bold" />
+                            </button>
+                        </div>
+
+                        <!-- Cena 3D com Perspective -->
+                        <div class="scene-3d" @click="isCardFlipped = !isCardFlipped">
+                            <div class="card-3d-object" :class="{ 'is-flipped': isCardFlipped }">
+                                <!-- FACE FRONTAL DO CARTÃO -->
+                                <div
+                                    class="card-3d-face card-3d-front"
+                                    :style="{ background: getBankGradient(activeCard3D.bank_name || activeCard3D.nickname) }"
+                                >
+                                    <div class="shine-effect"></div>
+                                    <div class="front-top">
+                                        <span class="front-bank">{{ activeCard3D.bank_name || 'Instituição' }}</span>
+                                        <PhWifiHigh size="24" weight="bold" class="front-contactless" />
+                                    </div>
+
+                                    <div class="front-chip-row">
+                                        <div class="emv-chip">
+                                            <div class="chip-line"></div>
+                                            <div class="chip-line"></div>
+                                        </div>
+                                        <span class="front-modality">{{ activeCard3D.method_type || 'Crédito' }}</span>
+                                    </div>
+
+                                    <div class="front-bottom">
+                                        <div class="front-number">••••  ••••  ••••  {{ String(activeCard3D.id_payment || 4829).slice(-4).padStart(4, '8') }}</div>
+                                        <div class="front-holder-row">
+                                            <div class="holder-col">
+                                                <span class="holder-lbl">CARTÃO / TITULAR</span>
+                                                <strong class="holder-val">{{ activeCard3D.nickname }} • {{ userName || 'THIAGO SILVA' }}</strong>
+                                            </div>
+                                            <div class="brand-circles">
+                                                <span class="b-circle c1"></span>
+                                                <span class="b-circle c2"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- FACE TRASEIRA DO CARTÃO (VERSO COM TARJA MAGNÉTICA & RESUMO DA FATURA) -->
+                                <div
+                                    class="card-3d-face card-3d-back"
+                                    :style="{ background: getBankGradient(activeCard3D.bank_name || activeCard3D.nickname) }"
+                                >
+                                    <div class="magnetic-strip"></div>
+
+                                    <div class="back-body">
+                                        <div class="cvv-signature-bar">
+                                            <span class="sig-text">{{ userName || 'Thiago Silva' }}</span>
+                                            <span class="cvv-box">CVV •••</span>
+                                        </div>
+
+                                        <div class="back-stats-grid">
+                                            <div class="b-stat">
+                                                <span>Fatura no Mês</span>
+                                                <strong>{{ formatCurrency(activeCardStats.total) }}</strong>
+                                            </div>
+                                            <div class="b-stat">
+                                                <span>Lançamentos</span>
+                                                <strong>{{ activeCardStats.count }} {{ activeCardStats.count === 1 ? 'compra' : 'compras' }}</strong>
+                                            </div>
+                                            <div class="b-stat">
+                                                <span>Fechamento</span>
+                                                <strong>Todo dia {{ activeCard3D.closing_day || '--' }}</strong>
+                                            </div>
+                                            <div class="b-stat">
+                                                <span>Vencimento</span>
+                                                <strong>Todo dia {{ activeCard3D.due_day || '--' }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ações Abaixo do Cartão 3D -->
+                        <div class="stage-actions">
+                            <button type="button" class="btn-secondary stage-btn" @click="isCardFlipped = !isCardFlipped">
+                                <PhArrowsClockwise size="17" weight="bold" />
+                                {{ isCardFlipped ? 'Ver Frente do Cartão' : 'Virar Cartão (Ver Fatura)' }}
+                            </button>
+                            <button type="button" class="btn-primary stage-btn" @click="viewCardInvoiceInRecords(activeCard3D)">
+                                <PhCalendarCheck size="17" weight="bold" />
+                                Abrir Fatura Completa
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Transition>
+        </Teleport>
     </div>
 </template>
 
@@ -406,7 +562,7 @@
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1.25rem;
 }
 
@@ -418,6 +574,8 @@
     box-shadow: var(--shadow-sm);
     display: flex;
     flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
 }
 
 /* === SALDO === */
@@ -427,16 +585,45 @@
     justify-content: space-between;
 }
 
+.balance-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
 .balance-badge {
     display: inline-block;
-    align-self: flex-start;
     font-size: 0.78rem;
     font-weight: 600;
     color: var(--card-highlight-title);
     background: var(--primary-subtle);
     padding: 4px 10px;
     border-radius: 99px;
-    margin-bottom: 0.75rem;
+}
+
+.vault-mini-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 99px;
+}
+
+.vault-mini-tag.tag-unlocked {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.vault-mini-tag.tag-locked {
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
 }
 
 .balance-amount {
@@ -527,6 +714,13 @@
     box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.35);
     position: relative;
     overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+
+.credit-card-mockup:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 14px 28px -6px rgba(0, 0, 0, 0.5);
 }
 
 .cc-header {
@@ -779,7 +973,7 @@
     gap: 0.75rem;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1320px) {
     .stats-chart-layout {
         flex-direction: column;
     }
@@ -788,12 +982,365 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 960px) {
     .dashboard-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
+}
+
+@media (max-width: 768px) {
     .balance-amount {
         font-size: 2rem;
     }
+    .balance-details {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* =========================================
+   ANIMAÇÃO 3D DO CARTÃO (SHOWCASE & FLIP)
+   ========================================= */
+.card-stage-enter-active,
+.card-stage-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.card-stage-enter-from,
+.card-stage-leave-to {
+    opacity: 0;
+}
+
+.card-stage-enter-active .card-3d-stage {
+    animation: cardZoomIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.card-stage-leave-active .card-3d-stage {
+    animation: cardZoomOut 0.25s ease forwards;
+}
+
+@keyframes cardZoomIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.65) translateY(40px) rotateX(18deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0) rotateX(0deg);
+    }
+}
+
+@keyframes cardZoomOut {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+    }
+}
+
+.card-3d-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 6, 10, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.card-3d-stage {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.35rem;
+}
+
+.stage-top-hint {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 0.825rem;
+    font-weight: 500;
+}
+
+.stage-close-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.stage-close-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.06);
+}
+
+.scene-3d {
+    width: 100%;
+    height: 265px;
+    perspective: 1200px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.card-3d-object {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.75s cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+.card-3d-object.is-flipped {
+    transform: rotateY(180deg);
+}
+
+.card-3d-face {
+    position: absolute;
+    inset: 0;
+    border-radius: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 28px 60px -12px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    color: #FFFFFF;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.card-3d-front {
+    padding: 1.75rem 1.85rem;
+}
+
+.shine-effect {
+    position: absolute;
+    top: -60%;
+    left: -60%;
+    width: 220%;
+    height: 220%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+.front-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+}
+
+.front-bank {
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.front-contactless {
+    opacity: 0.85;
+    transform: rotate(90deg);
+}
+
+.front-chip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 1;
+}
+
+.emv-chip {
+    width: 48px;
+    height: 36px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #FDE68A 0%, #D97706 100%);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    padding: 0 6px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.chip-line {
+    height: 1px;
+    background: rgba(120, 53, 15, 0.45);
+}
+
+.front-modality {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 99px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.front-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    position: relative;
+    z-index: 1;
+}
+
+.front-number {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+
+.front-holder-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.holder-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.holder-lbl {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+}
+
+.holder-val {
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.brand-circles {
+    display: flex;
+    align-items: center;
+}
+
+.b-circle {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.b-circle.c1 {
+    background: rgba(239, 68, 68, 0.85);
+}
+
+.b-circle.c2 {
+    background: rgba(245, 158, 11, 0.85);
+    margin-left: -10px;
+}
+
+/* FACE TRASEIRA (VERSO DO CARTÃO) */
+.card-3d-back {
+    transform: rotateY(180deg);
+    padding: 1.35rem 0 1.5rem;
+}
+
+.magnetic-strip {
+    width: 100%;
+    height: 44px;
+    background: #111318;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6);
+}
+
+.back-body {
+    padding: 0 1.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
+    justify-content: space-between;
+}
+
+.cvv-signature-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 8px;
+    padding: 0.45rem 0.85rem;
+    margin-top: 0.35rem;
+}
+
+.sig-text {
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+.cvv-box {
+    font-family: monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.35);
+    padding: 2px 8px;
+    border-radius: 5px;
+}
+
+.back-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem 1rem;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+}
+
+.b-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.b-stat span {
+    font-size: 0.68rem;
+    opacity: 0.75;
+}
+
+.b-stat strong {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-feature-settings: "tnum";
+}
+
+.stage-actions {
+    display: flex;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.stage-btn {
+    flex: 1;
 }
 </style>

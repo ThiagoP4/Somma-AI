@@ -1,11 +1,19 @@
 <script setup lang="ts">
     import { ref, onMounted, computed } from 'vue';
+    import { storeToRefs } from 'pinia';
     import { usePiggybankStore, type Piggybank } from '../stores/usePiggybankStore';
-    import { PhPiggyBank, PhTrendUp, PhPlus, PhTrash, PhArrowDownLeft, PhArrowUpRight, PhVault, PhLockKey } from '@phosphor-icons/vue'
-    import PiggybankModal from '../components/Piggybank/PiggybankModal.vue'
-    import PiggybankTransaction from '../components/Piggybank/PiggybankTransaction.vue'
+    import { useVaultStore } from '../stores/useVaultStore';
+    import {
+        PhPiggyBank, PhTrendUp, PhPlus, PhTrash, PhArrowDownLeft,
+        PhArrowUpRight, PhVault, PhLockKey, PhShieldCheck, PhArrowsClockwise
+    } from '@phosphor-icons/vue';
+    import PiggybankModal from '../components/Piggybank/PiggybankModal.vue';
+    import PiggybankTransaction from '../components/Piggybank/PiggybankTransaction.vue';
 
     const piggybankStore = usePiggybankStore();
+    const vaultStore = useVaultStore();
+    const { isVaultUnlocked } = storeToRefs(vaultStore);
+
     const activeTab = ref<'cofrinhos' | 'ativos'>('cofrinhos');
 
     const isCreateModalOpen = ref(false);
@@ -24,6 +32,17 @@
         if (confirm('Tem certeza que deseja excluir este cofrinho?')) {
             await piggybankStore.deletePiggybank(id);
         }
+    };
+
+    const handleRetryVault = async () => {
+        if (vaultStore.simulatedOffline) {
+            await vaultStore.toggleSimulatedOffline();
+        } else if (vaultStore.manualStealthMode) {
+            vaultStore.toggleStealthMode();
+        } else {
+            await vaultStore.checkTailscaleConnection();
+        }
+        await piggybankStore.fetchPiggybanks();
     };
 
     const calculateProgress = (current: number, target: number) => {
@@ -60,10 +79,17 @@
     <div class="investments-container">
         <header class="page-header">
             <div>
-                <h1>Investimentos & Reservas</h1>
+                <div class="header-title-row">
+                    <h1>Investimentos & Reservas</h1>
+                    <span class="vault-status-badge" :class="isVaultUnlocked ? 'unlocked' : 'locked'">
+                        <PhShieldCheck v-if="isVaultUnlocked" size="14" weight="fill" />
+                        <PhLockKey v-else size="14" weight="fill" />
+                        {{ isVaultUnlocked ? 'Tailscale Vault Conectado' : 'Cofre Isolado (Fora da VPN)' }}
+                    </span>
+                </div>
                 <p class="subtitle">Organize seus objetivos financeiros e acompanhe a evolução do seu patrimônio</p>
             </div>
-            <div class="header-actions" v-if="activeTab === 'cofrinhos'">
+            <div class="header-actions" v-if="activeTab === 'cofrinhos' && isVaultUnlocked">
                 <button class="btn-primary" @click="isCreateModalOpen = true">
                     <PhPlus size="16" weight="bold" />
                     Novo Cofrinho
@@ -91,78 +117,117 @@
         </div>
 
         <div v-if="activeTab === 'cofrinhos'" class="tab-content">
-            <div class="summary-cards">
-                <div class="card summary-card">
-                    <div class="summary-top">
-                        <span class="card-title">Total guardado (Compõe saldo)</span>
-                        <div class="summary-icon icon-primary">
-                            <PhVault size="20" weight="duotone" />
-                        </div>
+            <!-- ESTADO BLOQUEADO: FORA DA VPN TAILSCALE (Arquitetura A Zero-Trust) -->
+            <div v-if="!isVaultUnlocked" class="vault-locked-panel">
+                <div class="vault-locked-glow"></div>
+                <div class="vault-locked-icon">
+                    <PhLockKey size="32" weight="duotone" />
+                </div>
+                <h2>Cofre Patrimonial Isolado via Tailscale</h2>
+                <p>
+                    Por segurança <strong>Zero-Trust (Arquitetura Dual-DB)</strong>, seus saldos bancários e cofrinhos ficam isolados no seu servidor privado e não trafegam fora da sua rede VPN Tailscale.
+                </p>
+
+                <div class="locked-masked-preview">
+                    <div class="masked-box">
+                        <span>Total guardado</span>
+                        <strong>R$ •••••••</strong>
                     </div>
-                    <h2 class="card-value">{{ formatCurrency(totalGuardado) }}</h2>
-                    <span class="card-helper">Liquidez imediata somada ao saldo mensal</span>
+                    <div class="masked-box">
+                        <span>Total reservado</span>
+                        <strong>R$ •••••••</strong>
+                    </div>
                 </div>
 
-                <div class="card summary-card">
-                    <div class="summary-top">
-                        <span class="card-title">Total reservado (Metas isoladas)</span>
-                        <div class="summary-icon icon-purple">
-                            <PhLockKey size="20" weight="duotone" />
-                        </div>
-                    </div>
-                    <h2 class="card-value">{{ formatCurrency(totalReservado) }}</h2>
-                    <span class="card-helper">Patrimônio protegido fora do saldo do mês</span>
+                <div class="locked-actions">
+                    <button class="btn-primary" @click="handleRetryVault">
+                        <PhArrowsClockwise size="17" weight="bold" />
+                        {{
+                            vaultStore.simulatedOffline
+                                ? 'Reconectar Tailscale VPN (Simulação)'
+                                : vaultStore.manualStealthMode
+                                    ? 'Desativar Modo Furtivo'
+                                    : 'Verificar Conexão Tailscale'
+                        }}
+                    </button>
                 </div>
             </div>
 
-            <div v-if="piggybankStore.isLoading" class="loading-box">
-                Carregando seus cofrinhos...
-            </div>
-
-            <div v-else class="piggybanks-grid">
-                <div v-for="piggy in piggybankStore.piggybanks" :key="piggy.id_piggybank" class="piggy-card">
-                    <div class="piggy-header">
-                        <div class="piggy-title-area">
-                            <div class="piggy-icon">
-                                <PhPiggyBank weight="duotone" size="22" />
+            <!-- ESTADO DESBLOQUEADO: CONECTADO NA TAILSCALE VPN -->
+            <template v-else>
+                <div class="summary-cards">
+                    <div class="card summary-card">
+                        <div class="summary-top">
+                            <span class="card-title">Total guardado (Compõe saldo)</span>
+                            <div class="summary-icon icon-primary">
+                                <PhVault size="20" weight="duotone" />
                             </div>
-                            <div class="piggy-title-stack">
-                                <span class="piggy-title">{{ piggy.title }}</span>
-                                <span class="piggy-tag" :class="piggy.composes_balance ? 'tag-liquid' : 'tag-locked'">
-                                    {{ piggy.composes_balance ? 'Compõe saldo' : 'Reserva isolada' }}
-                                </span>
+                        </div>
+                        <h2 class="card-value">{{ formatCurrency(totalGuardado) }}</h2>
+                        <span class="card-helper">Liquidez imediata somada ao saldo mensal</span>
+                    </div>
+
+                    <div class="card summary-card">
+                        <div class="summary-top">
+                            <span class="card-title">Total reservado (Metas isoladas)</span>
+                            <div class="summary-icon icon-purple">
+                                <PhLockKey size="20" weight="duotone" />
                             </div>
                         </div>
-                        <button class="icon-btn delete-btn" @click="handleDelete(piggy.id_piggybank)" title="Excluir cofrinho">
-                            <PhTrash size="17" />
-                        </button>
-                    </div>
-
-                    <div class="piggy-balance-area">
-                        <h3 class="piggy-amount">{{ formatCurrency(piggy.current_amount) }}</h3>
-                        <div class="piggy-meta">
-                            <span>Meta: <strong>{{ formatCurrency(piggy.target_amount) }}</strong></span>
-                            <span class="pct-badge">{{ calculateProgress(piggy.current_amount, piggy.target_amount) }}%</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill" :style="{ width: calculateProgress(piggy.current_amount, piggy.target_amount) + '%' }"></div>
-                        </div>
-                    </div>
-
-                    <div class="piggy-buttons">
-                        <button class="btn-outline btn-deposit" @click="openTransactionModal(piggy, 'deposit')">
-                            <PhArrowDownLeft size="16" weight="bold" /> Guardar
-                        </button>
-                        <button class="btn-outline" @click="openTransactionModal(piggy, 'withdraw')">
-                            <PhArrowUpRight size="16" weight="bold" /> Resgatar
-                        </button>
+                        <h2 class="card-value">{{ formatCurrency(totalReservado) }}</h2>
+                        <span class="card-helper">Patrimônio protegido fora do saldo do mês</span>
                     </div>
                 </div>
 
-                <div v-if="piggybankStore.piggybanks.length === 0" class="empty-state">
-                    Nenhum cofrinho criado ainda. Clique em "Novo Cofrinho" para começar!
+                <div v-if="piggybankStore.isLoading" class="loading-box">
+                    Sincronizando cofrinhos via túnel Tailscale...
                 </div>
-            </div>
+
+                <div v-else class="piggybanks-grid">
+                    <div v-for="piggy in piggybankStore.piggybanks" :key="piggy.id_piggybank" class="piggy-card">
+                        <div class="piggy-header">
+                            <div class="piggy-title-area">
+                                <div class="piggy-icon">
+                                    <PhPiggyBank weight="duotone" size="22" />
+                                </div>
+                                <div class="piggy-title-stack">
+                                    <span class="piggy-title">{{ piggy.title }}</span>
+                                    <span class="piggy-tag" :class="piggy.composes_balance ? 'tag-liquid' : 'tag-locked'">
+                                        {{ piggy.composes_balance ? 'Compõe saldo' : 'Reserva isolada' }}
+                                    </span>
+                                </div>
+                            </div>
+                            <button class="icon-btn delete-btn" @click="handleDelete(piggy.id_piggybank)" title="Excluir cofrinho">
+                                <PhTrash size="17" />
+                            </button>
+                        </div>
+
+                        <div class="piggy-balance-area">
+                            <h3 class="piggy-amount">{{ formatCurrency(piggy.current_amount) }}</h3>
+                            <div class="piggy-meta">
+                                <span>Meta: <strong>{{ formatCurrency(piggy.target_amount) }}</strong></span>
+                                <span class="pct-badge">{{ calculateProgress(piggy.current_amount, piggy.target_amount) }}%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" :style="{ width: calculateProgress(piggy.current_amount, piggy.target_amount) + '%' }"></div>
+                            </div>
+                        </div>
+
+                        <div class="piggy-buttons">
+                            <button class="btn-outline btn-deposit" @click="openTransactionModal(piggy, 'deposit')">
+                                <PhArrowDownLeft size="16" weight="bold" /> Guardar
+                            </button>
+                            <button class="btn-outline" @click="openTransactionModal(piggy, 'withdraw')">
+                                <PhArrowUpRight size="16" weight="bold" /> Resgatar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="piggybankStore.piggybanks.length === 0" class="empty-state">
+                        Nenhum cofrinho criado ainda. Clique em "Novo Cofrinho" para começar!
+                    </div>
+                </div>
+            </template>
         </div>
 
         <div v-if="activeTab === 'ativos'" class="tab-content">
@@ -204,12 +269,42 @@
         gap: 1rem;
     }
 
+    .header-title-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 0.25rem;
+    }
+
     .page-header h1 {
         font-size: 1.75rem;
         font-weight: 700;
         letter-spacing: -0.02em;
-        margin: 0 0 0.25rem 0;
+        margin: 0;
         color: var(--text-primary);
+    }
+
+    .vault-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 99px;
+    }
+
+    .vault-status-badge.unlocked {
+        background: var(--success-bg);
+        color: var(--success-text);
+        border: 1px solid rgba(16, 185, 129, 0.25);
+    }
+
+    .vault-status-badge.locked {
+        background: rgba(245, 158, 11, 0.12);
+        color: #F59E0B;
+        border: 1px solid rgba(245, 158, 11, 0.25);
     }
 
     .subtitle {
@@ -261,6 +356,91 @@
         gap: 1.5rem;
     }
 
+    /* === PAINEL COFRE BLOQUEADO (ZERO-TRUST) === */
+    .vault-locked-panel {
+        position: relative;
+        overflow: hidden;
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 18px;
+        padding: 3.5rem 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 1rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .vault-locked-glow {
+        position: absolute;
+        top: -80px;
+        width: 320px;
+        height: 220px;
+        background: radial-gradient(circle, rgba(245, 158, 11, 0.12) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    .vault-locked-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        color: #F59E0B;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .vault-locked-panel h2 {
+        margin: 0.25rem 0 0 0;
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .vault-locked-panel p {
+        margin: 0;
+        max-width: 520px;
+        font-size: 0.925rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+    }
+
+    .locked-masked-preview {
+        display: flex;
+        gap: 1rem;
+        margin: 0.75rem 0;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .masked-box {
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 0.85rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        min-width: 180px;
+    }
+
+    .masked-box span {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .masked-box strong {
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        letter-spacing: 0.08em;
+        filter: blur(1.5px);
+        user-select: none;
+    }
+
+    /* === CARDS DE RESUMO === */
     .summary-cards {
         display: grid;
         grid-template-columns: 1fr 1fr;

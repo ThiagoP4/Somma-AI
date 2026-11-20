@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { ref, computed } from 'vue';
     import { 
-        PhX, PhMoon, PhSun, PhUser, PhHeart, 
+        PhX, PhMoon, PhSun, PhHeart, 
         PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut,
         PhHouse, PhFolders, PhTrendUp, PhSparkle, PhChartBar
     } from '@phosphor-icons/vue';
@@ -17,7 +17,7 @@
     const route = useRoute();
 
     const profileStore = useProfileStore();
-    const { userName, userEmail, avatarUrl } = storeToRefs(profileStore);
+    const { userName, avatarUrl } = storeToRefs(profileStore);
 
     const navigateTo = (path: string) => {
         emit('close');
@@ -66,10 +66,9 @@
     ];
 
     const accountNav = [
-        { icon: PhUser, title: 'Meu Perfil', route: '/profile' },
         { icon: PhArrowsClockwise, title: 'Assinaturas', route: '/assinaturas' },
-        { icon: PhHeart, title: 'Modo Casal', route: '/casal', soon: true },
-        { icon: PhGear, title: 'Configurações', route: '/config', soon: true },
+        { icon: PhHeart, title: 'Modo Casal', route: '/casal' },
+        { icon: PhGear, title: 'Configurações', route: '/config' },
     ];
 
     const supportNav = [
@@ -150,7 +149,6 @@
                             class="nav-icon"
                         />
                         <span class="nav-label">{{ item.title }}</span>
-                        <span v-if="item.soon" class="soon-pill">Breve</span>
                     </button>
                 </nav>
             </div>
@@ -187,14 +185,19 @@
 
         <!-- Rodapé: Perfil do Usuário + Logout -->
         <div class="sidebar-footer">
-            <div class="user-card" @click="navigateTo('/profile')" title="Ver Meu Perfil">
+            <div
+                class="user-card"
+                :class="{ 'is-active': isRouteActive('/profile') }"
+                @click="navigateTo('/profile')"
+                title="Acessar Meu Perfil"
+            >
                 <div class="user-avatar">
                     <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
                     <span v-else>{{ userInitials }}</span>
                 </div>
                 <div class="user-meta">
                     <span class="user-name">{{ userName || 'Thiago Silva' }}</span>
-                    <span class="user-email">{{ userEmail || 'Minha Conta' }}</span>
+                    <span class="user-email">Ver meu perfil →</span>
                 </div>
             </div>
             <button class="logout-icon-btn" @click="handleLogout" title="Sair da conta">
@@ -501,6 +504,16 @@
 
     .user-card:hover {
         background-color: var(--bg-hover);
+    }
+
+    .user-card.is-active {
+        background-color: var(--primary-subtle);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .user-card.is-active .user-email {
+        color: var(--primary-color);
+        font-weight: 600;
     }
 
     .user-avatar {
