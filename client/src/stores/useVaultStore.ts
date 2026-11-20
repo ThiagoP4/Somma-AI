@@ -9,15 +9,14 @@ export const useVaultStore = defineStore('vault', () => {
     const lastCheckedAt = ref<string | null>(null);
     const manualStealthMode = ref(false);
 
-    // URL base do servidor Tailscale (ex: https://meu-servidor.tailxxxx.ts.net)
-    // Se VITE_TAILSCALE_VAULT_URL não estiver definida, tenta extrair a origem do VITE_N8N_WEBHOOK_URL caso seja .ts.net
+    // URL base do servidor Tailscale lida exclusivamente do .env (VITE_TAILSCALE_VAULT_URL) ou do localStorage do navegador
     const resolveTailscaleBaseUrl = (): string => {
-        // 1. Verifica se o usuário salvou um endpoint customizado na tela de Configurações
+        // 1. Verifica se o usuário salvou um endpoint customizado na tela de Configurações (localStorage local do navegador)
         try {
             const savedPrefs = localStorage.getItem('somma_app_settings_v1');
             if (savedPrefs) {
                 const parsed = JSON.parse(savedPrefs);
-                if (parsed?.tailscaleVaultUrl && parsed.tailscaleVaultUrl !== 'https://somma-vault.tailnet.ts.net') {
+                if (parsed?.tailscaleVaultUrl) {
                     return String(parsed.tailscaleVaultUrl).replace(/\/+$/, '');
                 }
             }
@@ -25,16 +24,16 @@ export const useVaultStore = defineStore('vault', () => {
             // ignora erro de parse
         }
 
-        // 2. Variável de ambiente explícita VITE_TAILSCALE_VAULT_URL
+        // 2. Variável de ambiente explícita VITE_TAILSCALE_VAULT_URL (configurada na Vercel / .env local)
         const explicitUrl = import.meta.env.VITE_TAILSCALE_VAULT_URL;
         if (explicitUrl) return explicitUrl.replace(/\/+$/, '');
 
-        // 3. Fallback: extrai a origem do VITE_N8N_WEBHOOK_URL caso seja .ts.net
+        // 3. Fallback: deriva a partir do VITE_N8N_WEBHOOK_URL do .env caso seja .ts.net
         const n8nUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || '';
         if (n8nUrl.includes('.ts.net')) {
             try {
                 const parsed = new URL(n8nUrl);
-                return parsed.origin;
+                return `${parsed.protocol}//${parsed.hostname}:8787`;
             } catch {
                 return '';
             }

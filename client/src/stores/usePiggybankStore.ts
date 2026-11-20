@@ -21,11 +21,11 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     const profileStore = useProfileStore();
     const vaultStore = useVaultStore();
 
-    // Se a URL do Cofre Tailscale estiver configurada (via .env ou tela de Configurações) e não estivermos em modo mock puro,
-    // opera 100% na Arquitetura A (Dual-DB: busca do servidor privado .ts.net / vault-server).
+    // Em modo real (fora do mock local sem rede), opera 100% na Arquitetura A (Dual-DB: busca do servidor privado https://somma-n8n.powan-bebop.ts.net:8787)
     const usePrivateTailscaleApi = () => {
-        if (import.meta.env.VITE_TAILSCALE_VAULT_URL) return true;
-        return Boolean(vaultStore.tailscaleBaseUrl && !vaultStore.tailscaleBaseUrl.includes('somma-vault.tailnet.ts.net'));
+        const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
+        if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;
+        return Boolean(vaultStore.tailscaleBaseUrl);
     };
 
     const fetchPiggybanks = async () => {

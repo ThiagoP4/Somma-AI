@@ -19,8 +19,8 @@
     const isDarkMode = ref(document.body.classList.contains('dark') || localStorage.getItem('theme') !== 'light');
 
     const settings = ref({
-        tailscaleVaultUrl: vaultStore.tailscaleBaseUrl || 'https://somma-vault.tailnet.ts.net',
-        n8nWebhookUrl: import.meta.env.VITE_N8N_WEBHOOK_URL || 'https://n8n.tailnet.ts.net/webhook/somma-copilot',
+        tailscaleVaultUrl: vaultStore.tailscaleBaseUrl || '',
+        n8nWebhookUrl: import.meta.env.VITE_N8N_WEBHOOK_URL || '',
         defaultCdiMonthlyPct: 0.85,
         maxSafeInstallmentCommitmentPct: 20,
         protectEmergencyFundInAi: true,

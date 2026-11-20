@@ -35,6 +35,11 @@ jobs:
         run: |
           cd client
           npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_N8N_WEBHOOK_URL: ${{ secrets.VITE_N8N_WEBHOOK_URL }}
+          VITE_TAILSCALE_VAULT_URL: ${{ secrets.VITE_TAILSCALE_VAULT_URL }}
 
       - name: Configurar Java (Necessário para Android)
         uses: actions/setup-java@v4
