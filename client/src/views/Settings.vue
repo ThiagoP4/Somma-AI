@@ -3,11 +3,18 @@
     import { storeToRefs } from 'pinia';
     import {
         PhShieldCheck, PhLockKey, PhSparkle, PhPalette, PhDatabase,
-        PhArrowsClockwise, PhFloppyDisk, PhDownloadSimple, PhTrash
+        PhArrowsClockwise, PhFloppyDisk, PhDownloadSimple, PhTrash, PhFingerprint
     } from '@phosphor-icons/vue';
     import { useVaultStore } from '../stores/useVaultStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
     import { useAlertStore } from '../stores/useAlertStore';
+    import {
+        isBiometricSupported,
+        getBiometricConfig,
+        registerBiometricForCurrentUser,
+        setAppLockOnStart,
+        disableBiometric
+    } from '../services/biometricAuth';
 
     const vaultStore = useVaultStore();
     const piggybankStore = usePiggybankStore();
@@ -28,7 +35,12 @@
         defaultFilterMode: 'month' as 'month' | 'invoice'
     });
 
-    onMounted(() => {
+    const biometricSupported = ref(false);
+    const biometricEnabled = ref(false);
+    const biometricAppLock = ref(true);
+    const biometricBusy = ref(false);
+
+    onMounted(async () => {
         const raw = localStorage.getItem(PREFS_KEY);
         if (raw) {
             try {
@@ -38,7 +50,43 @@
                 // ignora erro
             }
         }
+        biometricSupported.value = await isBiometricSupported();
+        const bioCfg = getBiometricConfig();
+        biometricEnabled.value = Boolean(bioCfg?.enabled);
+        biometricAppLock.value = Boolean(bioCfg?.appLockOnStart ?? true);
     });
+
+    const handleEnableBiometric = async () => {
+        biometricBusy.value = true;
+        try {
+            await registerBiometricForCurrentUser(biometricAppLock.value);
+            biometricEnabled.value = true;
+            showAlert('Digital / Biometria cadastrada com sucesso neste aparelho!', 'success');
+        } catch (err: any) {
+            showAlert(err?.message || 'Não foi possível ativar a biometria neste aparelho.', 'warning');
+        } finally {
+            biometricBusy.value = false;
+        }
+    };
+
+    const handleDisableBiometric = () => {
+        disableBiometric();
+        biometricEnabled.value = false;
+        showAlert('Login por digital desativado neste aparelho.', 'success');
+    };
+
+    const handleToggleBiometricAppLock = () => {
+        biometricAppLock.value = !biometricAppLock.value;
+        if (biometricEnabled.value) {
+            setAppLockOnStart(biometricAppLock.value);
+            showAlert(
+                biometricAppLock.value
+                    ? 'Tela de bloqueio por digital ativada ao abrir o app.'
+                    : 'Tela de bloqueio ao abrir desativada (digital mantida na tela de login).',
+                'success'
+            );
+        }
+    };
 
     const toggleTheme = (dark: boolean) => {
         isDarkMode.value = dark;
@@ -278,7 +326,69 @@
                 </div>
             </section>
 
-            <!-- CARD 4: DADOS, BACKUP & PRIVACIDADE -->
+            <!-- CARD 4: BIOMETRIA & DIGITAL NO CELULAR -->
+            <section class="settings-card">
+                <div class="card-top">
+                    <div class="icon-badge" :class="biometricEnabled ? 'badge-green' : 'badge-indigo'">
+                        <PhFingerprint size="22" weight="duotone" />
+                    </div>
+                    <div class="card-titles">
+                        <h2>Login por Digital / Face ID</h2>
+                        <p>Use o sensor biométrico do celular (ou Windows Hello) para entrar e proteger o app</p>
+                    </div>
+                    <span class="status-tag" :class="biometricEnabled ? 'ok' : 'warn'">
+                        {{ biometricEnabled ? 'Ativo' : 'Inativo' }}
+                    </span>
+                </div>
+
+                <div class="form-stack">
+                    <p class="data-desc" v-if="biometricSupported">
+                        Sua biometria é validada diretamente pelo chip de segurança do seu aparelho (WebAuthn) — sua digital nunca sai do telefone.
+                    </p>
+                    <p class="data-desc" v-else>
+                        Sensor biométrico não detectado neste navegador (para funcionar no celular, acesse pelo link HTTPS da Vercel ou pelo app Android).
+                    </p>
+
+                    <div class="toggle-row" v-if="biometricSupported">
+                        <div class="toggle-info">
+                            <strong>Exigir Digital ao Abrir o App (Tela de Bloqueio)</strong>
+                            <span>Estilo Nubank/Inter: pede sua digital sempre que o app for aberto</span>
+                        </div>
+                        <button
+                            type="button"
+                            class="switch"
+                            :class="{ active: biometricAppLock }"
+                            @click="handleToggleBiometricAppLock"
+                        >
+                            <span class="switch-thumb"></span>
+                        </button>
+                    </div>
+
+                    <div class="data-buttons">
+                        <button
+                            v-if="!biometricEnabled"
+                            type="button"
+                            class="btn-primary"
+                            :disabled="!biometricSupported || biometricBusy"
+                            @click="handleEnableBiometric"
+                        >
+                            <PhFingerprint size="18" weight="bold" />
+                            {{ biometricBusy ? 'Aguardando sensor...' : 'Cadastrar Digital deste Aparelho' }}
+                        </button>
+                        <button
+                            v-else
+                            type="button"
+                            class="btn-outline danger-outline"
+                            @click="handleDisableBiometric"
+                        >
+                            <PhTrash size="17" />
+                            Desativar Digital neste Aparelho
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CARD 5: DADOS, BACKUP & PRIVACIDADE -->
             <section class="settings-card">
                 <div class="card-top">
                     <div class="icon-badge badge-indigo">

@@ -88,10 +88,17 @@
         <div v-if="isOpen" class="sidebar-backdrop" @click="emit('close')"></div>
     </Transition>
 
-    <aside class="sidebar" :class="{ 'is-open': isOpen }">
+    <aside class="sidebar" :class="{ 'is-open': isOpen }" aria-label="Menu principal">
         <!-- Topo: Marca -->
         <div class="sidebar-header">
-            <div class="brand" @click="navigateTo('/')">
+            <div
+                class="brand"
+                role="button"
+                tabindex="0"
+                aria-label="Ir para Visão Geral Somma AI"
+                @click="navigateTo('/')"
+                @keydown.enter="navigateTo('/')"
+            >
                 <img :src="logoUrl" alt="Somma Logo" class="logo-img" />
                 <div class="brand-info">
                     <div class="brand-row">
@@ -101,8 +108,8 @@
                     <span class="brand-plan">Workspace Financeiro</span>
                 </div>
             </div>
-            <button class="close-btn mobile-only" @click="emit('close')" title="Fechar menu">
-                <PhX size="18" />
+            <button class="close-btn mobile-only" @click="emit('close')" title="Fechar menu" aria-label="Fechar menu">
+                <PhX size="20" />
             </button>
         </div>
 
@@ -164,7 +171,15 @@
                             <PhSun v-else size="18" weight="duotone" class="nav-icon theme-icon" />
                             <span class="nav-label">{{ isDarkMode ? 'Modo Escuro' : 'Modo Claro' }}</span>
                         </div>
-                        <button type="button" class="switch" :class="{ active: isDarkMode }" @click.stop="toggleTheme">
+                        <button
+                            type="button"
+                            role="switch"
+                            :aria-checked="isDarkMode"
+                            aria-label="Alternar modo escuro"
+                            class="switch"
+                            :class="{ active: isDarkMode }"
+                            @click.stop="toggleTheme"
+                        >
                             <span class="switch-thumb"></span>
                         </button>
                     </div>
@@ -187,9 +202,13 @@
         <div class="sidebar-footer">
             <div
                 class="user-card"
+                role="button"
+                tabindex="0"
                 :class="{ 'is-active': isRouteActive('/profile') }"
                 @click="navigateTo('/profile')"
+                @keydown.enter="navigateTo('/profile')"
                 title="Acessar Meu Perfil"
+                aria-label="Acessar Meu Perfil"
             >
                 <div class="user-avatar">
                     <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" />
@@ -200,7 +219,7 @@
                     <span class="user-email">Ver meu perfil →</span>
                 </div>
             </div>
-            <button class="logout-icon-btn" @click="handleLogout" title="Sair da conta">
+            <button class="logout-icon-btn" @click="handleLogout" title="Sair da conta" aria-label="Sair da conta">
                 <PhSignOut size="18" />
             </button>
         </div>
@@ -595,11 +614,26 @@
             position: fixed;
             top: 0;
             left: 0;
+            width: min(280px, 85vw);
             height: 100vh;
+            height: 100dvh;
             z-index: 9999;
             transform: translateX(-100%);
             transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: var(--shadow-md);
+        }
+
+        .sidebar-footer {
+            padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
+        }
+
+        .nav-item {
+            min-height: 44px;
+        }
+
+        .close-btn {
+            width: 38px;
+            height: 38px;
         }
 
         .sidebar.is-open {

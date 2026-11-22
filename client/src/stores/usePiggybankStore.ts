@@ -520,7 +520,7 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     const profileStore = useProfileStore();
     const vaultStore = useVaultStore();
 
-    // Em modo real (fora do mock local sem rede), opera 100% na Arquitetura A (Dual-DB: busca do servidor privado https://somma-n8n.powan-bebop.ts.net:8787)
+    // Em modo real (fora do mock local sem rede), opera 100% na Arquitetura A (Dual-DB: busca do servidor privado Tailscale via .env)
     const usePrivateTailscaleApi = () => {
         const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
         if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;

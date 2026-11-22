@@ -122,6 +122,8 @@ body {
     padding: 0;
     width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: clip;
     box-sizing: border-box;
     background-color: var(--bg-page);
     color: var(--text-primary);
@@ -129,13 +131,47 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
 }
 
 #app {
     width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
+}
+
+button,
+a,
+[role="button"] {
+    touch-action: manipulation;
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    /* Impede o zoom automático forçado pelo iOS Safari ao tocar em campos < 16px */
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 input,

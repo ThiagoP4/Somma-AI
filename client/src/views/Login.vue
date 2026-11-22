@@ -1,12 +1,19 @@
 <script setup lang="ts">
-    import { ref } from 'vue';
+    import { ref, onMounted } from 'vue';
     import { useRouter } from 'vue-router';
     import { supabase } from '../services/supabase';
     import {
         PhEnvelope, PhLockKey, PhArrowRight, PhUser, PhPhone,
-        PhEye, PhEyeSlash, PhSparkle, PhShieldCheck, PhChartLineUp, PhCheckCircle
+        PhEye, PhEyeSlash, PhSparkle, PhShieldCheck, PhChartLineUp, PhCheckCircle, PhFingerprint
     } from '@phosphor-icons/vue';
     import { useAlertStore } from '../stores/useAlertStore';
+    import {
+        getBiometricConfig,
+        isBiometricSupported,
+        loginWithBiometric,
+        syncBiometricSessionToken,
+        markSessionBiometricUnlocked
+    } from '../services/biometricAuth';
     import logoUrl from '../assets/somma-logo.svg';
 
     const { showAlert } = useAlertStore();
@@ -21,6 +28,37 @@
     const firstName = ref('');
     const lastName = ref('');  
     const phone = ref('');
+
+    const canUseBiometricLogin = ref(false);
+    const biometricEmail = ref('');
+    const biometricLoading = ref(false);
+
+    onMounted(async () => {
+        const cfg = getBiometricConfig();
+        const supported = await isBiometricSupported();
+        if (cfg?.enabled && supported) {
+            canUseBiometricLogin.value = true;
+            biometricEmail.value = cfg.email;
+        }
+    });
+
+    const handleBiometricLogin = async () => {
+        biometricLoading.value = true;
+        errorMessage.value = '';
+        try {
+            await loginWithBiometric();
+            showAlert('Autenticado com digital!', 'success');
+            setTimeout(() => {
+                router.push('/');
+            }, 100);
+        } catch (err: any) {
+            errorMessage.value = err?.name === 'NotAllowedError'
+                ? 'Leitura biométrica cancelada.'
+                : (err?.message || 'Não foi possível entrar com a digital.');
+        } finally {
+            biometricLoading.value = false;
+        }
+    };
 
     const switchMode = (signup: boolean) => {
         isSignUp.value = signup;
@@ -50,11 +88,15 @@
                 showAlert('Cadastro realizado! Verifique seu email para confirmar a conta.', 'success');
                 isSignUp.value = false;
             } else {
-                const { error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabase.auth.signInWithPassword({
                     email: cleanEmail,
                     password: password.value,
                 });
                 if (error) throw error;
+                if (data.session?.user) {
+                    syncBiometricSessionToken(data.session.user.id, data.session.refresh_token);
+                }
+                markSessionBiometricUnlocked();
                 showAlert('Login realizado com sucesso!', 'success');
                 
                 setTimeout(() => {
@@ -274,6 +316,23 @@
                             <PhArrowRight size="18" weight="bold" />
                         </template>
                     </button>
+
+                    <!-- Login rápido com Digital / Face ID no celular -->
+                    <template v-if="!isSignUp && canUseBiometricLogin">
+                        <div class="biometric-divider"><span>ou acesse rapidamente</span></div>
+                        <button
+                            type="button"
+                            class="biometric-btn"
+                            :disabled="biometricLoading"
+                            @click="handleBiometricLogin"
+                        >
+                            <PhFingerprint size="22" weight="duotone" />
+                            <div class="bio-btn-text">
+                                <strong>{{ biometricLoading ? 'Validando digital...' : 'Entrar com Digital / Face ID' }}</strong>
+                                <small>{{ biometricEmail }}</small>
+                            </div>
+                        </button>
+                    </template>
                 </form>
 
                 <div class="auth-footer">
@@ -734,6 +793,66 @@
         opacity: 0.6;
         cursor: not-allowed;
         box-shadow: none;
+    }
+
+    .biometric-divider {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        margin: 0.25rem 0;
+    }
+
+    .biometric-divider::before,
+    .biometric-divider::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: var(--border-color);
+    }
+
+    .biometric-btn {
+        width: 100%;
+        padding: 0.7rem 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        background: var(--primary-subtle);
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s ease;
+    }
+
+    .biometric-btn:hover:not(:disabled) {
+        background: rgba(99, 102, 241, 0.22);
+        border-color: var(--primary-color);
+    }
+
+    .biometric-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .bio-btn-text {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        line-height: 1.25;
+    }
+
+    .bio-btn-text strong {
+        font-size: 0.875rem;
+        color: var(--primary-color);
+    }
+
+    .bio-btn-text small {
+        font-size: 0.72rem;
+        color: var(--text-secondary);
     }
 
     .auth-footer {

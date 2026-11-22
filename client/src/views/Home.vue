@@ -5,7 +5,7 @@
     import {
         PhArrowDownLeft, PhArrowUpRight, PhChartBar, PhCreditCard,
         PhListDashes, PhReceipt, PhWifiHigh, PhShieldCheck, PhLockKey,
-        PhArrowsClockwise, PhX, PhCalendarCheck
+        PhArrowsClockwise, PhX, PhCalendarCheck, PhWhatsappLogo
     } from '@phosphor-icons/vue';
     import VueApexCharts from 'vue3-apexcharts';
     import type { ApexOptions } from 'apexcharts';
@@ -522,6 +522,25 @@
                 </div>
             </Transition>
         </Teleport>
+
+        <!-- Botão Flutuante Premium do Bot Somma no WhatsApp -->
+        <a
+            href="https://wa.me/5527997816701"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="whatsapp-fab"
+            title="Falar com o Bot Somma no WhatsApp"
+            aria-label="Abrir conversa com o Bot Somma no WhatsApp"
+        >
+            <span class="wa-icon-wrap">
+                <PhWhatsappLogo :size="24" weight="fill" />
+                <span class="wa-online-dot" aria-hidden="true"></span>
+            </span>
+            <span class="wa-label">
+                <strong>Somma Bot</strong>
+                <small>Lançar via WhatsApp</small>
+            </span>
+        </a>
     </div>
 </template>
 
@@ -1342,5 +1361,93 @@
 
 .stage-btn {
     flex: 1;
+}
+
+/* === BOTÃO FLUTUANTE WHATSAPP BOT (OBSIDIAN + EMERALD) === */
+.whatsapp-fab {
+    position: fixed;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    right: 24px;
+    z-index: 950;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 7px 14px 7px 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(18, 20, 28, 0.94) 0%, rgba(22, 34, 30, 0.96) 100%);
+    border: 1px solid rgba(37, 211, 102, 0.35);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 18px rgba(37, 211, 102, 0.18);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-decoration: none;
+    color: #F8FAFC;
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.whatsapp-fab:hover {
+    transform: translateY(-3px) scale(1.02);
+    border-color: rgba(37, 211, 102, 0.7);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(37, 211, 102, 0.32);
+}
+
+.wa-icon-wrap {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+}
+
+.wa-online-dot {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #4ADE80;
+    border: 2px solid #12141C;
+    box-shadow: 0 0 8px #4ADE80;
+}
+
+.wa-label {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.wa-label strong {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #F8FAFC;
+}
+
+.wa-label small {
+    font-size: 0.68rem;
+    color: #86EFAC;
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .whatsapp-fab {
+        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        padding: 6px;
+    }
+
+    .wa-label {
+        display: none;
+    }
+
+    .wa-icon-wrap {
+        width: 46px;
+        height: 46px;
+    }
 }
 </style>

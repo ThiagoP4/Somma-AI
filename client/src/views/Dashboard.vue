@@ -11,7 +11,6 @@
     PhTrendUp,
     PhTrendDown,
     PhArrowRight,
-    PhWhatsappLogo,
     PhCreditCard,
     PhPulse,
     PhLightning,
@@ -601,16 +600,6 @@
         </div>
       </div>
     </section>
-
-    <!-- Botão de WhatsApp Flutuante -->
-    <a 
-      href="https://wa.me/5527997816701" 
-      target="_blank" 
-      class="whatsapp-float"
-      title="Fale com nosso Bot"
-    >
-      <PhWhatsappLogo :size="28" weight="fill" />
-    </a>
   </div>
 </template>
 
@@ -1112,30 +1101,5 @@
     .stat-value {
       font-size: 1.45rem;
     }
-  }
-
-  /* Botão de WhatsApp Flutuante */
-  .whatsapp-float {
-    position: fixed;
-    width: 50px;
-    height: 50px;
-    bottom: 25px;
-    right: 25px;
-    background-color: #25d366;
-    color: #FFF;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.35);
-    z-index: 1000;
-    text-decoration: none;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .whatsapp-float:hover {
-    transform: translateY(-3px);
-    background-color: #1ed760;
-    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.45);
   }
 </style>

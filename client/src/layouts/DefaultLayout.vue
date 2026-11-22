@@ -1,5 +1,5 @@
 <script setup lang="ts">
-    import { ref, onMounted, computed } from 'vue';
+    import { ref, onMounted, onUnmounted, computed } from 'vue';
     import { useRoute } from 'vue-router';
     import {
         PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhCreditCard,
@@ -74,7 +74,16 @@
         await piggybankStore.fetchPiggybanks();
     };
 
+    const handleGlobalKeydown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            isSidebarOpen.value = false;
+            isDateDropdownOpen.value = false;
+            isVaultDropdownOpen.value = false;
+        }
+    };
+
     onMounted(async () => {
+        window.addEventListener('keydown', handleGlobalKeydown);
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark' || !savedTheme) {
             document.body.classList.add('dark');
@@ -89,6 +98,10 @@
             selectedCardIds.value = [profileStore.myCards[0].id_payment];
         }
     });
+
+    onUnmounted(() => {
+        window.removeEventListener('keydown', handleGlobalKeydown);
+    });
 </script>
 
 <template>
@@ -102,12 +115,18 @@
     <div class="main-column">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="hamburger-btn" @click="isSidebarOpen = true" title="Abrir menu">
+          <button
+            class="hamburger-btn"
+            @click="isSidebarOpen = true"
+            title="Abrir menu"
+            aria-label="Abrir menu de navegação"
+            :aria-expanded="isSidebarOpen"
+          >
             <PhList size="22" />
           </button>
-          <div class="breadcrumb">
+          <div class="breadcrumb" aria-label="Localização atual">
             <span class="bc-root">Somma</span>
-            <span class="bc-sep">/</span>
+            <span class="bc-sep" aria-hidden="true">/</span>
             <span class="bc-current">{{ currentSectionLabel }}</span>
           </div>
         </div>
@@ -123,6 +142,8 @@
               }"
               @click="isVaultDropdownOpen = !isVaultDropdownOpen"
               title="Status do Cofre Tailscale VPN"
+              aria-label="Status do Cofre Tailscale VPN"
+              :aria-expanded="isVaultDropdownOpen"
             >
               <span class="status-dot"></span>
               <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="16" weight="fill" />
@@ -188,7 +209,13 @@
 
           <!-- SELETOR DE MÊS / FATURA -->
           <div class="date-selector-container" ref="dateDropdownRef">
-            <button class="date-btn" :class="{ 'mode-invoice-active': filterMode === 'invoice' }" @click="isDateDropdownOpen = !isDateDropdownOpen">
+            <button
+              class="date-btn"
+              :class="{ 'mode-invoice-active': filterMode === 'invoice' }"
+              @click="isDateDropdownOpen = !isDateDropdownOpen"
+              aria-label="Selecionar mês ou fatura"
+              :aria-expanded="isDateDropdownOpen"
+            >
               <PhCalendarBlank size="16" v-if="filterMode === 'month'" />
               <PhCreditCard size="16" v-else />
               <span>{{ filterMode === 'month' ? monthNames[selectedMonth] + ' ' + selectedYear : 'Fatura • ' + monthNames[selectedMonth] }}</span>
@@ -767,18 +794,55 @@
     @media (max-width: 1024px) {
       .hamburger-btn {
         display: flex;
+        width: 40px;
+        height: 40px;
       }
       .topbar {
-        padding: 0 1.25rem;
+        padding: 0 1rem;
+        gap: 0.5rem;
+      }
+      .topbar-left {
+        min-width: 0;
+        flex: 1;
+      }
+      .breadcrumb {
+        min-width: 0;
+        overflow: hidden;
+      }
+      .bc-current {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .content-area {
-        padding: 1.5rem 1.25rem 5.5rem;
+        padding: 1.25rem 1rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
       }
     }
 
     @media (max-width: 640px) {
+      .bc-root,
+      .bc-sep,
       .vault-pill-text {
         display: none;
+      }
+      .vault-pill-btn {
+        padding: 0 0.65rem;
+        height: 38px;
+      }
+      .date-btn {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.8rem;
+        height: 38px;
+        white-space: nowrap;
+      }
+      .vault-dropdown,
+      .date-dropdown {
+        position: fixed;
+        top: 68px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: calc(100vw - 24px);
       }
     }
 </style>
