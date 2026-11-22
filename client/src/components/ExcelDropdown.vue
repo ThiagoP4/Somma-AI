@@ -110,12 +110,23 @@
     border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 20px;
-    width: 360px; /* Alargado para o texto não quebrar */
+    width: min(360px, calc(100vw - 24px));
     z-index: 99;
     box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+@media (max-width: 640px) {
+    .excel-dropdown {
+        position: fixed;
+        top: 76px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: calc(100vw - 24px);
+    }
 }
 
 .dropdown-header {

@@ -1917,27 +1917,59 @@
 
     @media (max-width: 640px) {
         .page-header h1 {
-            font-size: 1.4rem;
+            font-size: 1.35rem;
         }
         .hero-total-val {
-            font-size: 1.85rem;
+            font-size: 1.8rem;
         }
         .wealth-hero-card {
-            padding: 1.25rem;
+            padding: 1.2rem;
+        }
+        .hero-footer-stats {
+            grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+        .yield-pill {
+            white-space: normal;
+            line-height: 1.35;
+            border-radius: 12px;
         }
         .piggy-card {
-            padding: 1.15rem;
+            padding: 1.1rem;
         }
         .piggy-amount {
-            font-size: 1.5rem;
+            font-size: 1.45rem;
+        }
+        .piggy-metrics-box {
+            grid-template-columns: 1fr;
+            gap: 0.55rem;
+        }
+        .pm-col {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .pm-col.align-right {
+            text-align: left;
+        }
+        .yield-footer-row {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .btn-quick-reconcile {
+            width: 100%;
+            justify-content: center;
+            padding: 0.45rem 0.75rem;
         }
         .tabs-bar {
             width: 100%;
+            flex-wrap: wrap;
         }
         .tab-btn {
-            flex: 1;
+            flex: 1 1 auto;
             justify-content: center;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             padding: 0.55rem 0.6rem;
         }
         .yield-pills-stack {

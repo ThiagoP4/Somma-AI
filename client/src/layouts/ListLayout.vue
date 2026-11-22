@@ -149,13 +149,14 @@
         .button-wrapper {
             width: 100%;
             gap: 0.5rem;
+            flex-wrap: wrap;
         }
 
         .button-wrapper :deep(button) {
-            flex: 1 1 0;
+            flex: 1 1 auto;
             min-width: 0;
-            padding: 0.6rem 0.75rem;
-            font-size: 0.85rem;
+            padding: 0.55rem 0.7rem;
+            font-size: 0.82rem;
             height: 38px;
         }
     }

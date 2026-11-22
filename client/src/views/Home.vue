@@ -1014,6 +1014,12 @@
     .balance-details {
         grid-template-columns: 1fr;
     }
+    .card {
+        padding: 1.25rem;
+    }
+    .stage-actions {
+        flex-direction: column;
+    }
 }
 
 /* =========================================

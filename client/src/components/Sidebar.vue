@@ -8,6 +8,7 @@
     import { useRouter, useRoute } from 'vue-router';
     import { storeToRefs } from 'pinia';
     import { supabase } from '../services/supabase';
+    import { isBiometricEnabled } from '../services/biometricAuth';
     import { useProfileStore } from '../stores/useProfileStore';
     import logoUrl from '../assets/somma-logo.svg';
 
@@ -40,7 +41,13 @@
     const handleLogout = async () => {
         try {
             emit('close');
-            await supabase.auth.signOut();
+            // Se a biometria está ativa neste aparelho, faz logout 'local' para manter o refresh_token válido no servidor
+            // e permitir voltar imediatamente clicando em "Entrar com Digital / Face ID" na tela /login!
+            if (isBiometricEnabled()) {
+                await supabase.auth.signOut({ scope: 'local' });
+            } else {
+                await supabase.auth.signOut();
+            }
         } catch (error) {
             console.error('Erro ao fazer logout:', error);
         }

@@ -1209,20 +1209,32 @@ const formatQty = (qty: number, cls: AssetClass) => {
 
 @media (max-width: 640px) {
     .var-hero-card {
-        padding: 1.25rem;
+        padding: 1.2rem;
     }
     .hero-total-val {
-        font-size: 1.85rem;
+        font-size: 1.8rem;
     }
     .var-kpi-strip {
         grid-template-columns: 1fr;
         gap: 0.75rem;
     }
     .asset-card {
-        padding: 1.15rem;
+        padding: 1.1rem;
     }
     .pos-val {
         font-size: 1.35rem;
+    }
+    .asset-metrics-box {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    .am-col {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .am-col.align-right {
+        text-align: left;
     }
     .icon-btn {
         width: 36px;

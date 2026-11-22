@@ -2,6 +2,7 @@
 import DefaultLayout from './layouts/DefaultLayout.vue'
 import CustomAlert from './components/CustomAlert.vue';
 import BiometricLockScreen from './components/BiometricLockScreen.vue';
+import UpdateBanner from './components/UpdateBanner.vue';
 import { RouterView, useRouter, useRoute } from 'vue-router'; 
 import { ref, onMounted } from 'vue';
 import { supabase } from './services/supabase';
@@ -44,6 +45,7 @@ onMounted(async () => {
   <DefaultLayout>
     <RouterView />
   </DefaultLayout>
+  <UpdateBanner />
   <CustomAlert />
 </template>
 

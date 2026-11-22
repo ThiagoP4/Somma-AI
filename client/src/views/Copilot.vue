@@ -936,4 +936,20 @@
             height: 520px;
         }
     }
+
+    @media (max-width: 640px) {
+        .verdict-metrics {
+            grid-template-columns: 1fr;
+            gap: 0.6rem;
+        }
+        .sim-row,
+        .sim-compare {
+            grid-template-columns: 1fr !important;
+        }
+        .copilot-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+    }
 </style>

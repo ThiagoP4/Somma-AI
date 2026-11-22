@@ -10,6 +10,7 @@
     import {
         getBiometricConfig,
         isBiometricSupported,
+        registerBiometricForCurrentUser,
         loginWithBiometric,
         syncBiometricSessionToken,
         markSessionBiometricUnlocked
@@ -30,27 +31,53 @@
     const phone = ref('');
 
     const canUseBiometricLogin = ref(false);
+    const deviceSupportsBiometric = ref(false);
+    const showBiometricPrompt = ref(false);
     const biometricEmail = ref('');
     const biometricLoading = ref(false);
 
     onMounted(async () => {
         const cfg = getBiometricConfig();
         const supported = await isBiometricSupported();
+        deviceSupportsBiometric.value = supported;
         if (cfg?.enabled && supported) {
             canUseBiometricLogin.value = true;
             biometricEmail.value = cfg.email;
         }
     });
 
+    const handleActivateBiometricAfterLogin = async () => {
+        biometricLoading.value = true;
+        try {
+            await registerBiometricForCurrentUser(true);
+            showAlert('Digital ativada! Nas próximas vezes, entre apenas encostando o dedo.', 'success');
+        } catch (err: any) {
+            showAlert(
+                err?.name === 'NotAllowedError'
+                    ? 'Cadastro da digital cancelado. Você pode ativar depois nas Configurações.'
+                    : (err?.message || 'Não foi possível ativar a digital agora.'),
+                'warning'
+            );
+        } finally {
+            biometricLoading.value = false;
+            showBiometricPrompt.value = false;
+            await router.replace('/');
+        }
+    };
+
+    const handleSkipBiometricPrompt = async () => {
+        showBiometricPrompt.value = false;
+        await router.replace('/');
+    };
+
     const handleBiometricLogin = async () => {
         biometricLoading.value = true;
         errorMessage.value = '';
         try {
             await loginWithBiometric();
+            localStorage.setItem('lastActivity', Date.now().toString());
             showAlert('Autenticado com digital!', 'success');
-            setTimeout(() => {
-                router.push('/');
-            }, 100);
+            await router.replace('/');
         } catch (err: any) {
             errorMessage.value = err?.name === 'NotAllowedError'
                 ? 'Leitura biométrica cancelada.'
@@ -96,12 +123,18 @@
                 if (data.session?.user) {
                     syncBiometricSessionToken(data.session.user.id, data.session.refresh_token);
                 }
+                localStorage.setItem('lastActivity', Date.now().toString());
                 markSessionBiometricUnlocked();
+
+                // Se o aparelho suporta digital/Face ID e ainda não está ativado, pergunta na hora (estilo Nubank/Inter)!
+                const existingBio = getBiometricConfig();
+                if (deviceSupportsBiometric.value && !existingBio?.enabled) {
+                    showBiometricPrompt.value = true;
+                    return;
+                }
+
                 showAlert('Login realizado com sucesso!', 'success');
-                
-                setTimeout(() => {
-                    router.push('/');
-                }, 100);
+                await router.replace('/');
             }
         } catch (error) {
             console.error('Erro de autenticação:', error);
@@ -345,6 +378,38 @@
                 </div>
             </div>
         </main>
+
+        <!-- Prompt Instantâneo Pós-Login: Ativar Digital / Face ID -->
+        <div v-if="showBiometricPrompt" class="bio-prompt-overlay" role="dialog" aria-modal="true" aria-label="Ativar login por digital">
+            <div class="bio-prompt-card">
+                <div class="bio-prompt-icon">
+                    <PhFingerprint size="40" weight="duotone" />
+                </div>
+                <h3>Ativar login com Digital / Face ID?</h3>
+                <p>
+                    Da próxima vez que abrir o Somma neste aparelho, você entra em 1 segundo sem precisar digitar e-mail e senha.
+                </p>
+                <div class="bio-prompt-actions">
+                    <button
+                        type="button"
+                        class="submit-btn"
+                        :disabled="biometricLoading"
+                        @click="handleActivateBiometricAfterLogin"
+                    >
+                        <PhFingerprint size="20" weight="bold" />
+                        <span>{{ biometricLoading ? 'Aguardando sensor...' : 'Ativar Digital Agora' }}</span>
+                    </button>
+                    <button
+                        type="button"
+                        class="btn-skip-bio"
+                        :disabled="biometricLoading"
+                        @click="handleSkipBiometricPrompt"
+                    >
+                        Agora não, ir para o app
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -853,6 +918,86 @@
     .bio-btn-text small {
         font-size: 0.72rem;
         color: var(--text-secondary);
+    }
+
+    /* Prompt Pós-Login de Biometria */
+    .bio-prompt-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(9, 10, 15, 0.78);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+    }
+
+    .bio-prompt-card {
+        width: 100%;
+        max-width: 390px;
+        background: var(--bg-card);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        border-radius: 20px;
+        padding: 2rem 1.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.85rem;
+        box-shadow: var(--shadow-md);
+    }
+
+    .bio-prompt-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: var(--primary-subtle);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .bio-prompt-card h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        color: var(--text-primary);
+    }
+
+    .bio-prompt-card p {
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.45;
+        color: var(--text-secondary);
+    }
+
+    .bio-prompt-actions {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+    }
+
+    .btn-skip-bio {
+        width: 100%;
+        padding: 0.65rem;
+        border-radius: 10px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+        font-family: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-skip-bio:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
     }
 
     .auth-footer {

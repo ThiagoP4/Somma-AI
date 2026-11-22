@@ -987,7 +987,8 @@
     @media (max-width: 960px) {
         .couple-kpis,
         .couple-main-grid,
-        .setup-inputs {
+        .setup-inputs,
+        .form-row-2 {
             grid-template-columns: 1fr;
         }
     }

@@ -13,7 +13,8 @@
         getBiometricConfig,
         registerBiometricForCurrentUser,
         setAppLockOnStart,
-        disableBiometric
+        disableBiometric,
+        verifyBiometric
     } from '../services/biometricAuth';
 
     const vaultStore = useVaultStore();
@@ -73,6 +74,17 @@
         disableBiometric();
         biometricEnabled.value = false;
         showAlert('Login por digital desativado neste aparelho.', 'success');
+    };
+
+    const handleTestBiometricNow = async () => {
+        try {
+            const ok = await verifyBiometric();
+            if (ok) {
+                showAlert('Digital validada com sucesso pelo chip de segurança do aparelho!', 'success');
+            }
+        } catch (err: any) {
+            showAlert(err?.message || 'Teste biométrico cancelado ou indisponível.', 'warning');
+        }
     };
 
     const handleToggleBiometricAppLock = () => {
@@ -375,15 +387,24 @@
                             <PhFingerprint size="18" weight="bold" />
                             {{ biometricBusy ? 'Aguardando sensor...' : 'Cadastrar Digital deste Aparelho' }}
                         </button>
-                        <button
-                            v-else
-                            type="button"
-                            class="btn-outline danger-outline"
-                            @click="handleDisableBiometric"
-                        >
-                            <PhTrash size="17" />
-                            Desativar Digital neste Aparelho
-                        </button>
+                        <template v-else>
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                @click="handleTestBiometricNow"
+                            >
+                                <PhFingerprint size="17" />
+                                Testar Digital Agora
+                            </button>
+                            <button
+                                type="button"
+                                class="btn-outline danger-outline"
+                                @click="handleDisableBiometric"
+                            >
+                                <PhTrash size="17" />
+                                Desativar Digital neste Aparelho
+                            </button>
+                        </template>
                     </div>
                 </div>
             </section>

@@ -82,7 +82,7 @@ const router = createRouter({
     ]
 });
 
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to, from, next) => {
     const { data: { session }, error } = await supabase.auth.getSession();
     const isAuthenticated = !!session;
 
@@ -95,7 +95,8 @@ router.beforeEach(async (to, _from, next) => {
         const lastActivity = localStorage.getItem('lastActivity');
         const now = Date.now();
 
-        if (lastActivity && (now - parseInt(lastActivity)) > INACTIVITY_TIMEOUT) {
+        // Se o usuário acabou de sair da tela /login, nunca aplica o timeout antigo de 24h!
+        if (from.path !== '/login' && lastActivity && (now - parseInt(lastActivity)) > INACTIVITY_TIMEOUT) {
             await supabase.auth.signOut();
             localStorage.removeItem('lastActivity');
             return next('/login');

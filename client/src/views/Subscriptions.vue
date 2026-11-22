@@ -963,4 +963,10 @@
             grid-template-columns: 1fr;
         }
     }
+
+    @media (max-width: 640px) {
+        .form-row-2 {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
