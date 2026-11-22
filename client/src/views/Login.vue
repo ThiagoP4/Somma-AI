@@ -4,9 +4,11 @@
     import { supabase } from '../services/supabase';
     import {
         PhEnvelope, PhLockKey, PhArrowRight, PhUser, PhPhone,
-        PhEye, PhEyeSlash, PhSparkle, PhShieldCheck, PhChartLineUp, PhCheckCircle, PhFingerprint
+        PhEye, PhEyeSlash, PhSparkle, PhShieldCheck, PhChartLineUp, PhCheckCircle, PhFingerprint,
+        PhDeviceMobile, PhDownloadSimple
     } from '@phosphor-icons/vue';
     import { useAlertStore } from '../stores/useAlertStore';
+    import { useAppDownload } from '../composables/useAppDownload';
     import {
         getBiometricConfig,
         isBiometricSupported,
@@ -18,6 +20,7 @@
     import logoUrl from '../assets/somma-logo.svg';
 
     const { showAlert } = useAlertStore();
+    const { isWebBrowser, latestVersion, apkDownloadUrl, deferredPwaPrompt, installPwa } = useAppDownload();
 
     const router = useRouter();
     const loading = ref(false);
@@ -375,6 +378,38 @@
                             {{ isSignUp ? 'Fazer login' : 'Cadastre-se gratuitamente' }}
                         </a>
                     </p>
+                </div>
+
+                <!-- Card de Download Direto do App (Visível apenas quando aberto pelo site) -->
+                <div v-if="isWebBrowser" class="app-download-card">
+                    <div class="adc-left">
+                        <div class="adc-icon">
+                            <PhDeviceMobile size="20" weight="duotone" />
+                        </div>
+                        <div class="adc-info">
+                            <strong>Baixar App Somma AI</strong>
+                            <span>Android APK ({{ latestVersion }}) • Download direto</span>
+                        </div>
+                    </div>
+                    <div class="adc-actions">
+                        <a
+                            :href="apkDownloadUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="adc-btn"
+                        >
+                            <PhDownloadSimple size="15" weight="bold" />
+                            <span>APK</span>
+                        </a>
+                        <button
+                            v-if="deferredPwaPrompt"
+                            type="button"
+                            class="adc-btn pwa-btn"
+                            @click="installPwa"
+                        >
+                            Instalar PWA
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -998,6 +1033,88 @@
     .btn-skip-bio:hover {
         background: var(--bg-hover);
         color: var(--text-primary);
+    }
+
+    /* Card de Download Direto do App na Tela de Login */
+    .app-download-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.8rem 0.95rem;
+        border-radius: 14px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        margin-top: 0.25rem;
+    }
+
+    .adc-left {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-width: 0;
+    }
+
+    .adc-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--primary-subtle);
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .adc-info {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        min-width: 0;
+    }
+
+    .adc-info strong {
+        font-size: 0.82rem;
+        color: var(--text-primary);
+    }
+
+    .adc-info span {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .adc-actions {
+        display: flex;
+        gap: 0.4rem;
+        flex-shrink: 0;
+    }
+
+    .adc-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 0.45rem 0.75rem;
+        border-radius: 9px;
+        background: var(--primary-color);
+        color: white;
+        text-decoration: none;
+        border: none;
+        font-family: inherit;
+        font-size: 0.75rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .adc-btn:hover {
+        background: var(--primary-hover);
+    }
+
+    .adc-btn.pwa-btn {
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
     }
 
     .auth-footer {

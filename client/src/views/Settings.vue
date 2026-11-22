@@ -473,7 +473,7 @@
 
     .settings-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 1.25rem;
         align-items: start;
     }
@@ -487,11 +487,15 @@
         display: flex;
         flex-direction: column;
         gap: 1.35rem;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .card-top {
         display: flex;
         align-items: flex-start;
+        flex-wrap: wrap;
         gap: 0.85rem;
         padding-bottom: 1rem;
         border-bottom: 1px solid var(--border-subtle);
@@ -524,6 +528,7 @@
 
     .card-titles {
         flex: 1;
+        min-width: 0;
     }
 
     .card-titles h2 {
@@ -593,6 +598,8 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+        min-width: 0;
+        flex: 1;
     }
 
     .toggle-info strong {
@@ -737,14 +744,36 @@
 
     @media (max-width: 1024px) {
         .settings-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
         }
     }
 
     @media (max-width: 640px) {
+        .page-header h1 {
+            font-size: 1.4rem;
+        }
+        .page-header .btn-primary {
+            width: 100%;
+        }
+        .settings-card {
+            padding: 1.15rem;
+        }
         .row-2,
         .theme-cards-row {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .settings-card input,
+        .settings-card select {
+            width: 100%;
+            min-width: 0;
+        }
+        .data-buttons,
+        .card-actions-bar {
+            flex-direction: column;
+        }
+        .data-buttons button,
+        .card-actions-bar button {
+            width: 100%;
         }
     }
 </style>

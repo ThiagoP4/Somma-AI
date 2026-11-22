@@ -9,6 +9,7 @@ export interface BiometricConfig {
     credentialId: string; // base64url
     email: string;
     userId: string;
+    accessToken?: string;
     refreshToken?: string;
     registeredAt: string;
 }
@@ -75,11 +76,12 @@ export const isBiometricSupported = async (): Promise<boolean> => {
     }
 };
 
-// Mantém o refresh_token da biometria sempre sincronizado quando o Supabase renova a sessão em segundo plano
-export const syncBiometricSessionToken = (userId: string, refreshToken?: string | null) => {
+// Mantém o refresh_token e access_token da biometria sempre sincronizados quando o Supabase renova a sessão em segundo plano
+export const syncBiometricSessionToken = (userId: string, refreshToken?: string | null, accessToken?: string | null) => {
     const cfg = getBiometricConfig();
-    if (!cfg || cfg.userId !== userId || !refreshToken) return;
-    cfg.refreshToken = refreshToken;
+    if (!cfg || cfg.userId !== userId) return;
+    if (refreshToken) cfg.refreshToken = refreshToken;
+    if (accessToken) cfg.accessToken = accessToken;
     localStorage.setItem(BIOMETRIC_STORAGE_KEY, JSON.stringify(cfg));
 };
 
@@ -138,6 +140,7 @@ export const registerBiometricForCurrentUser = async (appLockOnStart = true): Pr
         credentialId: bufferToBase64Url(credential.rawId),
         email: userEmail,
         userId,
+        accessToken: session.access_token,
         refreshToken: session.refresh_token,
         registeredAt: new Date().toISOString()
     };
@@ -162,6 +165,7 @@ export const verifyBiometric = async (): Promise<boolean> => {
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const credIdBytes = base64UrlToUint8Array(cfg.credentialId);
 
+    // Não restringe `transports: ['internal']` porque Passkeys do Android 14+ usam ['internal', 'hybrid']
     const assertion = await navigator.credentials.get({
         publicKey: {
             challenge,
@@ -169,8 +173,7 @@ export const verifyBiometric = async (): Promise<boolean> => {
             allowCredentials: [
                 {
                     id: credIdBytes as BufferSource,
-                    type: 'public-key',
-                    transports: ['internal']
+                    type: 'public-key'
                 }
             ],
             userVerification: 'required',
@@ -198,24 +201,41 @@ export const loginWithBiometric = async (): Promise<{ email: string }> => {
     // 1. Se já houver sessão ativa do Supabase, apenas libera
     const { data: current } = await supabase.auth.getSession();
     if (current.session?.user) {
-        syncBiometricSessionToken(current.session.user.id, current.session.refresh_token);
+        syncBiometricSessionToken(current.session.user.id, current.session.refresh_token, current.session.access_token);
         return { email: cfg.email };
     }
 
-    // 2. Caso o usuário tenha clicado em Sair antes, restaura a sessão pelo refresh_token salvo após a digital ser validada pelo hardware
+    // 2. Caso o usuário tenha clicado em Sair antes, restaura a sessão pelo refresh_token / access_token salvo
     if (!cfg.refreshToken) {
         throw new Error('Sessão expirada. Entre com e-mail e senha uma vez para renovar sua digital.');
     }
 
-    const { data, error } = await supabase.auth.refreshSession({
+    let restoredSession = null;
+
+    // Tenta primeiro via refreshSession (renova o par de tokens no Supabase)
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession({
         refresh_token: cfg.refreshToken
     });
 
-    if (error || !data.session) {
+    if (!refreshErr && refreshed?.session) {
+        restoredSession = refreshed.session;
+    } else if (cfg.accessToken) {
+        // Fallback: setSession com o último access_token + refresh_token
+        const { data: setRes, error: setErr } = await supabase.auth.setSession({
+            access_token: cfg.accessToken,
+            refresh_token: cfg.refreshToken
+        });
+        if (!setErr && setRes?.session) {
+            restoredSession = setRes.session;
+        }
+    }
+
+    if (!restoredSession) {
+        console.error('[BiometricLogin] Falha ao restaurar sessão:', refreshErr);
         throw new Error('Sua sessão expirou por segurança. Entre com e-mail e senha uma vez para renovar a biometria.');
     }
 
-    syncBiometricSessionToken(data.session.user.id, data.session.refresh_token);
+    syncBiometricSessionToken(restoredSession.user.id, restoredSession.refresh_token, restoredSession.access_token);
     return { email: cfg.email };
 };
 

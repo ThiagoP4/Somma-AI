@@ -3,13 +3,14 @@
     import { 
         PhX, PhMoon, PhSun, PhHeart, 
         PhArrowsClockwise, PhGear, PhQuestion, PhInfo, PhSignOut,
-        PhHouse, PhFolders, PhTrendUp, PhSparkle, PhChartBar
+        PhHouse, PhFolders, PhTrendUp, PhSparkle, PhChartBar, PhDeviceMobile, PhDownloadSimple
     } from '@phosphor-icons/vue';
     import { useRouter, useRoute } from 'vue-router';
     import { storeToRefs } from 'pinia';
     import { supabase } from '../services/supabase';
     import { isBiometricEnabled } from '../services/biometricAuth';
     import { useProfileStore } from '../stores/useProfileStore';
+    import { useAppDownload } from '../composables/useAppDownload';
     import logoUrl from '../assets/somma-logo.svg';
 
     defineProps<{ isOpen: boolean }>();
@@ -19,6 +20,7 @@
 
     const profileStore = useProfileStore();
     const { userName, avatarUrl } = storeToRefs(profileStore);
+    const { isWebBrowser, latestVersion, apkDownloadUrl } = useAppDownload();
 
     const navigateTo = (path: string) => {
         emit('close');
@@ -203,6 +205,26 @@
                     </button>
                 </nav>
             </div>
+        </div>
+
+        <!-- Banner Discreto de Download do App Android (apenas quando aberto no navegador) -->
+        <div v-if="isWebBrowser" class="sidebar-download-wrap">
+            <a
+                :href="apkDownloadUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="sidebar-download-card"
+                title="Baixar APK Android do Somma AI"
+            >
+                <div class="sd-icon">
+                    <PhDeviceMobile size="18" weight="duotone" />
+                </div>
+                <div class="sd-text">
+                    <strong>Baixar App Android</strong>
+                    <span>APK Direto • {{ latestVersion }}</span>
+                </div>
+                <PhDownloadSimple size="16" weight="bold" class="sd-arrow" />
+            </a>
         </div>
 
         <!-- Rodapé: Perfil do Usuário + Logout -->
@@ -504,6 +526,66 @@
 
     .switch.active .switch-thumb {
         transform: translateX(16px);
+    }
+
+    /* === DOWNLOAD APP BANNER (WEB ONLY) === */
+    .sidebar-download-wrap {
+        padding: 0 0.85rem 0.75rem;
+    }
+
+    .sidebar-download-card {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.6rem 0.75rem;
+        border-radius: 11px;
+        background: var(--primary-subtle);
+        border: 1px solid rgba(99, 102, 241, 0.25);
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: all 0.15s ease;
+    }
+
+    .sidebar-download-card:hover {
+        background: rgba(99, 102, 241, 0.22);
+        border-color: var(--primary-color);
+        transform: translateY(-1px);
+    }
+
+    .sd-icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--primary-color);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .sd-text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        line-height: 1.25;
+    }
+
+    .sd-text strong {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .sd-text span {
+        font-size: 0.68rem;
+        color: var(--text-secondary);
+    }
+
+    .sd-arrow {
+        color: var(--primary-color);
+        flex-shrink: 0;
     }
 
     /* === RODAPÉ DO USUÁRIO === */

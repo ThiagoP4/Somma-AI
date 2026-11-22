@@ -20,7 +20,7 @@ const isBiometricLocked = ref(false);
 onMounted(async () => {
   const { data } = await supabase.auth.getSession();
   if (data.session?.user) {
-    syncBiometricSessionToken(data.session.user.id, data.session.refresh_token);
+    syncBiometricSessionToken(data.session.user.id, data.session.refresh_token, data.session.access_token);
     if (isAppLockEnabled() && !isSessionBiometricUnlocked() && route.path !== '/login') {
       isBiometricLocked.value = true;
     }
@@ -28,7 +28,7 @@ onMounted(async () => {
 
   supabase.auth.onAuthStateChange((event, session) => {
     if (session?.user && session.refresh_token) {
-      syncBiometricSessionToken(session.user.id, session.refresh_token);
+      syncBiometricSessionToken(session.user.id, session.refresh_token, session.access_token);
     }
     if (event === 'SIGNED_OUT' && !session) {
       clearSessionBiometricUnlocked();

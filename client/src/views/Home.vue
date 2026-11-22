@@ -577,6 +577,7 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-wrap: wrap;
 }
 
 .dashboard-grid {
@@ -1008,6 +1009,15 @@
 }
 
 @media (max-width: 768px) {
+    .home-header h1 {
+        font-size: 1.45rem;
+    }
+    .header-actions {
+        width: 100%;
+    }
+    .header-actions button {
+        flex: 1 1 140px;
+    }
     .balance-amount {
         font-size: 2rem;
     }

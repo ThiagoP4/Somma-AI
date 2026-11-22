@@ -29,11 +29,12 @@
     const { showAlert } = useAlertStore();
 
     const STORAGE_KEY = 'somma_couple_mode_v1';
+    const isMockMode = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
 
-    const partnerName = ref('Marina');
-    const splitMethod = ref<'proportional' | 'equal'>('proportional');
-    const userIncome = ref(8500);
-    const partnerIncome = ref(5500);
+    const partnerName = ref(isMockMode ? 'Parceiro(a)' : 'Parceiro(a)');
+    const splitMethod = ref<'proportional' | 'equal'>('equal');
+    const userIncome = ref(0);
+    const partnerIncome = ref(0);
 
     const isEditingSetup = ref(false);
     const isAddExpenseOpen = ref(false);
@@ -46,55 +47,8 @@
         date: new Date().toISOString().split('T')[0] || ''
     });
 
-    const sharedExpenses = ref<SharedExpense[]>([
-        {
-            id: 'ce-1',
-            title: 'Aluguel + Condomínio',
-            category: 'Moradia & Contas',
-            amount: 2800.00,
-            paidBy: 'user',
-            date: '2026-11-05'
-        },
-        {
-            id: 'ce-2',
-            title: 'Compras do Mês (Supermercado)',
-            category: 'Supermercado',
-            amount: 1150.00,
-            paidBy: 'partner',
-            date: '2026-11-08'
-        },
-        {
-            id: 'ce-3',
-            title: 'Energia Elétrica + Internet Fibra',
-            category: 'Moradia & Contas',
-            amount: 340.00,
-            paidBy: 'user',
-            date: '2026-11-12'
-        },
-        {
-            id: 'ce-4',
-            title: 'Jantar Aniversário de Namoro',
-            category: 'Lazer a Dois',
-            amount: 390.00,
-            paidBy: 'partner',
-            date: '2026-11-15'
-        }
-    ]);
-
-    const coupleGoals = ref<CoupleGoal[]>([
-        {
-            id: 'cg-1',
-            title: 'Viagem de Férias (Itália 2027)',
-            current: 12400,
-            target: 25000
-        },
-        {
-            id: 'cg-2',
-            title: 'Fundo Reforma do Apartamento',
-            current: 8500,
-            target: 15000
-        }
-    ]);
+    const sharedExpenses = ref<SharedExpense[]>([]);
+    const coupleGoals = ref<CoupleGoal[]>([]);
 
     const saveCoupleState = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -523,6 +477,7 @@
     .header-actions {
         display: flex;
         gap: 0.75rem;
+        flex-wrap: wrap;
     }
 
     /* === DRAWER DE CONFIGURAÇÃO DE DIVISÃO === */
@@ -989,7 +944,33 @@
         .couple-main-grid,
         .setup-inputs,
         .form-row-2 {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .page-header h1 {
+            font-size: 1.4rem;
+        }
+        .header-actions {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+        .header-actions button {
+            flex: 1 1 140px;
+        }
+        .mode-switcher {
+            width: 100%;
+            flex-wrap: wrap;
+        }
+        .mode-btn {
+            flex: 1;
+        }
+        .couple-card,
+        .setup-drawer {
+            padding: 1.15rem;
+            min-width: 0;
+            overflow: hidden;
         }
     }
 </style>

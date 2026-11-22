@@ -108,6 +108,8 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions.value));
     };
 
+    const isMockMode = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
+
     onMounted(async () => {
         if (myCards.value.length === 0) {
             await profileStore.fetchProfileData();
@@ -117,11 +119,11 @@
             try {
                 subscriptions.value = JSON.parse(saved);
             } catch {
-                subscriptions.value = [...defaultSubscriptions];
+                subscriptions.value = isMockMode ? [...defaultSubscriptions] : [];
             }
         } else {
-            subscriptions.value = [...defaultSubscriptions];
-            saveToStorage();
+            subscriptions.value = isMockMode ? [...defaultSubscriptions] : [];
+            if (isMockMode) saveToStorage();
         }
     });
 
