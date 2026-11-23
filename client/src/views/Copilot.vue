@@ -13,7 +13,8 @@
     import { useFilterStore } from '../stores/useFilterStore';
     import {
         buildZeroKnowledgeDiagnostics,
-        extractMentionedPurchaseImpact
+        extractMentionedPurchaseImpact,
+        type FutureMonthCommittedInput
     } from '../utils/financialDiagnostics';
 
     const profileStore = useProfileStore();
@@ -43,11 +44,30 @@
     const monthlyDirectExpenses = ref(0);
     const monthlyCreditCardInvoice = ref(0);
     const monthlySubscriptions = ref(0);
+    const last3MonthsAvgTotalSpend = ref(0);
+    const last3MonthsAvgDiscretionarySpend = ref(0);
+    const next3MonthsCommitted = ref<FutureMonthCommittedInput[]>([]);
+    const monthDayProgressPct = ref(50);
+
+    const PT_MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
     const loadFinancialContext = async () => {
         try {
-            const startOfMonth = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
-            const endOfMonth = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
+            const selY = selectedYear.value;
+            const selM = selectedMonth.value;
+            const startOfMonth = new Date(selY, selM, 1).toISOString().split('T')[0];
+            const endOfMonth = new Date(selY, selM + 1, 0).toISOString().split('T')[0];
+
+            // Progresso do mês (ex: dia 22/30 = 73.3%; se for mês passado = 100%, se futuro = 5%)
+            const now = new Date();
+            const daysInSelMonth = new Date(selY, selM + 1, 0).getDate();
+            if (selY < now.getFullYear() || (selY === now.getFullYear() && selM < now.getMonth())) {
+                monthDayProgressPct.value = 100;
+            } else if (selY > now.getFullYear() || (selY === now.getFullYear() && selM > now.getMonth())) {
+                monthDayProgressPct.value = 5;
+            } else {
+                monthDayProgressPct.value = Math.round((now.getDate() / daysInSelMonth) * 1000) / 10;
+            }
 
             const { data: inc } = await supabase
                 .from('fin_income')
@@ -58,33 +78,88 @@
 
             monthlyIncomes.value = (inc || []).reduce((acc: number, c: any) => acc + Number(c.value), 0);
 
-            const { data: exp } = await supabase
+            // Busca uma janela de 7 meses (3 anteriores + atual + 3 futuros) em 1 única consulta
+            const startWindow = new Date(selY, selM - 3, 1).toISOString().split('T')[0];
+            const endWindow = new Date(selY, selM + 4, 0).toISOString().split('T')[0];
+
+            const { data: allExp } = await supabase
                 .from('fin_installment')
-                .select('value, fin_purchase ( payment_id, usr_payment ( id_payment, closing_day ), fin_category ( description ) )')
-                .gte('dueDate', startOfMonth)
-                .lte('dueDate', endOfMonth);
+                .select('value, dueDate, installmentNumber, fin_purchase ( payment_id, total_installments, usr_payment ( id_payment, closing_day ), fin_category ( description ) )')
+                .gte('dueDate', startWindow)
+                .lte('dueDate', endWindow);
 
             let directTotal = 0;
             let creditCardTotal = 0;
             const catMap: Record<string, number> = {};
 
-            for (const item of (exp || []) as any[]) {
-                const val = Number(item.value || 0);
-                const isCreditCard = Boolean(item?.fin_purchase?.payment_id || item?.fin_purchase?.usr_payment);
-                if (isCreditCard) {
-                    creditCardTotal += val;
-                } else {
-                    directTotal += val;
-                }
+            // Mapas para os últimos 3 meses (tendência) e próximos 3 meses (compromissos futuros)
+            const prevKeys: string[] = [];
+            for (let offset = -3; offset <= -1; offset++) {
+                const d = new Date(selY, selM + offset, 1);
+                prevKeys.push(`${d.getFullYear()}-${d.getMonth()}`);
+            }
+            const prevTotalMap: Record<string, number> = {};
+            const prevDiscretionaryMap: Record<string, number> = {};
 
-                const catName = item?.fin_purchase?.fin_category?.description || 'Outros';
-                catMap[catName] = (catMap[catName] || 0) + val;
+            const futureMonths: Array<{ key: string; label: string; total: number }> = [];
+            for (let offset = 1; offset <= 3; offset++) {
+                const d = new Date(selY, selM + offset, 1);
+                const key = `${d.getFullYear()}-${d.getMonth()}`;
+                const label = `${PT_MONTH_SHORT[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
+                futureMonths.push({ key, label, total: 0 });
+            }
+
+            const currentMonthKey = `${selY}-${selM}`;
+
+            for (const item of (allExp || []) as any[]) {
+                const val = Number(item.value || 0);
+                if (!item.dueDate) continue;
+                const d = new Date(item.dueDate);
+                if (Number.isNaN(d.getTime())) continue;
+                const key = `${d.getFullYear()}-${d.getMonth()}`;
+
+                if (key === currentMonthKey) {
+                    const isCreditCard = Boolean(item?.fin_purchase?.payment_id || item?.fin_purchase?.usr_payment);
+                    if (isCreditCard) {
+                        creditCardTotal += val;
+                    } else {
+                        directTotal += val;
+                    }
+                    const catName = item?.fin_purchase?.fin_category?.description || 'Outros';
+                    catMap[catName] = (catMap[catName] || 0) + val;
+                } else if (prevKeys.includes(key)) {
+                    prevTotalMap[key] = (prevTotalMap[key] || 0) + val;
+                    // Gastos avulsos/rotineiros (1x ou parcela 1) para estimar consumo típico sem duplicar parcelas antigas
+                    const totalInst = Number(item?.fin_purchase?.total_installments || 1);
+                    if (totalInst <= 1) {
+                        prevDiscretionaryMap[key] = (prevDiscretionaryMap[key] || 0) + val;
+                    }
+                } else {
+                    const fut = futureMonths.find(f => f.key === key);
+                    if (fut) {
+                        fut.total += val;
+                    }
+                }
             }
 
             monthlyDirectExpenses.value = directTotal;
             monthlyCreditCardInvoice.value = creditCardTotal;
             monthlyExpenses.value = directTotal + creditCardTotal;
             categoryTotals.value = catMap;
+
+            const activePrevMonths = prevKeys.filter(k => (prevTotalMap[k] || 0) > 0);
+            const denom = activePrevMonths.length || 1;
+            last3MonthsAvgTotalSpend.value = activePrevMonths.length > 0
+                ? activePrevMonths.reduce((acc, k) => acc + (prevTotalMap[k] || 0), 0) / denom
+                : 0;
+            last3MonthsAvgDiscretionarySpend.value = activePrevMonths.length > 0
+                ? activePrevMonths.reduce((acc, k) => acc + (prevDiscretionaryMap[k] || 0), 0) / denom
+                : 0;
+
+            next3MonthsCommitted.value = futureMonths.map(f => ({
+                monthLabel: f.label,
+                committedInstallments: Math.round(f.total * 100) / 100
+            }));
 
             // Lê assinaturas ativas direto do Supabase (opt_subscription)
             const { data: subs } = await supabase
@@ -117,6 +192,24 @@
         return monthlyIncomes.value - monthlyExpenses.value;
     });
 
+    const composingVaultBalance = computed(() => {
+        if (!isVaultUnlocked.value) return 0;
+        return piggybankStore.piggybanks
+            .filter(p => p.composes_balance)
+            .reduce((acc, p) => acc + Number(p.current_amount || 0), 0);
+    });
+
+    const isolatedLiquidReserves = computed(() => {
+        if (!isVaultUnlocked.value) return null;
+        return piggybankStore.piggybanks
+            .filter(p => !p.composes_balance && p.liquidity !== 'maturity')
+            .reduce((acc, p) => acc + Number(p.current_amount || 0), 0);
+    });
+
+    const spendableNowFree = computed(() => {
+        return freeMonthlyCashFlow.value + composingVaultBalance.value;
+    });
+
     onMounted(async () => {
         if (!profileStore.userId) {
             await profileStore.fetchProfileData();
@@ -126,13 +219,13 @@
         messages.value.push({
             id: Date.now(),
             role: 'ai',
-            content: 'Olá! Sou o Somma Copilot. Já analisei seu fluxo do mês (separando gastos diretos e fatura do cartão)' +
-                (isVaultUnlocked.value ? ' junto com suas reservas do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
+            content: 'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses' +
+                (isVaultUnlocked.value ? ' e seu patrimônio do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
                 ' Como posso te ajudar hoje?'
         });
     });
 
-    // Motor de Diagnóstico Local (100% Zero-Knowledge: envia apenas percentuais e índices anonimizados)
+    // Motor de Diagnóstico Local (100% Zero-Knowledge com 4 níveis de peso + tendência de consumo)
     const localDiagnostics = computed(() =>
         buildZeroKnowledgeDiagnostics({
             monthlyIncomes: monthlyIncomes.value,
@@ -141,23 +234,23 @@
             monthlyCreditCardInvoice: monthlyCreditCardInvoice.value,
             monthlySubscriptions: monthlySubscriptions.value,
             categoryTotals: categoryTotals.value,
+            last3MonthsAvgTotalSpend: last3MonthsAvgTotalSpend.value,
+            last3MonthsAvgDiscretionarySpend: last3MonthsAvgDiscretionarySpend.value,
+            next3MonthsCommitted: next3MonthsCommitted.value,
+            monthDayProgressPct: monthDayProgressPct.value,
             isVaultUnlocked: isVaultUnlocked.value,
             piggybanks: piggybankStore.piggybanks,
-            variableAssets: assetsStore.assets
+            variableAssets: assetsStore.assets,
+            financialGoals: profileStore.financialGoals
         })
     );
 
     const buildFinancialSnapshotPayload = (userMessageText = '') => {
-        const dailyLiquid = isVaultUnlocked.value
-            ? piggybankStore.piggybanks
-                .filter(p => p.liquidity !== 'maturity')
-                .reduce((acc, p) => acc + Number(p.current_amount || 0), 0)
-            : null;
-
         const mentionedPurchaseImpact = extractMentionedPurchaseImpact(userMessageText, {
             monthlyIncomes: monthlyIncomes.value,
             freeMonthlyCashFlow: freeMonthlyCashFlow.value,
-            dailyLiquidReserve: dailyLiquid
+            spendableNowFree: spendableNowFree.value,
+            isolatedReserves: isolatedLiquidReserves.value
         });
 
         return {
@@ -169,8 +262,16 @@
     const runOfflineDiagnosticInChat = async () => {
         const diag = localDiagnostics.value;
         const p = diag.anonymizedProfile;
-        const pure = p.pureMonthlyFlow;
-        const withRes = p.incomesPlusReservesFlow;
+        const w1 = p.weight1_immediateCashAndCurrentMonth;
+        const w2 = p.weight2_trendAndNext3MonthsForecast;
+        const w3 = p.weight3_wealthGoalsAndInvestments;
+        const w4 = p.weight4_safetyBufferContextOnly;
+
+        const forecastLines = w2.next3MonthsForecast.length > 0
+            ? w2.next3MonthsForecast.map(m =>
+                `- **${m.monthLabel}:** ${m.committedPctOfIncome}% já comprometido • **tendência total: ${m.projectedTotalSpendPctOfIncome}%** da renda (sobra prevista: ${m.projectedSavingsPct}%)`
+            ).join('\n')
+            : '- Sem dados futuros cadastrados ainda.';
 
         const topCats = p.topExpenseCategoriesPct.length > 0
             ? p.topExpenseCategoriesPct.map(c => `- **${c.category}:** ${c.sharePct}%`).join('\n')
@@ -185,20 +286,21 @@
             content: [
                 `### 🛡️ Raio-X Financeiro Local (100% Offline)`,
                 ``,
-                `**1. Fluxo do Mês (Entradas × Despesas)**`,
-                `- **Taxa de Poupança:** ${pure.savingsRatePct}% (Comprometimento total: ${pure.expenseCommitmentPct}% — ${pure.healthStatus.toUpperCase()})`,
-                `- **Gastos Diretos do Mês:** ${pure.directExpensesSharePct}% das saídas`,
-                `- **Fatura de Cartão:** ${pure.creditCardInvoiceSharePct}% das saídas (${pure.creditCardToIncomePct}% da sua renda mensal)`,
+                `**1. Caixa & Mês Atual (Entradas × Despesas)**`,
+                `- **Poupança Atual:** ${w1.savingsRatePct}% (Comprometimento: ${w1.expenseCommitmentPct}% com ${w1.monthProgressPct}% do mês decorrido)`,
+                `- **Gastos Diretos:** ${w1.directExpensesSharePct}% das saídas | **Fatura de Cartão:** ${w1.creditCardInvoiceSharePct}% (${w1.creditCardToIncomePct}% da renda)`,
                 ``,
-                `**2. Capacidade Total (Entradas + Reservas × Despesas)**`,
-                withRes.vaultConnected
-                    ? `- **Comprometimento sobre Entradas + Reservas:** ${withRes.expensesOverIncomesPlusReservesPct ?? 0}% (Folga disponível: ${withRes.remainingCapacityAfterExpensesPct ?? 0}%)`
-                    : `- Cofre Tailscale isolado no momento (conecte o cofre para incluir suas reservas).`,
-                withRes.emergencyRunwayMonths !== null
-                    ? `- **Fôlego de Reserva (Liquidez Diária):** ${withRes.emergencyRunwayMonths} meses de custo de vida`
-                    : ``,
-                p.portfolioAllocationPct.vaultConnected
-                    ? `- **Carteira:** ${p.portfolioAllocationPct.fixedIncomePct}% Renda Fixa / ${p.portfolioAllocationPct.variableIncomeAndCryptoPct}% Variável & Cripto`
+                `**2. Tendência de Consumo & Próximos 3 Meses**`,
+                `- **Projeção de fechamento deste mês:** ~${w2.currentMonthProjectedCommitmentPct}% da renda` +
+                    (w2.vsLast3MonthsAvgSpendPct !== null ? ` (${w2.vsLast3MonthsAvgSpendPct >= 0 ? '+' : ''}${w2.vsLast3MonthsAvgSpendPct}% vs. média dos últimos 3 meses)` : ''),
+                forecastLines,
+                ``,
+                `**3. Patrimônio & Reserva**`,
+                w3.vaultConnected
+                    ? `- **Carteira:** ${w3.fixedIncomePct}% Renda Fixa / ${w3.variableIncomeAndCryptoPct}% Variável & Cripto` + (w3.cryptoShareOfWealthPct > 0 ? ` (Cripto: ${w3.cryptoShareOfWealthPct}%)` : '')
+                    : `- Cofre Tailscale isolado no momento.`,
+                w4.emergencyRunwayMonths !== null
+                    ? `- **Colchão de Emergência:** ${w4.emergencyRunwayMonths} meses de custo de vida (mantido separado de compras do mês)`
                     : ``,
                 ``,
                 `**📌 Maiores Categorias do Mês (%)**`,
@@ -218,16 +320,13 @@
     const generateLocalCopilotAnswer = (userText = '') => {
         const diag = localDiagnostics.value;
         const p = diag.anonymizedProfile;
-        const pure = p.pureMonthlyFlow;
-        const dailyLiquid = isVaultUnlocked.value
-            ? piggybankStore.piggybanks
-                .filter(b => b.liquidity !== 'maturity')
-                .reduce((acc, b) => acc + Number(b.current_amount || 0), 0)
-            : null;
+        const w1 = p.weight1_immediateCashAndCurrentMonth;
+        const w2 = p.weight2_trendAndNext3MonthsForecast;
         const impact = extractMentionedPurchaseImpact(userText, {
             monthlyIncomes: monthlyIncomes.value,
             freeMonthlyCashFlow: freeMonthlyCashFlow.value,
-            dailyLiquidReserve: dailyLiquid
+            spendableNowFree: spendableNowFree.value,
+            isolatedReserves: isolatedLiquidReserves.value
         });
 
         const lines: string[] = [
@@ -237,16 +336,14 @@
 
         if (impact) {
             lines.push(
-                `**📌 Impacto da compra mencionada (${impact.detectedInstallments}x):**`,
-                `- **No fluxo puro do mês:** ${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}% da sobra livre (${impact.fitsInMonthlyFreeCashFlow ? 'cabe na sobra mensal ✅' : 'ultrapassa sua sobra mensal ⚠️'})`,
-                impact.shareOfIncomesPlusReservesFreePct !== null
-                    ? `- **Sobre Entradas + Reservas livres:** ${impact.shareOfIncomesPlusReservesFreePct}%`
-                    : ``
+                `**📌 Impacto da compra mencionada (R$ ${impact.detectedAmountBrl.toFixed(2)} em ${impact.detectedInstallments}x):**`,
+                `- **Na sobra livre do mês:** ${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}% (${impact.fitsInMonthlyFreeCashFlow ? 'cabe na sobra mensal ✅' : 'ultrapassa sua sobra mensal ⚠️'})`,
+                `- **No saldo disponível agora:** ${impact.shareOfSpendableNowPct ?? 'N/A'}% (${impact.fitsInSpendableNow ? 'cabe no saldo disponível ✅' : 'aperta seu saldo disponível ⚠️'})`
             );
         }
 
         lines.push(
-            `- **Fluxo Puro (Entradas × Despesas):** poupança de ${pure.savingsRatePct}% (Fatura de cartão: ${pure.creditCardToIncomePct}% da renda)`,
+            `- **Mês atual:** poupança de ${w1.savingsRatePct}% (projeção de fechamento: ${w2.currentMonthProjectedCommitmentPct}% da renda)`,
             ...diag.localInsights.map(t => `- ✅ ${t}`)
         );
 

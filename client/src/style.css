@@ -216,6 +216,7 @@ textarea:focus {
 /* Botão Primário (CTA Principal da tela) */
 .btn-primary {
     display: inline-flex;
+    width: auto;
     align-items: center;
     justify-content: center;
     gap: 8px;

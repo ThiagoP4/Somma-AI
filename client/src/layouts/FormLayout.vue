@@ -135,11 +135,11 @@ const goBack = () => emit('close');
 </style>
 
 <style>
-.form-group {
+.form-card .form-group {
     margin-bottom: 2.5rem;
 }
 
-.form-group label {
+.form-card .form-group label {
     display: block;
     margin-bottom: 0.8rem;
     font-size: 0.9rem;
@@ -147,9 +147,9 @@ const goBack = () => emit('close');
     color: var(--text-secondary);
 }
 
-.required { color: var(--danger-color); }
+.form-card .required { color: var(--danger-color); }
 
-.input-field {
+.form-card .input-field {
     width: 100%;
     padding: 0.75rem 1rem;
     border: 1px solid var(--border-color);
@@ -162,32 +162,32 @@ const goBack = () => emit('close');
     outline: none;
 }
 
-body.dark .input-field {
+body.dark .form-card .input-field {
     color-scheme: dark;
 }
 
-body.dark .btn-whatsapp {
-    background-color: transparent !important; /* !important garante que sobrescreva o scoped */
+body.dark .form-card .btn-whatsapp {
+    background-color: transparent !important;
     color: #34D399 !important;
     border-color: #059669 !important;
 }
 
-body.dark .btn-whatsapp:hover {
+body.dark .form-card .btn-whatsapp:hover {
     background-color: rgba(16, 185, 129, 0.1) !important;
 }
 
-.input-field:focus {
+.form-card .input-field:focus {
     background-color: var(--bg-card);
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
-.input-field::placeholder {
-    color: var(--text-secondary); /* Importante para não ficar invisível no dark */
+.form-card .input-field::placeholder {
+    color: var(--text-secondary);
     opacity: 0.7;
 }
 
-.btn-primary {
+.form-card .btn-primary {
     width: 100%;
     padding: 0.9rem;
     background: var(--primary-color);
@@ -204,24 +204,22 @@ body.dark .btn-whatsapp:hover {
     transition: transform 0.1s, box-shadow 0.2s;
 }
 
-.btn-primary:hover {
+.form-card .btn-primary:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
 }
 
-
 @media (max-width: 640px) {
-    .form-group {
+    .form-card .form-group {
         margin-bottom: 1.25rem;
     }
 
-    /* Inputs mais compactos no mobile */
-    .input-field {
+    .form-card .input-field {
         padding: 0.6rem 0.75rem;
         font-size: 0.95rem;
     }
 
-    .btn-primary {
+    .form-card .btn-primary {
         padding: 0.75rem;
     }
 }
