@@ -1,15 +1,16 @@
 <script setup lang="ts">
-    import { ref, onMounted, nextTick, computed } from 'vue';
+    import { ref, onMounted, nextTick, computed, watch } from 'vue';
     import { storeToRefs } from 'pinia';
     import {
         PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser,
-        PhShieldCheck, PhLockKey, PhLightning, PhEye, PhEyeSlash
+        PhShieldCheck, PhLockKey, PhLightning
     } from '@phosphor-icons/vue';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
     import { useAssetsStore } from '../stores/useAssetsStore';
     import { useVaultStore } from '../stores/useVaultStore';
+    import { useFilterStore } from '../stores/useFilterStore';
     import {
         buildZeroKnowledgeDiagnostics,
         extractMentionedPurchaseImpact
@@ -19,11 +20,10 @@
     const piggybankStore = usePiggybankStore();
     const assetsStore = useAssetsStore();
     const vaultStore = useVaultStore();
+    const filterStore = useFilterStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
+    const { selectedMonth, selectedYear } = storeToRefs(filterStore);
 
-    // Chave de Privacidade Máxima (ON por padrão!): envia apenas percentuais/índices anonimizados para a IA externa
-    const maxPrivacyMode = ref(true);
-    const showPayloadPreview = ref(false);
     const categoryTotals = ref<Record<string, number>>({});
 
     interface Message {
@@ -37,16 +37,17 @@
     const isTyping = ref(false);
     const chatContainer = ref<HTMLElement | null>(null);
 
-    // Contexto Financeiro Real para alimentar a IA e o Diagnóstico Local
+    // Contexto Financeiro Real para alimentar o Motor Zero-Knowledge (calculado localmente)
     const monthlyIncomes = ref(0);
     const monthlyExpenses = ref(0);
+    const monthlyDirectExpenses = ref(0);
+    const monthlyCreditCardInvoice = ref(0);
     const monthlySubscriptions = ref(0);
 
     const loadFinancialContext = async () => {
         try {
-            const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            const startOfMonth = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
+            const endOfMonth = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
 
             const { data: inc } = await supabase
                 .from('fin_income')
@@ -59,17 +60,30 @@
 
             const { data: exp } = await supabase
                 .from('fin_installment')
-                .select('value, fin_purchase ( fin_category ( description ) )')
+                .select('value, fin_purchase ( payment_id, usr_payment ( id_payment, closing_day ), fin_category ( description ) )')
                 .gte('dueDate', startOfMonth)
                 .lte('dueDate', endOfMonth);
 
-            monthlyExpenses.value = (exp || []).reduce((acc: number, c: any) => acc + Number(c.value), 0);
-
+            let directTotal = 0;
+            let creditCardTotal = 0;
             const catMap: Record<string, number> = {};
+
             for (const item of (exp || []) as any[]) {
+                const val = Number(item.value || 0);
+                const isCreditCard = Boolean(item?.fin_purchase?.payment_id || item?.fin_purchase?.usr_payment);
+                if (isCreditCard) {
+                    creditCardTotal += val;
+                } else {
+                    directTotal += val;
+                }
+
                 const catName = item?.fin_purchase?.fin_category?.description || 'Outros';
-                catMap[catName] = (catMap[catName] || 0) + Number(item.value || 0);
+                catMap[catName] = (catMap[catName] || 0) + val;
             }
+
+            monthlyDirectExpenses.value = directTotal;
+            monthlyCreditCardInvoice.value = creditCardTotal;
+            monthlyExpenses.value = directTotal + creditCardTotal;
             categoryTotals.value = catMap;
 
             // Lê assinaturas salvas
@@ -90,18 +104,10 @@
         }
     };
 
-    const liquidVaultBalance = computed(() => {
-        if (!isVaultUnlocked.value) return 0;
-        return piggybankStore.piggybanks
-            .filter(p => p.composes_balance)
-            .reduce((acc, p) => acc + Number(p.current_amount), 0);
-    });
-
-    const isolatedVaultBalance = computed(() => {
-        if (!isVaultUnlocked.value) return 0;
-        return piggybankStore.piggybanks
-            .filter(p => !p.composes_balance)
-            .reduce((acc, p) => acc + Number(p.current_amount), 0);
+    watch([selectedMonth, selectedYear, isVaultUnlocked], async () => {
+        if (profileStore.userId) {
+            await loadFinancialContext();
+        }
     });
 
     const freeMonthlyCashFlow = computed(() => {
@@ -117,17 +123,19 @@
         messages.value.push({
             id: Date.now(),
             role: 'ai',
-            content: 'Olá! Sou o Somma Copilot. Já carreguei seu fluxo de caixa do mês' +
-                (isVaultUnlocked.value ? ' e seus saldos do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
-                ' Quer simular uma compra à vista vs. parcelada ou analisar seus gastos?'
+            content: 'Olá! Sou o Somma Copilot. Já analisei seu fluxo do mês (separando gastos diretos e fatura do cartão)' +
+                (isVaultUnlocked.value ? ' junto com suas reservas do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
+                ' Como posso te ajudar hoje?'
         });
     });
 
-    // Motor de Diagnóstico Local (calcula percentuais anonimizados + insights 100% offline no aparelho)
+    // Motor de Diagnóstico Local (100% Zero-Knowledge: envia apenas percentuais e índices anonimizados)
     const localDiagnostics = computed(() =>
         buildZeroKnowledgeDiagnostics({
             monthlyIncomes: monthlyIncomes.value,
             monthlyExpenses: monthlyExpenses.value,
+            monthlyDirectExpenses: monthlyDirectExpenses.value,
+            monthlyCreditCardInvoice: monthlyCreditCardInvoice.value,
             monthlySubscriptions: monthlySubscriptions.value,
             categoryTotals: categoryTotals.value,
             isVaultUnlocked: isVaultUnlocked.value,
@@ -137,81 +145,63 @@
     );
 
     const buildFinancialSnapshotPayload = (userMessageText = '') => {
-        if (maxPrivacyMode.value) {
-            // MODO PRIVACIDADE MÁXIMA: envia APENAS percentuais e índices anonimizados (0 reais de saldo, 0 nomes de bancos!)
-            // Se o usuário mencionou um valor na pergunta (ex: "produto de 300 reais"), anexa o impacto percentual local desse valor.
-            const dailyLiquid = isVaultUnlocked.value
-                ? piggybankStore.piggybanks
-                    .filter(p => p.liquidity !== 'maturity')
-                    .reduce((acc, p) => acc + Number(p.current_amount || 0), 0)
-                : null;
+        const dailyLiquid = isVaultUnlocked.value
+            ? piggybankStore.piggybanks
+                .filter(p => p.liquidity !== 'maturity')
+                .reduce((acc, p) => acc + Number(p.current_amount || 0), 0)
+            : null;
 
-            const mentionedPurchaseImpact = extractMentionedPurchaseImpact(userMessageText, {
-                monthlyIncomes: monthlyIncomes.value,
-                freeMonthlyCashFlow: freeMonthlyCashFlow.value,
-                dailyLiquidReserve: dailyLiquid
-            });
+        const mentionedPurchaseImpact = extractMentionedPurchaseImpact(userMessageText, {
+            monthlyIncomes: monthlyIncomes.value,
+            freeMonthlyCashFlow: freeMonthlyCashFlow.value,
+            dailyLiquidReserve: dailyLiquid
+        });
 
-            return {
-                ...localDiagnostics.value.anonymizedProfile,
-                ...(mentionedPurchaseImpact ? { mentionedPurchaseImpact } : {})
-            };
-        }
         return {
-            privacyMode: 'full-values',
-            monthFlow: {
-                incomes: monthlyIncomes.value,
-                expenses: monthlyExpenses.value,
-                freeCashFlow: freeMonthlyCashFlow.value,
-                recurringSubscriptionsMonthly: monthlySubscriptions.value
-            },
-            tailscaleVault: {
-                unlocked: isVaultUnlocked.value,
-                liquidBalanceComposingMonth: isVaultUnlocked.value ? liquidVaultBalance.value : null,
-                isolatedGoalsBalance: isVaultUnlocked.value ? isolatedVaultBalance.value : null,
-                piggybanks: isVaultUnlocked.value
-                    ? piggybankStore.piggybanks.map(p => ({
-                        title: p.title,
-                        current: p.current_amount,
-                        target: p.target_amount,
-                        composesBalance: p.composes_balance
-                    }))
-                    : []
-            }
+            ...localDiagnostics.value.anonymizedProfile,
+            ...(mentionedPurchaseImpact ? { mentionedPurchaseImpact } : {})
         };
     };
-
-    const previewPayloadJson = computed(() => JSON.stringify(buildFinancialSnapshotPayload(promptText.value), null, 2));
 
     const runOfflineDiagnosticInChat = async () => {
         const diag = localDiagnostics.value;
         const p = diag.anonymizedProfile;
+        const pure = p.pureMonthlyFlow;
+        const withRes = p.incomesPlusReservesFlow;
+
         const topCats = p.topExpenseCategoriesPct.length > 0
-            ? p.topExpenseCategoriesPct.map(c => `• ${c.category}: ${c.sharePct}%`).join('\n')
-            : '• Sem despesas categorizadas neste mês.';
+            ? p.topExpenseCategoriesPct.map(c => `- **${c.category}:** ${c.sharePct}%`).join('\n')
+            : '- Sem despesas categorizadas neste mês.';
         const tips = diag.localInsights.length > 0
-            ? diag.localInsights.map(t => `✅ ${t}`).join('\n')
-            : '✅ Cadastre receitas, despesas e contas para gerar recomendações locais.';
+            ? diag.localInsights.map(t => `- ✅ ${t}`).join('\n')
+            : '- ✅ Cadastre receitas, despesas e contas para gerar recomendações locais.';
 
         messages.value.push({
             id: Date.now(),
             role: 'ai',
             content: [
-                `🛡️ **Raio-X Financeiro Local (100% Offline — Nenhum dado enviado à nuvem)**`,
+                `### 🛡️ Raio-X Financeiro Local (100% Offline)`,
                 ``,
-                `• **Taxa de Poupança:** ${p.monthlyCashflowRatios.savingsRatePct}% (Comprometimento: ${p.monthlyCashflowRatios.expenseCommitmentPct}%)`,
-                `• **Saúde do Fluxo:** ${p.monthlyCashflowRatios.healthStatus.toUpperCase()}`,
+                `**1. Fluxo do Mês (Entradas × Despesas)**`,
+                `- **Taxa de Poupança:** ${pure.savingsRatePct}% (Comprometimento total: ${pure.expenseCommitmentPct}% — ${pure.healthStatus.toUpperCase()})`,
+                `- **Gastos Diretos do Mês:** ${pure.directExpensesSharePct}% das saídas`,
+                `- **Fatura de Cartão:** ${pure.creditCardInvoiceSharePct}% das saídas (${pure.creditCardToIncomePct}% da sua renda mensal)`,
+                ``,
+                `**2. Capacidade Total (Entradas + Reservas × Despesas)**`,
+                withRes.vaultConnected
+                    ? `- **Comprometimento sobre Entradas + Reservas:** ${withRes.expensesOverIncomesPlusReservesPct ?? 0}% (Folga disponível: ${withRes.remainingCapacityAfterExpensesPct ?? 0}%)`
+                    : `- Cofre Tailscale isolado no momento (conecte o cofre para incluir suas reservas).`,
+                withRes.emergencyRunwayMonths !== null
+                    ? `- **Fôlego de Reserva (Liquidez Diária):** ${withRes.emergencyRunwayMonths} meses de custo de vida`
+                    : ``,
                 p.portfolioAllocationPct.vaultConnected
-                    ? `• **Carteira:** ${p.portfolioAllocationPct.fixedIncomePct}% Renda Fixa / ${p.portfolioAllocationPct.variableIncomeAndCryptoPct}% Variável & Cripto`
-                    : `• **Carteira:** Cofre Tailscale isolado`,
-                p.portfolioAllocationPct.emergencyRunwayMonths !== null
-                    ? `• **Fôlego de Reserva (Liquidez Diária):** ${p.portfolioAllocationPct.emergencyRunwayMonths} meses de custo de vida`
+                    ? `- **Carteira:** ${p.portfolioAllocationPct.fixedIncomePct}% Renda Fixa / ${p.portfolioAllocationPct.variableIncomeAndCryptoPct}% Variável & Cripto`
                     : ``,
                 ``,
-                `📌 **Maiores Categorias do Mês (%):**`,
+                `**📌 Maiores Categorias do Mês (%)**`,
                 topCats,
                 ``,
-                `💡 **Diagnóstico & Próximos Passos:**`,
+                `**💡 Diagnóstico & Próximos Passos**`,
                 tips
             ].filter(Boolean).join('\n')
         });
@@ -225,6 +215,7 @@
     const generateLocalCopilotAnswer = (userText = '') => {
         const diag = localDiagnostics.value;
         const p = diag.anonymizedProfile;
+        const pure = p.pureMonthlyFlow;
         const dailyLiquid = isVaultUnlocked.value
             ? piggybankStore.piggybanks
                 .filter(b => b.liquidity !== 'maturity')
@@ -237,21 +228,23 @@
         });
 
         const lines: string[] = [
-            `🛡️ **Resposta do Motor Local (Offline)**`,
+            `### 🛡️ Resposta do Motor Local (Offline)`,
             ``
         ];
 
         if (impact) {
             lines.push(
-                `📌 **Impacto da compra mencionada (${impact.detectedInstallments}x):**`,
-                `• Peso na sobra livre do mês: **${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}%** (${impact.fitsInMonthlyFreeCashFlow ? 'Cabe na sobra mensal ✅' : 'Ultrapassa sua sobra mensal ⚠️'})`,
-                impact.shareOfDailyLiquidityPct !== null ? `• Peso na sua liquidez diária: **${impact.shareOfDailyLiquidityPct}%**` : ``
+                `**📌 Impacto da compra mencionada (${impact.detectedInstallments}x):**`,
+                `- **No fluxo puro do mês:** ${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}% da sobra livre (${impact.fitsInMonthlyFreeCashFlow ? 'cabe na sobra mensal ✅' : 'ultrapassa sua sobra mensal ⚠️'})`,
+                impact.shareOfIncomesPlusReservesFreePct !== null
+                    ? `- **Sobre Entradas + Reservas livres:** ${impact.shareOfIncomesPlusReservesFreePct}%`
+                    : ``
             );
         }
 
         lines.push(
-            `• **Taxa de Poupança do Mês:** ${p.monthlyCashflowRatios.savingsRatePct}% (Saúde: ${p.monthlyCashflowRatios.healthStatus.toUpperCase()})`,
-            ...diag.localInsights.map(t => `✅ ${t}`)
+            `- **Fluxo Puro (Entradas × Despesas):** poupança de ${pure.savingsRatePct}% (Fatura de cartão: ${pure.creditCardToIncomePct}% da renda)`,
+            ...diag.localInsights.map(t => `- ✅ ${t}`)
         );
 
         return lines.filter(Boolean).join('\n');
@@ -350,7 +343,6 @@
         try {
             const { data: sessionData } = await supabase.auth.getSession();
             const token = sessionData.session?.access_token;
-            const userId = sessionData.session?.user?.id || 'anonymous';
             const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
 
             if (!webhookUrl) {
@@ -370,7 +362,7 @@
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
-                    sessionId: maxPrivacyMode.value ? 'anonymous-zero-knowledge' : userId,
+                    sessionId: 'anonymous-zero-knowledge',
                     message: text,
                     financialContext: buildFinancialSnapshotPayload(text)
                 })
@@ -427,49 +419,17 @@
                         <span class="context-pill" :class="isVaultUnlocked ? 'unlocked' : 'locked'">
                             <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
                             <PhLockKey v-else size="13" weight="fill" />
-                            {{ isVaultUnlocked ? 'Contexto Tailscale Vault Ativo' : 'Apenas Contexto Mensal (Cofre Isolado)' }}
+                            {{ isVaultUnlocked ? 'Cofre Conectado' : 'Apenas Fluxo Mensal' }}
+                        </span>
+                        <span class="context-pill privacy">
+                            <PhShieldCheck size="13" weight="fill" />
+                            Privacidade Zero-Knowledge
                         </span>
                     </div>
-                    <p>Consultor financeiro privado com diagnósticos locais e análise anonimizada</p>
+                    <p>Consultor financeiro privado — seus saldos e bancos nunca saem do aparelho</p>
                 </div>
             </div>
-
-            <div class="header-right-actions">
-                <button class="btn-secondary" @click="runOfflineDiagnosticInChat">
-                    <PhShieldCheck size="17" weight="duotone" />
-                    Raio-X Offline
-                </button>
-            </div>
         </header>
-
-        <!-- Barra de Privacidade Máxima (Zero-Knowledge Prompting) + Preview do JSON -->
-        <div class="privacy-bar">
-            <div class="privacy-bar-top">
-                <label class="privacy-toggle-label">
-                    <input type="checkbox" v-model="maxPrivacyMode" />
-                    <span>
-                        <strong>🛡️ Privacidade Máxima na IA</strong> —
-                        {{
-                            maxPrivacyMode
-                                ? 'Ativada: envia apenas percentuais e índices anonimizados (0 reais, 0 bancos, 0 nomes)'
-                                : 'Desativada: envia valores completos do fluxo mensal'
-                        }}
-                    </span>
-                </label>
-
-                <button
-                    type="button"
-                    class="btn-preview-json"
-                    @click="showPayloadPreview = !showPayloadPreview"
-                >
-                    <PhEyeSlash v-if="showPayloadPreview" size="14" />
-                    <PhEye v-else size="14" />
-                    {{ showPayloadPreview ? 'Ocultar JSON' : 'Ver JSON enviado à IA' }}
-                </button>
-            </div>
-
-            <pre v-if="showPayloadPreview" class="json-preview-box">{{ previewPayloadJson }}</pre>
-        </div>
 
         <div class="copilot-workspace">
             <!-- CHAT FULL-WIDTH -->
@@ -507,12 +467,16 @@
 
                 <!-- Sugestões Rápidas -->
                 <div class="quick-prompts">
-                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Quero comprar um produto de R$ 300, vale a pena agora com meu momento atual?')">
-                        <PhLightning size="13" weight="fill" />
-                        Posso comprar algo de R$ 300 agora?
+                    <button type="button" class="prompt-chip offline-chip" @click="runOfflineDiagnosticInChat">
+                        <PhShieldCheck size="14" weight="fill" />
+                        Raio-X Offline
                     </button>
-                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Como posso economizar melhor nas minhas maiores categorias e balancear minha carteira?')">
-                        Como economizar e investir melhor?
+                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Quero comprar um produto de R$ 300 em 3x, vale a pena agora?')">
+                        <PhLightning size="13" weight="fill" />
+                        Posso comprar algo de R$ 300?
+                    </button>
+                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Analise meus gastos diretos vs. fatura do cartão e como posso economizar melhor.')">
+                        Analisar fatura e gastos
                     </button>
                 </div>
 
@@ -616,6 +580,12 @@
         background: rgba(245, 158, 11, 0.12);
         color: #F59E0B;
         border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .context-pill.privacy {
+        background: rgba(99, 102, 241, 0.12);
+        color: var(--primary-color);
+        border: 1px solid rgba(99, 102, 241, 0.28);
     }
 
     /* === WORKSPACE 2 COLUNAS === */
@@ -798,6 +768,18 @@
         border-color: var(--primary-color);
         color: var(--primary-color);
         background: var(--primary-subtle);
+    }
+
+    .prompt-chip.offline-chip {
+        background: rgba(16, 185, 129, 0.12);
+        border-color: rgba(16, 185, 129, 0.35);
+        color: #10B981;
+    }
+
+    .prompt-chip.offline-chip:hover {
+        background: rgba(16, 185, 129, 0.2);
+        border-color: #10B981;
+        color: #34D399;
     }
 
     .input-area {

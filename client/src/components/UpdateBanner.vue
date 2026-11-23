@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
-import { PhSparkle, PhArrowsClockwise, PhDownloadSimple, PhX } from '@phosphor-icons/vue';
+import { PhSparkle, PhDownloadSimple, PhX } from '@phosphor-icons/vue';
 import { useAlertStore } from '../stores/useAlertStore';
 
 declare const __APP_VERSION__: string;
@@ -17,14 +17,10 @@ const currentBuildId = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : '';
 
 const hasUpdate = ref(false);
 const updateLabel = ref('');
-const updateMode = ref<'web-reload' | 'github-apk'>('web-reload');
 const apkDownloadUrl = ref<string>(DIRECT_LATEST_APK_URL);
-const isUpdating = ref(false);
 const dismissed = ref(false);
 
-let intervalId: ReturnType<typeof setInterval> | null = null;
-
-// Compara versões semânticas simples (ex: "2.1.0" > "2.0.1")
+// Compara versões semânticas simples (ex: "2.1.0" > "2.0.3")
 const isNewerSemver = (remoteVer: string, localVer: string): boolean => {
     const clean = (v: string) => v.replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
     const r = clean(remoteVer);
@@ -36,24 +32,8 @@ const isNewerSemver = (remoteVer: string, localVer: string): boolean => {
     return false;
 };
 
-const checkWebVersion = async () => {
-    if (Capacitor.isNativePlatform() || import.meta.env.DEV) return;
-    try {
-        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data?.buildId && currentBuildId && data.buildId !== currentBuildId) {
-            updateLabel.value = data.version ? `v${data.version}` : 'Nova versão';
-            updateMode.value = 'web-reload';
-            hasUpdate.value = true;
-            dismissed.value = false;
-        }
-    } catch {
-        // Ignora se offline
-    }
-};
-
 const checkGithubReleaseForAndroid = async () => {
+    if (!Capacitor.isNativePlatform()) return;
     try {
         const res = await fetch('https://api.github.com/repos/ThiagoP4/Somma-AI/releases/latest', {
             cache: 'no-store',
@@ -69,7 +49,6 @@ const checkGithubReleaseForAndroid = async () => {
         );
         apkDownloadUrl.value = apkAsset?.browser_download_url || DIRECT_LATEST_APK_URL;
         updateLabel.value = tag;
-        updateMode.value = 'github-apk';
         hasUpdate.value = true;
         dismissed.value = false;
     } catch {
@@ -78,28 +57,8 @@ const checkGithubReleaseForAndroid = async () => {
 };
 
 const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-        if (Capacitor.isNativePlatform()) {
-            checkGithubReleaseForAndroid();
-        } else {
-            checkWebVersion();
-        }
-    }
-};
-
-const applyWebUpdateNow = async () => {
-    isUpdating.value = true;
-    showAlert(`Aplicando atualização ${updateLabel.value}...`, 'info', 2500);
-    try {
-        if ('caches' in window) {
-            const keys = await caches.keys();
-            await Promise.all(keys.map(k => caches.delete(k)));
-        }
-        setTimeout(() => {
-            window.location.reload();
-        }, 450);
-    } catch {
-        window.location.reload();
+    if (document.visibilityState === 'visible' && Capacitor.isNativePlatform()) {
+        checkGithubReleaseForAndroid();
     }
 };
 
@@ -108,9 +67,12 @@ const notifyApkDownloadStarted = () => {
 };
 
 onMounted(async () => {
+    // Banner de atualização ativo apenas no APK Android (no navegador web, o deploy atualiza no F5)
+    if (!Capacitor.isNativePlatform()) return;
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Feedback visual automático quando o app abre numa versão mais nova do que a anterior neste aparelho!
+    // Feedback visual automático quando o APK abre numa versão mais nova do que a anterior
     const currentSignature = `${currentVersion}|${currentBuildId}`;
     const lastSeen = localStorage.getItem(LAST_SEEN_BUILD_KEY);
     if (lastSeen && lastSeen !== currentSignature) {
@@ -118,17 +80,11 @@ onMounted(async () => {
     }
     localStorage.setItem(LAST_SEEN_BUILD_KEY, currentSignature);
 
-    if (Capacitor.isNativePlatform()) {
-        await checkGithubReleaseForAndroid();
-    } else {
-        await checkWebVersion();
-        intervalId = setInterval(checkWebVersion, 10 * 60 * 1000);
-    }
+    await checkGithubReleaseForAndroid();
 });
 
 onUnmounted(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    if (intervalId) clearInterval(intervalId);
 });
 </script>
 
@@ -146,20 +102,13 @@ onUnmounted(() => {
                 </div>
                 <div class="ub-text">
                     <strong>Nova atualização disponível ({{ updateLabel }})</strong>
-                    <span>
-                        {{
-                            updateMode === 'github-apk'
-                                ? 'Baixe o novo APK do Somma AI com melhorias e correções.'
-                                : 'Atualize agora para carregar os novos recursos.'
-                        }}
-                    </span>
+                    <span>Baixe o novo APK do Somma AI com melhorias e correções.</span>
                 </div>
             </div>
 
             <div class="ub-actions">
                 <!-- No Android APK, usar link <a> externo evita que window.open() deixe o WebView em tela cinza/preta! -->
                 <a
-                    v-if="updateMode === 'github-apk'"
                     :href="apkDownloadUrl"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -169,16 +118,6 @@ onUnmounted(() => {
                     <PhDownloadSimple size="15" weight="bold" />
                     <span>Baixar APK</span>
                 </a>
-                <button
-                    v-else
-                    type="button"
-                    class="btn-update-now"
-                    :disabled="isUpdating"
-                    @click="applyWebUpdateNow"
-                >
-                    <PhArrowsClockwise size="15" weight="bold" :class="{ spinning: isUpdating }" />
-                    <span>{{ isUpdating ? 'Atualizando...' : 'Atualizar' }}</span>
-                </button>
                 <button
                     type="button"
                     class="btn-dismiss"

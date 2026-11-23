@@ -9,11 +9,20 @@ export interface CategoryExpenseRatio {
 export interface AnonymizedFinancialProfile {
     privacyMode: 'zero-knowledge-ratios-only';
     note: string;
-    monthlyCashflowRatios: {
+    pureMonthlyFlow: {
         expenseCommitmentPct: number;
         savingsRatePct: number;
+        directExpensesSharePct: number;
+        creditCardInvoiceSharePct: number;
+        creditCardToIncomePct: number;
         subscriptionsShareOfIncomePct: number;
         healthStatus: 'excelente' | 'saudavel' | 'atencao' | 'critico';
+    };
+    incomesPlusReservesFlow: {
+        vaultConnected: boolean;
+        expensesOverIncomesPlusReservesPct: number | null;
+        remainingCapacityAfterExpensesPct: number | null;
+        emergencyRunwayMonths: number | null;
     };
     topExpenseCategoriesPct: CategoryExpenseRatio[];
     portfolioAllocationPct: {
@@ -24,13 +33,14 @@ export interface AnonymizedFinancialProfile {
         dailyLiquidityPct: number;
         lockedUntilMaturityPct: number;
         averageCdiPct: number | null;
-        emergencyRunwayMonths: number | null;
     };
 }
 
 export interface LocalDiagnosticInput {
     monthlyIncomes: number;
     monthlyExpenses: number;
+    monthlyDirectExpenses: number;
+    monthlyCreditCardInvoice: number;
     monthlySubscriptions: number;
     categoryTotals: Record<string, number>;
     isVaultUnlocked: boolean;
@@ -44,10 +54,15 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
 } {
     const inc = Math.max(0, Number(input.monthlyIncomes) || 0);
     const exp = Math.max(0, Number(input.monthlyExpenses) || 0);
+    const directExp = Math.max(0, Number(input.monthlyDirectExpenses) || 0);
+    const cardExp = Math.max(0, Number(input.monthlyCreditCardInvoice) || 0);
     const subs = Math.max(0, Number(input.monthlySubscriptions) || 0);
 
     const expenseCommitmentPct = inc > 0 ? Math.round((exp / inc) * 1000) / 10 : (exp > 0 ? 100 : 0);
     const savingsRatePct = inc > 0 ? Math.round(((inc - exp) / inc) * 1000) / 10 : 0;
+    const directExpensesSharePct = exp > 0 ? Math.round((directExp / exp) * 1000) / 10 : 0;
+    const creditCardInvoiceSharePct = exp > 0 ? Math.round((cardExp / exp) * 1000) / 10 : 0;
+    const creditCardToIncomePct = inc > 0 ? Math.round((cardExp / inc) * 1000) / 10 : 0;
     const subscriptionsShareOfIncomePct = inc > 0 ? Math.round((subs / inc) * 1000) / 10 : 0;
 
     let healthStatus: 'excelente' | 'saudavel' | 'atencao' | 'critico' = 'saudavel';
@@ -128,14 +143,31 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         ? Math.round((dailyLiquidTotal / exp) * 10) / 10
         : null;
 
+    const totalIncomesPlusReserves = inc + dailyLiquidTotal;
+    const expensesOverIncomesPlusReservesPct = input.isVaultUnlocked && totalIncomesPlusReserves > 0
+        ? Math.round((exp / totalIncomesPlusReserves) * 1000) / 10
+        : null;
+    const remainingCapacityAfterExpensesPct = input.isVaultUnlocked && totalIncomesPlusReserves > 0
+        ? Math.round(((totalIncomesPlusReserves - exp) / totalIncomesPlusReserves) * 1000) / 10
+        : null;
+
     const anonymizedProfile: AnonymizedFinancialProfile = {
         privacyMode: 'zero-knowledge-ratios-only',
         note: 'Nenhum valor absoluto em R$, nome de banco ou dado pessoal foi incluído. Apenas proporções percentuais.',
-        monthlyCashflowRatios: {
+        pureMonthlyFlow: {
             expenseCommitmentPct,
             savingsRatePct,
+            directExpensesSharePct,
+            creditCardInvoiceSharePct,
+            creditCardToIncomePct,
             subscriptionsShareOfIncomePct,
             healthStatus
+        },
+        incomesPlusReservesFlow: {
+            vaultConnected: input.isVaultUnlocked,
+            expensesOverIncomesPlusReservesPct,
+            remainingCapacityAfterExpensesPct,
+            emergencyRunwayMonths
         },
         topExpenseCategoriesPct,
         portfolioAllocationPct: {
@@ -145,8 +177,7 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
             variableBreakdownPct,
             dailyLiquidityPct,
             lockedUntilMaturityPct,
-            averageCdiPct,
-            emergencyRunwayMonths
+            averageCdiPct
         }
     };
 
@@ -155,13 +186,17 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
 
     if (inc > 0) {
         if (savingsRatePct >= 25) {
-            localInsights.push(`Excelente disciplina: você está poupando ${savingsRatePct}% da sua renda mensal (acima da meta ideal de 20%).`);
+            localInsights.push(`Excelente disciplina no fluxo puro do mês: você está poupando ${savingsRatePct}% da sua renda mensal (acima da meta ideal de 20%).`);
         } else if (savingsRatePct >= 10) {
-            localInsights.push(`Você está poupando ${savingsRatePct}% da renda este mês. Tente reduzir 5% na sua maior categoria para atingir a faixa ouro de 20%+.`);
+            localInsights.push(`No fluxo puro do mês, você está poupando ${savingsRatePct}% da renda. Reduzir 5% na maior categoria te leva à faixa ouro de 20%+.`);
         } else if (savingsRatePct >= 0) {
-            localInsights.push(`Atenção: seus gastos consomem ${expenseCommitmentPct}% da renda mensal (sobra de apenas ${savingsRatePct}%). Evite novos parcelamentos agora.`);
+            localInsights.push(`Atenção no fluxo puro do mês: seus gastos consomem ${expenseCommitmentPct}% da renda (sobra de apenas ${savingsRatePct}%). Evite novos parcelamentos agora.`);
         } else {
-            localInsights.push(`Alerta crítico: suas saídas superaram as entradas em ${Math.abs(savingsRatePct)}% este mês. Congele gastos não essenciais imediatamente.`);
+            localInsights.push(`Alerta no fluxo puro do mês: suas saídas superaram as entradas em ${Math.abs(savingsRatePct)}%. Congele gastos não essenciais imediatamente.`);
+        }
+
+        if (creditCardToIncomePct >= 40) {
+            localInsights.push(`A fatura do cartão consome ${creditCardToIncomePct}% da sua renda mensal (${creditCardInvoiceSharePct}% de todas as saídas). Vale frear parcelamentos novos.`);
         }
     }
 
@@ -198,6 +233,7 @@ export interface MentionedPurchaseImpact {
     shareOfMonthlyFreeCashFlowPct: number | null;
     shareOfMonthlyIncomePct: number | null;
     shareOfDailyLiquidityPct: number | null;
+    shareOfIncomesPlusReservesFreePct: number | null;
 }
 
 const parseBrazilianNumber = (raw: string): number => {
@@ -273,12 +309,17 @@ export function extractMentionedPurchaseImpact(
     const income = Number(context.monthlyIncomes || 0);
     const liquid = context.dailyLiquidReserve;
 
+    const totalFreeWithReserves = liquid !== null ? Math.max(0, freeFlow) + liquid : null;
+
     return {
         detectedAmountBrl: totalAmount,
         detectedInstallments: installments,
         fitsInMonthlyFreeCashFlow: freeFlow >= monthlyHit,
         shareOfMonthlyFreeCashFlowPct: freeFlow > 0 ? Math.round((monthlyHit / freeFlow) * 1000) / 10 : null,
         shareOfMonthlyIncomePct: income > 0 ? Math.round((monthlyHit / income) * 1000) / 10 : null,
-        shareOfDailyLiquidityPct: liquid !== null && liquid > 0 ? Math.round((totalAmount / liquid) * 1000) / 10 : null
+        shareOfDailyLiquidityPct: liquid !== null && liquid > 0 ? Math.round((totalAmount / liquid) * 1000) / 10 : null,
+        shareOfIncomesPlusReservesFreePct: totalFreeWithReserves !== null && totalFreeWithReserves > 0
+            ? Math.round((totalAmount / totalFreeWithReserves) * 1000) / 10
+            : null
     };
 }
