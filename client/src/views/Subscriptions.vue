@@ -5,6 +5,7 @@
         PhPause, PhPlay, PhTrash, PhPencilSimple, PhX, PhTrendUp, PhSparkle
     } from '@phosphor-icons/vue';
     import { storeToRefs } from 'pinia';
+    import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
     import { useAlertStore } from '../stores/useAlertStore';
     import ConfirmModal from '../components/ConfirmModal.vue';
@@ -98,33 +99,54 @@
         amount: 0,
         cycle: 'monthly' as 'monthly' | 'yearly',
         billingDay: 10,
-        cardNickname: 'Nubank Ultravioleta',
+        cardNickname: 'Cartão Principal',
         color: '#6366F1'
     });
 
     const presetColors = ['#6366F1', '#8B5CF6', '#10B981', '#38BDF8', '#F43F5E', '#F59E0B', '#EC4899'];
 
-    const saveToStorage = () => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions.value));
-    };
-
     const isMockMode = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
 
+    const mapRowToSub = (row: any): SubscriptionItem => ({
+        id: String(row.idSubscription),
+        name: row.plan_name || '',
+        category: row.category || 'Streaming & Música',
+        amount: Number(row.monthly_price || 0),
+        cycle: row.cycle === 'yearly' ? 'yearly' : 'monthly',
+        billingDay: Number(row.billing_day || 10),
+        cardNickname: row.card_nickname || 'Cartão Principal',
+        color: row.color || '#6366F1',
+        active: row.active !== false
+    });
+
+    const fetchSubscriptions = async () => {
+        if (isMockMode) {
+            subscriptions.value = [...defaultSubscriptions];
+            return;
+        }
+        // Limpa qualquer lixo legado do localStorage
+        localStorage.removeItem(STORAGE_KEY);
+
+        if (!profileStore.userId) return;
+        const { data, error } = await supabase
+            .from('opt_subscription')
+            .select('*')
+            .eq('user_id', profileStore.userId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Erro ao buscar assinaturas:', error);
+            showAlert('Não foi possível carregar suas assinaturas.', 'error');
+            return;
+        }
+        subscriptions.value = (data || []).map(mapRowToSub);
+    };
+
     onMounted(async () => {
-        if (myCards.value.length === 0) {
+        if (!profileStore.userId || myCards.value.length === 0) {
             await profileStore.fetchProfileData();
         }
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                subscriptions.value = JSON.parse(saved);
-            } catch {
-                subscriptions.value = isMockMode ? [...defaultSubscriptions] : [];
-            }
-        } else {
-            subscriptions.value = isMockMode ? [...defaultSubscriptions] : [];
-            if (isMockMode) saveToStorage();
-        }
+        await fetchSubscriptions();
     });
 
     const activeSubscriptions = computed(() => subscriptions.value.filter(s => s.active));
@@ -172,7 +194,7 @@
             amount: 0,
             cycle: 'monthly',
             billingDay: 10,
-            cardNickname: myCards.value[0]?.nickname || 'Nubank Ultravioleta',
+            cardNickname: myCards.value[0]?.nickname || 'Cartão Principal',
             color: '#6366F1'
         };
         isModalOpen.value = true;
@@ -192,44 +214,98 @@
         isModalOpen.value = true;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!form.value.name.trim() || form.value.amount <= 0) {
             showAlert('Preencha o nome do serviço e um valor válido.', 'warning');
             return;
         }
 
-        if (editingId.value) {
-            const idx = subscriptions.value.findIndex(s => s.id === editingId.value);
-            const current = subscriptions.value[idx];
-            if (idx !== -1 && current) {
-                subscriptions.value[idx] = {
-                    ...current,
-                    ...form.value
-                };
+        const payload = {
+            plan_name: form.value.name.trim(),
+            monthly_price: Number(form.value.amount),
+            category: form.value.category,
+            cycle: form.value.cycle,
+            billing_day: Number(form.value.billingDay) || 10,
+            card_nickname: form.value.cardNickname,
+            color: form.value.color
+        };
+
+        if (isMockMode) {
+            if (editingId.value) {
+                const idx = subscriptions.value.findIndex(s => s.id === editingId.value);
+                if (idx !== -1 && subscriptions.value[idx]) {
+                    subscriptions.value[idx] = { ...subscriptions.value[idx], ...form.value };
+                }
+            } else {
+                subscriptions.value.unshift({
+                    id: `sub-${Date.now()}`,
+                    ...form.value,
+                    name: form.value.name.trim(),
+                    amount: Number(form.value.amount),
+                    billingDay: Number(form.value.billingDay) || 10,
+                    active: true
+                });
             }
-            showAlert('Assinatura atualizada com sucesso!', 'success');
-        } else {
-            subscriptions.value.unshift({
-                id: `sub-${Date.now()}`,
-                name: form.value.name.trim(),
-                category: form.value.category,
-                amount: Number(form.value.amount),
-                cycle: form.value.cycle,
-                billingDay: Number(form.value.billingDay) || 1,
-                cardNickname: form.value.cardNickname,
-                color: form.value.color,
-                active: true
-            });
-            showAlert('Nova assinatura adicionada!', 'success');
+            isModalOpen.value = false;
+            return;
         }
 
-        saveToStorage();
-        isModalOpen.value = false;
+        try {
+            if (editingId.value) {
+                const { data, error } = await supabase
+                    .from('opt_subscription')
+                    .update(payload)
+                    .eq('idSubscription', Number(editingId.value))
+                    .eq('user_id', profileStore.userId)
+                    .select()
+                    .single();
+                if (error) throw error;
+
+                const idx = subscriptions.value.findIndex(s => s.id === editingId.value);
+                if (idx !== -1 && data) {
+                    subscriptions.value[idx] = mapRowToSub(data);
+                }
+                showAlert('Assinatura atualizada com sucesso!', 'success');
+            } else {
+                const { data, error } = await supabase
+                    .from('opt_subscription')
+                    .insert({
+                        ...payload,
+                        active: true,
+                        user_id: profileStore.userId
+                    })
+                    .select()
+                    .single();
+                if (error) throw error;
+
+                if (data) {
+                    subscriptions.value.unshift(mapRowToSub(data));
+                }
+                showAlert('Nova assinatura adicionada!', 'success');
+            }
+            isModalOpen.value = false;
+        } catch (err: any) {
+            console.error('Erro ao salvar assinatura:', err);
+            showAlert('Erro ao salvar assinatura no servidor.', 'error');
+        }
     };
 
-    const toggleActive = (sub: SubscriptionItem) => {
-        sub.active = !sub.active;
-        saveToStorage();
+    const toggleActive = async (sub: SubscriptionItem) => {
+        const nextActive = !sub.active;
+        sub.active = nextActive;
+
+        if (!isMockMode) {
+            const { error } = await supabase
+                .from('opt_subscription')
+                .update({ active: nextActive })
+                .eq('idSubscription', Number(sub.id))
+                .eq('user_id', profileStore.userId);
+            if (error) {
+                sub.active = !nextActive;
+                showAlert('Não foi possível atualizar o status da assinatura.', 'error');
+                return;
+            }
+        }
         showAlert(sub.active ? `${sub.name} reativada.` : `${sub.name} pausada.`, 'success');
     };
 
@@ -238,10 +314,23 @@
         isConfirmingDelete.value = true;
     };
 
-    const executeDelete = () => {
+    const executeDelete = async () => {
         if (subToDelete.value) {
-            subscriptions.value = subscriptions.value.filter(s => s.id !== subToDelete.value);
-            saveToStorage();
+            const targetId = subToDelete.value;
+            if (!isMockMode) {
+                const { error } = await supabase
+                    .from('opt_subscription')
+                    .delete()
+                    .eq('idSubscription', Number(targetId))
+                    .eq('user_id', profileStore.userId);
+                if (error) {
+                    showAlert('Não foi possível remover a assinatura.', 'error');
+                    isConfirmingDelete.value = false;
+                    subToDelete.value = null;
+                    return;
+                }
+            }
+            subscriptions.value = subscriptions.value.filter(s => s.id !== targetId);
             showAlert('Assinatura removida.', 'success');
         }
         isConfirmingDelete.value = false;

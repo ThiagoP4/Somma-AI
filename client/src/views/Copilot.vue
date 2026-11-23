@@ -86,14 +86,17 @@
             monthlyExpenses.value = directTotal + creditCardTotal;
             categoryTotals.value = catMap;
 
-            // Lê assinaturas salvas
-            const rawSubs = localStorage.getItem('somma_subscriptions_v1');
-            if (rawSubs) {
-                const parsed = JSON.parse(rawSubs);
-                monthlySubscriptions.value = (parsed || [])
-                    .filter((s: any) => s.active)
-                    .reduce((acc: number, s: any) => acc + (s.cycle === 'yearly' ? s.amount / 12 : s.amount), 0);
-            }
+            // Lê assinaturas ativas direto do Supabase (opt_subscription)
+            const { data: subs } = await supabase
+                .from('opt_subscription')
+                .select('monthly_price, cycle, active')
+                .eq('user_id', profileStore.userId)
+                .eq('active', true);
+
+            monthlySubscriptions.value = (subs || []).reduce(
+                (acc: number, s: any) => acc + (s.cycle === 'yearly' ? Number(s.monthly_price || 0) / 12 : Number(s.monthly_price || 0)),
+                0
+            );
 
             await Promise.all([
                 piggybankStore.fetchPiggybanks(),
