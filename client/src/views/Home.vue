@@ -13,13 +13,14 @@
     import { usePiggybankStore } from "../stores/usePiggybankStore";
     import { useVaultStore } from "../stores/useVaultStore";
     import { useFilterStore } from "../stores/useFilterStore";
-    import { supabase } from '../services/supabase';
+    import { useFinanceStore } from "../stores/useFinanceStore";
 
     const router = useRouter();
     const profileStore = useProfileStore();
     const piggybankStore = usePiggybankStore();
     const vaultStore = useVaultStore();
     const filterStore = useFilterStore();
+    const financeStore = useFinanceStore();
     const { userName, myCards } = storeToRefs(profileStore);
     const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
@@ -143,35 +144,19 @@
 
     const fetchFinancialSummary = async () => {
         try {
-            const startOfMonth = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
-            const endOfMonth = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
+            await financeStore.fetchMonthTransactions({
+                year: selectedYear.value,
+                month: selectedMonth.value,
+                filterMode: filterMode.value,
+                selectedCardIds: selectedCardIds.value
+            });
 
-            const { data: incomes } = await supabase
-                .from('fin_income')
-                .select('title, value, date')
-                .gte('date', startOfMonth)
-                .lte('date', endOfMonth)
-                .order('date', { ascending: false })
-                .eq('user_id', profileStore.userId);
+            const incomes = financeStore.monthIncomes;
+            totalIncome.value = financeStore.totalMonthIncome;
 
-            totalIncome.value = (incomes || []).reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
-
-            let expQuery = supabase
-                .from('fin_installment')
-                .select('value, dueDate, fin_purchase!inner(title, payment_id, fin_category(description, color))')
-                .gte('dueDate', startOfMonth)
-                .lte('dueDate', endOfMonth)
-                .order('dueDate', { ascending: false });
-
-            if (filterMode.value === 'invoice' && selectedCardIds.value.length > 0) {
-                expQuery = expQuery.in('fin_purchase.payment_id', selectedCardIds.value);
-            }
-
-            const { data: expenses } = await expQuery;
-
-            const expenseList = expenses || [];
+            const expenseList = financeStore.monthInstallments;
             allMonthInstallments.value = expenseList;
-            totalExpense.value = expenseList.reduce((acc: number, curr: any) => acc + Number(curr.value), 0);
+            totalExpense.value = financeStore.totalMonthExpense;
 
             // Agrupa gastos por categoria para o gráfico de Estatísticas
             const groupedMap = new Map<string, { value: number; color: string }>();

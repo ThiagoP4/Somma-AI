@@ -189,6 +189,12 @@ export const useAssetsStore = defineStore('variableAssets', () => {
                 return;
             }
 
+            // Se estiver em Sessão Efêmera na RAM (pareado via QR/Código com o celular fora da Tailscale),
+            // preserva os ativos recebidos na memória RAM!
+            if (vaultStore.isEphemeralPaired && vaultStore.status !== 'connected') {
+                return;
+            }
+
             if (usePrivateTailscaleApi()) {
                 const data = await vaultStore.vaultFetch('/api/vault/assets');
                 assets.value = Array.isArray(data) ? data : [];

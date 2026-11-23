@@ -545,6 +545,13 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 return;
             }
 
+            // Se estiver em Sessão Efêmera na RAM (pareado via QR/Código com o celular fora da Tailscale),
+            // preserva os dados recebidos na memória RAM sem tentar bater na URL privada da Tailscale!
+            if (vaultStore.isEphemeralPaired && vaultStore.status !== 'connected') {
+                await fetchBcbMarketRates();
+                return;
+            }
+
             // Busca a taxa CDI/IPCA real no Banco Central antes de capitalizar os saldos
             await fetchBcbMarketRates();
 

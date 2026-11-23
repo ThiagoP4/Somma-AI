@@ -7,6 +7,7 @@
     } from '@phosphor-icons/vue';
     import { useVaultStore } from '../stores/useVaultStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
+    import { useFinanceStore } from '../stores/useFinanceStore';
     import { useAlertStore } from '../stores/useAlertStore';
     import {
         isBiometricSupported,
@@ -19,6 +20,7 @@
 
     const vaultStore = useVaultStore();
     const piggybankStore = usePiggybankStore();
+    const financeStore = useFinanceStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { showAlert } = useAlertStore();
 
@@ -128,11 +130,12 @@
         }
     };
 
-    const handleExportBackup = () => {
+    const handleExportBackup = async () => {
+        const subs = await financeStore.fetchSubscriptions();
         const payload = {
             exportedAt: new Date().toISOString(),
             settings: settings.value,
-            subscriptions: JSON.parse(localStorage.getItem('somma_subscriptions_v1') || '[]'),
+            subscriptions: subs,
             coupleMode: JSON.parse(localStorage.getItem('somma_couple_mode_v1') || '{}')
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });

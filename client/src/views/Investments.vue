@@ -8,11 +8,12 @@
     import {
         PhWallet, PhTrendUp, PhPlus, PhTrash, PhPencilSimple, PhArrowDownLeft,
         PhArrowUpRight, PhVault, PhLockKey, PhShieldCheck, PhArrowsClockwise,
-        PhSparkle, PhCheckCircle, PhBank, PhLightning
+        PhSparkle, PhCheckCircle, PhBank, PhLightning, PhQrCode
     } from '@phosphor-icons/vue';
     import PiggybankModal from '../components/Piggybank/PiggybankModal.vue';
     import PiggybankTransaction from '../components/Piggybank/PiggybankTransaction.vue';
     import VariableAssetsPanel from '../components/Investments/VariableAssetsPanel.vue';
+    import VaultPairingModal from '../components/VaultPairingModal.vue';
     import { getBankLogoUrl, getBankBrandColor, findBankFromText } from '../utils/banks';
 
     const piggybankStore = usePiggybankStore();
@@ -20,6 +21,7 @@
     const vaultStore = useVaultStore();
     const { showAlert } = useAlertStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
+    const isPairingModalOpen = ref(false);
 
     const activeTab = ref<'cofrinhos' | 'ativos'>('cofrinhos');
     const filterType = ref<'all' | 'liquid' | 'locked' | 'maturity'>('all');
@@ -375,8 +377,12 @@
                     </div>
                 </div>
 
-                <div class="locked-actions">
-                    <button class="btn-primary" @click="handleRetryVault">
+                <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
+                    <button class="btn-primary" @click="isPairingModalOpen = true">
+                        <PhQrCode size="17" weight="bold" />
+                        Desbloquear via Celular (QR / RAM)
+                    </button>
+                    <button class="btn-secondary" @click="handleRetryVault">
                         <PhArrowsClockwise size="17" weight="bold" />
                         {{
                             vaultStore.simulatedOffline
@@ -725,8 +731,12 @@
                 <p>
                     Por segurança <strong>Zero-Trust (Arquitetura Dual-DB)</strong>, suas posições em Ações, FIIs, ETFs e Criptoativos ficam isoladas no PostgreSQL da sua VPS Oracle via Tailscale.
                 </p>
-                <div class="locked-actions">
-                    <button class="btn-primary" @click="handleRetryVault">
+                <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
+                    <button class="btn-primary" @click="isPairingModalOpen = true">
+                        <PhQrCode size="17" weight="bold" />
+                        Desbloquear via Celular (QR / RAM)
+                    </button>
+                    <button class="btn-secondary" @click="handleRetryVault">
                         <PhArrowsClockwise size="17" weight="bold" />
                         Verificar Conexão Tailscale
                     </button>
@@ -735,6 +745,12 @@
             <VariableAssetsPanel v-else />
         </div>  
     </div>
+
+    <VaultPairingModal
+        v-if="isPairingModalOpen"
+        initialMode="receive"
+        @close="isPairingModalOpen = false"
+    />
 
     <PiggybankModal 
         v-if="isCreateModalOpen" 

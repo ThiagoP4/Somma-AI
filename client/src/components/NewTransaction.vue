@@ -45,29 +45,17 @@
     const isIncome = computed(() => props.type === 'entradas');
 
     onMounted(async () => {
-        try {
-            const tipoCategoria = isIncome.value ? 'receita' : 'despesa';
-
-            const { data, error } = await supabase
-                .from('fin_category')
-                .select('*')
-                .eq('type', tipoCategoria);
-                
-            if (error) throw error;
-            categories.value = data;
-        } catch (error) {
-            console.error('Erro ao carregar categorias:', error);
-        }
+        await fetchCategories();
         if (profileStore.myCards.length === 0) {
             await profileStore.fetchProfileData();
         }
 
-        if(props.transactionData) {
-            description.value = props.transactionData.title;
+        if (props.transactionData) {
+            description.value = props.transactionData.title?.replace(/\s*\(\d+\/\d+x\)$/, '') || '';
             value.value = props.transactionData.value;
             categoryId.value = props.transactionData.categoryId;
             paymentId.value = props.transactionData.payment_id || '';
-            date.value = props.transactionData.date.split('T')[0]; // Formata para YYYY-MM-DD
+            date.value = (props.transactionData.date || '').split('T')[0];
         }
     });
 
@@ -186,53 +174,73 @@
                     total_installments: isInstallment.value ? Number(installmentNumber.value) : 1,
                 };
 
-            const table = isIncome.value ? 'fin_income' : 'fin_purchase';
-            const primaryKey = isIncome.value ? 'idIncome' : 'idPurchase';
+            if (isEditing.value) {
+                if (isIncome.value) {
+                    const { error } = await supabase
+                        .from('fin_income')
+                        .update(payload)
+                        .eq('idIncome', props.transactionData.idIncome);
+                    if (error) throw error;
+                } else {
+                    const { error: pErr } = await supabase
+                        .from('fin_purchase')
+                        .update({
+                            title: payload.title,
+                            categoryId: payload.categoryId,
+                            payment_id: payload.payment_id,
+                            date: payload.date,
+                        })
+                        .eq('idPurchase', props.transactionData.idPurchase);
+                    if (pErr) throw pErr;
 
-            if(isEditing.value) {
-                const { error } = await supabase
-                    .from(table)
-                    .update(payload)
-                    .eq(primaryKey, props.transactionData[primaryKey]);
-                if (error) throw error;
+                    if (props.transactionData.idInstallment) {
+                        const { error: iErr } = await supabase
+                            .from('fin_installment')
+                            .update({
+                                value: payload.value,
+                                dueDate: `${payload.date}T12:00:00.000Z`,
+                            })
+                            .eq('idInstallment', props.transactionData.idInstallment);
+                        if (iErr) throw iErr;
+                    }
+                }
             } else {
-
-                if(isIncome.value) {
+                if (isIncome.value) {
                     const { error } = await supabase
                         .from('fin_income')
                         .insert(payload);
                     if (error) throw error;
                 } else {
-                const { data: returnData, error: purchaseError } = await supabase
-                    .from('fin_purchase')
-                    .insert(payload)
-                    .select('idPurchase')
-                    .single();
-                if(purchaseError) throw purchaseError;
+                    const { data: returnData, error: purchaseError } = await supabase
+                        .from('fin_purchase')
+                        .insert(payload)
+                        .select('idPurchase')
+                        .single();
+                    if (purchaseError) throw purchaseError;
 
-                const idCompraGerada = returnData.idPurchase;
-                const totalValuesToDivide = payload.value;
-                const installment = isInstallment.value;
-                const installmentQtd = installment ? Number(installmentNumber.value) : 1;
-                const valuePerInstallment = parseFloat((totalValuesToDivide / installmentQtd).toFixed(2));
+                    const idCompraGerada = returnData.idPurchase;
+                    const totalValuesToDivide = payload.value;
+                    const installment = isInstallment.value;
+                    const installmentQtd = installment ? Number(installmentNumber.value) : 1;
+                    const valuePerInstallment = parseFloat((totalValuesToDivide / installmentQtd).toFixed(2));
 
-                const installmentsData = [];
+                    const installmentsData = [];
+                    // Usa T12:00:00 para evitar deslocamento de dia por fuso horário UTC-3
+                    const currentDateInstallment = new Date(`${payload.date}T12:00:00`);
 
-                let currentDateInstallment = new Date(payload.date);
+                    for (let i = 1; i <= installmentQtd; i++) {
+                        installmentsData.push({
+                            purchaseId: idCompraGerada,
+                            installmentNumber: i,
+                            value: valuePerInstallment,
+                            dueDate: currentDateInstallment.toISOString(),
+                            paid: i === 1 && !installment
+                        });
+                        currentDateInstallment.setMonth(currentDateInstallment.getMonth() + 1);
+                    }
 
-                for(let i = 1; i <= installmentQtd; i++) {
-                    installmentsData.push({
-                        purchaseId: idCompraGerada,
-                        installmentNumber: i,
-                        value: valuePerInstallment,
-                        dueDate: currentDateInstallment.toISOString(),
-                        paid: i === 1 && !installment
-                    });
-                    currentDateInstallment.setMonth(currentDateInstallment.getMonth() + 1);
-                }
-
-                const { error: insError } = await supabase.from('fin_installment').insert(installmentsData);
-                if(insError) throw insError;
+                    const { error: insError } = await supabase.from('fin_installment').insert(installmentsData);
+                    if (insError) throw insError;
                 }
             }
         

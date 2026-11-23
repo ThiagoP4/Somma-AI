@@ -8,6 +8,9 @@ export const useVaultStore = defineStore('vault', () => {
     const status = ref<VaultConnectionStatus>('checking');
     const lastCheckedAt = ref<string | null>(null);
     const manualStealthMode = ref(false);
+    // Sessão Efêmera (somente na memória RAM desta aba!) via Pareamento Criptografado ECDH P-256 + AES-256-GCM com o celular
+    const isEphemeralPaired = ref(false);
+    const ephemeralPairedAt = ref<string | null>(null);
 
     // URL base do servidor Tailscale lida exclusivamente do .env (VITE_TAILSCALE_VAULT_URL) ou do localStorage do navegador
     const resolveTailscaleBaseUrl = (): string => {
@@ -52,11 +55,26 @@ export const useVaultStore = defineStore('vault', () => {
     // Simulação para o usuário testar o estado "Fora do Tailscale" mesmo em Mock/Dev
     const simulatedOffline = ref(localStorage.getItem('somma_simulate_vault_offline') === 'true');
 
-    // O Cofre só está desbloqueado se a conexão Tailscale estiver ativa E o usuário não tiver ativado o Stealth Mode manual
+    // O Cofre está desbloqueado se a conexão Tailscale estiver ativa OU se foi pareado efemeramente na RAM via QR/Código do celular
     const isVaultUnlocked = computed(() => {
-        if (manualStealthMode.value || simulatedOffline.value) return false;
+        if (manualStealthMode.value) return false;
+        if (isEphemeralPaired.value) return true;
+        if (simulatedOffline.value) return false;
         return status.value === 'connected';
     });
+
+    const activateEphemeralSession = (pairedAtIso?: string) => {
+        isEphemeralPaired.value = true;
+        manualStealthMode.value = false;
+        ephemeralPairedAt.value = pairedAtIso
+            ? new Date(pairedAtIso).toLocaleTimeString('pt-BR')
+            : new Date().toLocaleTimeString('pt-BR');
+    };
+
+    const clearEphemeralSession = () => {
+        isEphemeralPaired.value = false;
+        ephemeralPairedAt.value = null;
+    };
 
     const checkTailscaleConnection = async (): Promise<boolean> => {
         if (simulatedOffline.value) {
@@ -151,6 +169,9 @@ export const useVaultStore = defineStore('vault', () => {
 
     const toggleStealthMode = () => {
         manualStealthMode.value = !manualStealthMode.value;
+        if (manualStealthMode.value) {
+            clearEphemeralSession();
+        }
     };
 
     const toggleSimulatedOffline = async () => {
@@ -165,10 +186,14 @@ export const useVaultStore = defineStore('vault', () => {
         tailscaleBaseUrl,
         manualStealthMode,
         simulatedOffline,
+        isEphemeralPaired,
+        ephemeralPairedAt,
         isVaultUnlocked,
         checkTailscaleConnection,
         vaultFetch,
         toggleStealthMode,
-        toggleSimulatedOffline
+        toggleSimulatedOffline,
+        activateEphemeralSession,
+        clearEphemeralSession
     };
 });

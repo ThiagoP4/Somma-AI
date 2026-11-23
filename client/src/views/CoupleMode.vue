@@ -29,15 +29,21 @@
     const { showAlert } = useAlertStore();
 
     const STORAGE_KEY = 'somma_couple_mode_v1';
-    const isMockMode = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
 
-    const partnerName = ref(isMockMode ? 'Parceiro(a)' : 'Parceiro(a)');
+    const partnerName = ref('Parceiro(a)');
     const splitMethod = ref<'proportional' | 'equal'>('equal');
     const userIncome = ref(0);
     const partnerIncome = ref(0);
 
     const isEditingSetup = ref(false);
     const isAddExpenseOpen = ref(false);
+    const isAddGoalOpen = ref(false);
+
+    const newGoal = ref({
+        title: '',
+        current: 0,
+        target: 0
+    });
 
     const newExpense = ref({
         title: '',
@@ -151,6 +157,29 @@
         saveCoupleState();
         isEditingSetup.value = false;
         showAlert('Regras de divisão do casal atualizadas!', 'success');
+    };
+
+    const handleAddGoal = () => {
+        if (!newGoal.value.title.trim() || newGoal.value.target <= 0) {
+            showAlert('Informe o nome da meta e um valor alvo válido.', 'warning');
+            return;
+        }
+        coupleGoals.value.push({
+            id: `cg-${Date.now()}`,
+            title: newGoal.value.title.trim(),
+            current: Math.max(0, Number(newGoal.value.current) || 0),
+            target: Number(newGoal.value.target)
+        });
+        saveCoupleState();
+        isAddGoalOpen.value = false;
+        newGoal.value = { title: '', current: 0, target: 0 };
+        showAlert('Meta a dois adicionada!', 'success');
+    };
+
+    const removeGoal = (id: string) => {
+        coupleGoals.value = coupleGoals.value.filter(g => g.id !== id);
+        saveCoupleState();
+        showAlert('Meta removida.', 'success');
     };
 </script>
 
@@ -338,13 +367,34 @@
                         <PhTarget size="19" weight="duotone" class="primary-icon" />
                         <h3>Metas a Dois</h3>
                     </div>
+                    <button type="button" class="btn-secondary" style="padding: 0.35rem 0.7rem; font-size: 0.78rem;" @click="isAddGoalOpen = !isAddGoalOpen">
+                        <PhPlus size="14" weight="bold" />
+                        Nova Meta
+                    </button>
                 </div>
 
-                <div class="c-goals-list">
+                <form v-if="isAddGoalOpen" @submit.prevent="handleAddGoal" class="inline-goal-form" style="display: flex; flex-direction: column; gap: 0.55rem; padding: 0.85rem; background: var(--bg-page); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 0.75rem;">
+                    <input type="text" v-model="newGoal.title" placeholder="Ex: Viagem, Reforma, Casamento..." required style="padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary);" />
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <input type="number" step="0.01" min="0" v-model.number="newGoal.current" placeholder="Já guardado (R$)" style="padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary);" />
+                        <input type="number" step="0.01" min="1" v-model.number="newGoal.target" placeholder="Meta total (R$)" required style="padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary);" />
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                        <button type="button" class="btn-outline" style="padding: 0.35rem 0.7rem; font-size: 0.78rem;" @click="isAddGoalOpen = false">Cancelar</button>
+                        <button type="submit" class="btn-primary" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;">Salvar Meta</button>
+                    </div>
+                </form>
+
+                <div v-if="coupleGoals.length > 0" class="c-goals-list">
                     <div class="c-goal-item" v-for="g in coupleGoals" :key="g.id">
                         <div class="cg-top">
                             <span class="cg-title">{{ g.title }}</span>
-                            <span class="cg-pct">{{ Math.round((g.current / g.target) * 100) }}%</span>
+                            <div style="display: flex; align-items: center; gap: 0.45rem;">
+                                <span class="cg-pct">{{ Math.round((g.current / g.target) * 100) }}%</span>
+                                <button type="button" class="del-btn" @click="removeGoal(g.id)" title="Remover meta">
+                                    <PhTrash size="14" />
+                                </button>
+                            </div>
                         </div>
                         <div class="cg-values">
                             <strong>{{ formatCurrency(g.current) }}</strong>
@@ -354,6 +404,9 @@
                             <div class="cg-fill" :style="{ width: Math.min(100, Math.round((g.current / g.target) * 100)) + '%' }"></div>
                         </div>
                     </div>
+                </div>
+                <div v-else class="empty-state" style="padding: 1.25rem 0.5rem;">
+                    Nenhuma meta a dois cadastrada ainda.
                 </div>
 
                 <div class="couple-ai-box">

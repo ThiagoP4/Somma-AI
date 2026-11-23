@@ -3,6 +3,7 @@
   import { supabase } from '../services/supabase';
   import { useFilterStore } from '../stores/useFilterStore';
   import { useProfileStore } from '../stores/useProfileStore';
+  import { useFinanceStore } from '../stores/useFinanceStore';
   import { storeToRefs } from 'pinia';
 
   import {
@@ -25,7 +26,10 @@
 
   const filterStore = useFilterStore();
   const profileStore = useProfileStore();
+  const financeStore = useFinanceStore();
   const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
+  const { monthNames } = filterStore;
+  const { totalMonthIncome: totalIncomesMonth, monthInstallments: rawInstallmentsMonth } = storeToRefs(financeStore);
 
   const dashboardData = ref({
     total: 0,
@@ -49,26 +53,13 @@
   });
 
   const pieSeries = ref<number[]>([]);
-  const cardsInfo = ref<any[]>([]);
-
-  // Novos dados analíticos do mês selecionado
-  const totalIncomesMonth = ref(0);
-  const rawInstallmentsMonth = ref<any[]>([]);
-
-  const fetchCardsInfo = async () => {
-    const { data } = await supabase.from('usr_payment').select('id_payment, nickname, bank_name, closing_day');
-    cardsInfo.value = data || [];
-  };
-
-  const monthNames = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
 
   const invoicePeriodText = computed(() => {
     if (filterMode.value !== 'invoice' || selectedCardIds.value.length === 0) return '';
     
-    const selectedCards = cardsInfo.value.filter(c => selectedCardIds.value.includes(c.id_payment || c.idPayment));
+    const selectedCards = profileStore.myCards.filter((c: any) =>
+      selectedCardIds.value.includes(c.id_payment || c.idPayment)
+    );
     if (selectedCards.length === 1) {
       const card = selectedCards[0];
       const day = card.closing_day || 1;
@@ -228,55 +219,17 @@
     }
   });
 
-  const fetchComplementaryAnalytics = async () => {
-    try {
-      if (!profileStore.userId) await profileStore.fetchProfileData();
-      const startOfMonth = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
-      const endOfMonth = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
-
-      const { data: incData } = await supabase
-        .from('fin_income')
-        .select('value')
-        .gte('date', startOfMonth)
-        .lte('date', endOfMonth)
-        .eq('user_id', profileStore.userId);
-
-      totalIncomesMonth.value = (incData || []).reduce((acc: number, curr: any) => acc + Number(curr.value || 0), 0);
-
-      let instQuery = supabase
-        .from('fin_installment')
-        .select(`
-          idInstallment,
-          installmentNumber,
-          value,
-          dueDate,
-          paid,
-          fin_purchase!inner(
-            title,
-            total_installments,
-            payment_id,
-            usr_payment(nickname, bank_name, closing_day),
-            fin_category(description, color)
-          )
-        `)
-        .gte('dueDate', startOfMonth)
-        .lte('dueDate', endOfMonth);
-
-      if (filterMode.value === 'invoice' && selectedCardIds.value.length > 0) {
-        instQuery = instQuery.in('fin_purchase.payment_id', selectedCardIds.value);
-      }
-
-      const { data: instData } = await instQuery;
-      rawInstallmentsMonth.value = instData || [];
-    } catch (e) {
-      console.error('Erro ao buscar análises complementares:', e);
-    }
-  };
-
   const fetchData = async () => {
     try {
-      if (cardsInfo.value.length === 0) await fetchCardsInfo();
-      await fetchComplementaryAnalytics();
+      if (profileStore.myCards.length === 0) {
+        await profileStore.fetchProfileData();
+      }
+      await financeStore.fetchMonthTransactions({
+        year: selectedYear.value,
+        month: selectedMonth.value,
+        filterMode: filterMode.value,
+        selectedCardIds: selectedCardIds.value
+      });
 
       const params: any = {
         p_month: selectedMonth.value + 1,

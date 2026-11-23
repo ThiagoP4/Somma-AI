@@ -11,10 +11,12 @@
     import { useAssetsStore } from '../stores/useAssetsStore';
     import { useVaultStore } from '../stores/useVaultStore';
     import { useFilterStore } from '../stores/useFilterStore';
+    import { useFinanceStore } from '../stores/useFinanceStore';
     import {
         buildZeroKnowledgeDiagnostics,
         extractMentionedPurchaseImpact,
-        type FutureMonthCommittedInput
+        type FutureMonthCommittedInput,
+        type PostgresStatisticalMlStats
     } from '../utils/financialDiagnostics';
 
     const profileStore = useProfileStore();
@@ -22,6 +24,7 @@
     const assetsStore = useAssetsStore();
     const vaultStore = useVaultStore();
     const filterStore = useFilterStore();
+    const financeStore = useFinanceStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { selectedMonth, selectedYear } = storeToRefs(filterStore);
 
@@ -48,6 +51,7 @@
     const last3MonthsAvgDiscretionarySpend = ref(0);
     const next3MonthsCommitted = ref<FutureMonthCommittedInput[]>([]);
     const monthDayProgressPct = ref(50);
+    const postgresMlStats = ref<PostgresStatisticalMlStats | null>(null);
 
     const PT_MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -161,17 +165,24 @@
                 committedInstallments: Math.round(f.total * 100) / 100
             }));
 
-            // Lê assinaturas ativas direto do Supabase (opt_subscription)
-            const { data: subs } = await supabase
-                .from('opt_subscription')
-                .select('monthly_price, cycle, active')
-                .eq('user_id', profileStore.userId)
-                .eq('active', true);
+            // Lê assinaturas ativas via useFinanceStore (opt_subscription)
+            await financeStore.fetchSubscriptions();
+            monthlySubscriptions.value = financeStore.activeMonthlySubscriptionsTotal;
 
-            monthlySubscriptions.value = (subs || []).reduce(
-                (acc: number, s: any) => acc + (s.cycle === 'yearly' ? Number(s.monthly_price || 0) / 12 : Number(s.monthly_price || 0)),
-                0
-            );
+            // Tenta carregar estatística ML nativa do PostgreSQL (Mediana + Regressão Linear regr_slope + Z-Score)
+            try {
+                const { data: mlData, error: mlErr } = await supabase.rpc('get_user_spending_ml_stats', {
+                    p_year: selY,
+                    p_month: selM + 1
+                });
+                if (!mlErr && mlData) {
+                    postgresMlStats.value = mlData as PostgresStatisticalMlStats;
+                } else {
+                    postgresMlStats.value = null;
+                }
+            } catch {
+                postgresMlStats.value = null;
+            }
 
             await Promise.all([
                 piggybankStore.fetchPiggybanks(),
@@ -238,6 +249,7 @@
             last3MonthsAvgDiscretionarySpend: last3MonthsAvgDiscretionarySpend.value,
             next3MonthsCommitted: next3MonthsCommitted.value,
             monthDayProgressPct: monthDayProgressPct.value,
+            postgresMlStats: postgresMlStats.value,
             isVaultUnlocked: isVaultUnlocked.value,
             piggybanks: piggybankStore.piggybanks,
             variableAssets: assetsStore.assets,
@@ -930,149 +942,6 @@
         cursor: not-allowed;
     }
 
-    /* === PAINEL DO SIMULADOR === */
-    .simulator-panel {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 16px;
-        padding: 1.35rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1.1rem;
-        overflow-y: auto;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .sim-title-row {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .sim-icon {
-        color: var(--primary-color);
-    }
-
-    .sim-header h3 {
-        margin: 0;
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .sim-header p {
-        margin: 3px 0 0 0;
-        font-size: 0.78rem;
-        color: var(--text-secondary);
-    }
-
-    .context-snapshot {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.65rem;
-        background: var(--bg-elevated);
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 0.75rem;
-    }
-
-    .snap-item {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .snap-item span {
-        font-size: 0.72rem;
-        color: var(--text-muted);
-    }
-
-    .snap-item strong {
-        font-size: 0.925rem;
-        font-weight: 700;
-        font-feature-settings: "tnum";
-    }
-
-    .sim-form {
-        display: flex;
-        flex-direction: column;
-        gap: 0.85rem;
-    }
-
-    .sim-grid-2 {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.75rem;
-    }
-
-    .sim-form .input-group {
-        min-width: 0;
-    }
-
-    .verdict-card {
-        border-radius: 12px;
-        padding: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.65rem;
-        border: 1px solid var(--border-color);
-        background: var(--bg-elevated);
-    }
-
-    .verdict-card.installment {
-        border-color: rgba(99, 102, 241, 0.35);
-        background: var(--primary-subtle);
-    }
-
-    .verdict-card.cash {
-        border-color: rgba(16, 185, 129, 0.35);
-        background: var(--success-bg);
-    }
-
-    .verdict-card.wait {
-        border-color: rgba(244, 63, 94, 0.35);
-        background: var(--danger-bg);
-    }
-
-    .verdict-top {
-        display: flex;
-        align-items: center;
-        gap: 0.45rem;
-        font-size: 0.85rem;
-        color: var(--text-primary);
-    }
-
-    .verdict-desc {
-        margin: 0;
-        font-size: 0.8rem;
-        line-height: 1.45;
-        color: var(--text-secondary);
-    }
-
-    .verdict-metrics {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        padding-top: 0.65rem;
-        border-top: 1px solid var(--border-color);
-    }
-
-    .v-metric {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .v-metric span {
-        font-size: 0.68rem;
-        color: var(--text-muted);
-    }
-
-    .v-metric strong {
-        font-size: 0.8rem;
-        font-feature-settings: "tnum";
-    }
-
     .typing-indicator {
         display: flex;
         gap: 4px;
@@ -1096,112 +965,12 @@
         40% { transform: scale(1); }
     }
 
-    .header-right-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        flex-wrap: wrap;
-    }
-
-    .privacy-bar {
-        background: var(--bg-card);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        border-radius: 13px;
-        padding: 0.7rem 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.65rem;
-    }
-
-    .privacy-bar-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 0.65rem;
-    }
-
-    .privacy-toggle-label {
-        display: flex;
-        align-items: center;
-        gap: 0.55rem;
-        font-size: 0.8rem;
-        color: var(--text-secondary);
-        cursor: pointer;
-    }
-
-    .privacy-toggle-label strong {
-        color: var(--success-text);
-    }
-
-    .privacy-toggle-label input[type="checkbox"] {
-        width: 16px;
-        height: 16px;
-        accent-color: #10B981;
-        cursor: pointer;
-        flex-shrink: 0;
-    }
-
-    .btn-preview-json {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: var(--bg-elevated);
-        border: 1px solid var(--border-color);
-        color: var(--text-primary);
-        font-family: inherit;
-        font-size: 0.74rem;
-        font-weight: 600;
-        padding: 0.35rem 0.75rem;
-        border-radius: 8px;
-        cursor: pointer;
-    }
-
-    .btn-preview-json:hover {
-        border-color: var(--primary-color);
-        color: var(--primary-color);
-    }
-
-    .json-preview-box {
-        margin: 0;
-        padding: 0.85rem 1rem;
-        border-radius: 10px;
-        background: #090A0F;
-        border: 1px solid var(--border-color);
-        color: #A5B4FC;
-        font-size: 0.74rem;
-        line-height: 1.45;
-        max-height: 220px;
-        overflow: auto;
-        white-space: pre-wrap;
-        word-break: break-word;
-    }
-
     @media (max-width: 1024px) {
         .copilot-layout {
             height: auto;
         }
-        .copilot-workspace.with-simulator {
-            grid-template-columns: 1fr;
-        }
         .chat-column {
             height: 520px;
-        }
-    }
-
-    @media (max-width: 640px) {
-        .verdict-metrics {
-            grid-template-columns: 1fr;
-            gap: 0.6rem;
-        }
-        .sim-row,
-        .sim-compare {
-            grid-template-columns: 1fr !important;
-        }
-        .copilot-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.75rem;
         }
     }
 </style>

@@ -13,6 +13,12 @@ export interface MonthlyForecastPoint {
     projectedSavingsPct: number;
 }
 
+export interface CategoryAnomalyRatio {
+    category: string;
+    zScore: number;
+    aboveHistoricalMedianPct: number;
+}
+
 export interface AnonymizedFinancialProfile {
     privacyMode: 'zero-knowledge-ratios-only';
     note: string;
@@ -29,10 +35,14 @@ export interface AnonymizedFinancialProfile {
         healthStatus: 'excelente' | 'saudavel' | 'atencao' | 'critico';
     };
     weight2_trendAndNext3MonthsForecast: {
+        forecastEngine: 'postgres-statistical-ml' | 'local-3m-fallback';
         currentMonthProjectedCommitmentPct: number;
         vsLast3MonthsAvgSpendPct: number | null;
         spendingPaceStatus: 'abaixo_do_ritmo' | 'no_ritmo' | 'acelerado';
+        linearTrendDirection: 'subindo' | 'estavel' | 'caindo';
+        linearTrendSlopePctOfIncomePerMonth: number;
         typicalMonthlyDiscretionaryPctOfIncome: number;
+        categoryAnomalies: CategoryAnomalyRatio[];
         next3MonthsForecast: MonthlyForecastPoint[];
     };
     weight3_wealthGoalsAndInvestments: {
@@ -59,6 +69,14 @@ export interface FutureMonthCommittedInput {
     committedInstallments: number;
 }
 
+export interface PostgresStatisticalMlStats {
+    medianMonthlyTotalSpend: number;
+    medianMonthlyDiscretionarySpend: number;
+    linearSlopeBrlPerMonth: number;
+    linearNextMonthForecastBrl: number;
+    categoryAnomalies: CategoryAnomalyRatio[];
+}
+
 export interface LocalDiagnosticInput {
     monthlyIncomes: number;
     monthlyExpenses: number;
@@ -70,6 +88,7 @@ export interface LocalDiagnosticInput {
     last3MonthsAvgDiscretionarySpend: number;
     next3MonthsCommitted: FutureMonthCommittedInput[];
     monthDayProgressPct: number;
+    postgresMlStats?: PostgresStatisticalMlStats | null;
     isVaultUnlocked: boolean;
     piggybanks: Piggybank[];
     variableAssets: VariableAsset[];
@@ -197,30 +216,47 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
     const spendableNowCoversMonthExpenses = spendableNowFree >= 0;
     const spendableNowFreeRatioOfIncomePct = inc > 0 ? round1((spendableNowFree / inc) * 100) : null;
 
-    // Peso 2: Tendência de consumo no mês atual + projeção dos próximos 3 meses
-    const avg3mTotal = Math.max(0, Number(input.last3MonthsAvgTotalSpend) || 0);
-    const avg3mDiscretionary = Math.max(0, Number(input.last3MonthsAvgDiscretionarySpend) || 0);
+    // Peso 2: Tendência de consumo (prioriza motor estatístico do PostgreSQL: Mediana + Regressão Linear regr_slope + Z-Score)
+    const pgMl = input.postgresMlStats || null;
+    const forecastEngine: 'postgres-statistical-ml' | 'local-3m-fallback' = pgMl ? 'postgres-statistical-ml' : 'local-3m-fallback';
+
+    const baselineTotalSpend = pgMl && pgMl.medianMonthlyTotalSpend > 0
+        ? pgMl.medianMonthlyTotalSpend
+        : Math.max(0, Number(input.last3MonthsAvgTotalSpend) || 0);
+
+    const baselineDiscretionarySpend = pgMl && pgMl.medianMonthlyDiscretionarySpend > 0
+        ? pgMl.medianMonthlyDiscretionarySpend
+        : Math.max(0, Number(input.last3MonthsAvgDiscretionarySpend) || 0);
+
+    const linearSlopeBrl = pgMl ? Number(pgMl.linearSlopeBrlPerMonth || 0) : 0;
+    const linearTrendSlopePctOfIncomePerMonth = inc > 0 ? round1((linearSlopeBrl / inc) * 100) : 0;
+    let linearTrendDirection: 'subindo' | 'estavel' | 'caindo' = 'estavel';
+    if (linearTrendSlopePctOfIncomePerMonth >= 3) linearTrendDirection = 'subindo';
+    else if (linearTrendSlopePctOfIncomePerMonth <= -3) linearTrendDirection = 'caindo';
+
+    const categoryAnomalies: CategoryAnomalyRatio[] = pgMl?.categoryAnomalies || [];
 
     // Projeção de fechamento do mês atual:
-    // Se já passou pelo menos 20% do mês, projeta ritmo linear limitado; senão usa a média dos últimos 3 meses.
     const rawProjectedMonthSpend = monthProgressPct >= 20
         ? Math.max(exp, exp / (monthProgressPct / 100))
-        : (avg3mTotal > 0 ? Math.max(exp, avg3mTotal) : exp);
+        : (baselineTotalSpend > 0 ? Math.max(exp, baselineTotalSpend) : exp);
     const currentMonthProjectedCommitmentPct = inc > 0 ? round1((rawProjectedMonthSpend / inc) * 100) : expenseCommitmentPct;
 
-    const vsLast3MonthsAvgSpendPct = avg3mTotal > 0
-        ? round1(((rawProjectedMonthSpend - avg3mTotal) / avg3mTotal) * 100)
+    const vsLast3MonthsAvgSpendPct = baselineTotalSpend > 0
+        ? round1(((rawProjectedMonthSpend - baselineTotalSpend) / baselineTotalSpend) * 100)
         : null;
 
     let spendingPaceStatus: 'abaixo_do_ritmo' | 'no_ritmo' | 'acelerado' = 'no_ritmo';
     if (expenseCommitmentPct > monthProgressPct + 12) spendingPaceStatus = 'acelerado';
     else if (expenseCommitmentPct < monthProgressPct - 15) spendingPaceStatus = 'abaixo_do_ritmo';
 
-    const typicalMonthlyDiscretionaryPctOfIncome = inc > 0 ? round1((avg3mDiscretionary / inc) * 100) : 0;
+    const typicalMonthlyDiscretionaryPctOfIncome = inc > 0 ? round1((baselineDiscretionarySpend / inc) * 100) : 0;
 
-    const next3MonthsForecast: MonthlyForecastPoint[] = (input.next3MonthsCommitted || []).map(m => {
+    const next3MonthsForecast: MonthlyForecastPoint[] = (input.next3MonthsCommitted || []).map((m, idx) => {
         const committed = Math.max(0, Number(m.committedInstallments) || 0) + subs;
-        const projectedTotal = committed + avg3mDiscretionary;
+        // Aplica mediana de consumo avulso + ajuste suave da inclinação da regressão linear (regr_slope)
+        const slopeAdj = Math.max(-baselineDiscretionarySpend * 0.3, Math.min(baselineDiscretionarySpend * 0.4, linearSlopeBrl * (idx + 1) * 0.35));
+        const projectedTotal = committed + Math.max(0, baselineDiscretionarySpend + slopeAdj);
         const committedPctOfIncome = inc > 0 ? round1((committed / inc) * 100) : 0;
         const projectedTotalSpendPctOfIncome = inc > 0 ? round1((projectedTotal / inc) * 100) : 0;
         const projectedSavingsPct = inc > 0 ? round1(((inc - projectedTotal) / inc) * 100) : 0;
@@ -232,8 +268,8 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         };
     });
 
-    // Peso 4: Colchão de reserva (calculado sobre a média de gastos para ser mais realista)
-    const monthlyCostBase = avg3mTotal > 0 ? avg3mTotal : exp;
+    // Peso 4: Colchão de reserva (calculado sobre a mediana/média de gastos para ser mais realista)
+    const monthlyCostBase = baselineTotalSpend > 0 ? baselineTotalSpend : exp;
     const emergencyRunwayMonths = input.isVaultUnlocked && monthlyCostBase > 0
         ? round1(dailyLiquidTotal / monthlyCostBase)
         : null;
@@ -254,10 +290,14 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
             healthStatus
         },
         weight2_trendAndNext3MonthsForecast: {
+            forecastEngine,
             currentMonthProjectedCommitmentPct,
             vsLast3MonthsAvgSpendPct,
             spendingPaceStatus,
+            linearTrendDirection,
+            linearTrendSlopePctOfIncomePerMonth,
             typicalMonthlyDiscretionaryPctOfIncome,
+            categoryAnomalies,
             next3MonthsForecast
         },
         weight3_wealthGoalsAndInvestments: {
@@ -305,6 +345,12 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
 
     if (topExpenseCategoriesPct.length > 0 && topExpenseCategoriesPct[0]!.sharePct >= 35) {
         localInsights.push(`Concentração alta: "${topExpenseCategoriesPct[0]!.category}" representa ${topExpenseCategoriesPct[0]!.sharePct}% das despesas do mês.`);
+    }
+
+    for (const anom of categoryAnomalies.slice(0, 2)) {
+        localInsights.push(
+            `Anomalia estatística (Z-score ${anom.zScore}σ): "${anom.category}" está +${anom.aboveHistoricalMedianPct}% acima da sua mediana histórica.`
+        );
     }
 
     if (subscriptionsShareOfIncomePct >= 8) {

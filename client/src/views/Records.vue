@@ -43,12 +43,8 @@
     const registries = ref<any[]>([]);
     const loading = ref(true);
 
-    const monthNames = [
-        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ];
-
     const filterStore = useFilterStore();
+    const { monthNames } = filterStore;
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
 
     const invoicePeriodText = computed(() => {

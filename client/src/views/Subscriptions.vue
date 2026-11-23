@@ -7,6 +7,7 @@
     import { storeToRefs } from 'pinia';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
+    import { useFinanceStore, type SubscriptionRow } from '../stores/useFinanceStore';
     import { useAlertStore } from '../stores/useAlertStore';
     import ConfirmModal from '../components/ConfirmModal.vue';
 
@@ -23,68 +24,9 @@
     }
 
     const profileStore = useProfileStore();
+    const financeStore = useFinanceStore();
     const { myCards } = storeToRefs(profileStore);
     const { showAlert } = useAlertStore();
-
-    const STORAGE_KEY = 'somma_subscriptions_v1';
-
-    const defaultSubscriptions: SubscriptionItem[] = [
-        {
-            id: 'sub-1',
-            name: 'Claude Pro (Anthropic)',
-            category: 'Produtividade & IA',
-            amount: 115.00,
-            cycle: 'monthly',
-            billingDay: 15,
-            cardNickname: 'Inter Black',
-            color: '#6366F1',
-            active: true
-        },
-        {
-            id: 'sub-2',
-            name: 'Spotify Duo',
-            category: 'Streaming & Música',
-            amount: 27.90,
-            cycle: 'monthly',
-            billingDay: 10,
-            cardNickname: 'Nubank Ultravioleta',
-            color: '#10B981',
-            active: true
-        },
-        {
-            id: 'sub-3',
-            name: 'Vercel Pro',
-            category: 'Cloud & DevTools',
-            amount: 102.10,
-            cycle: 'monthly',
-            billingDay: 15,
-            cardNickname: 'Inter Black',
-            color: '#38BDF8',
-            active: true
-        },
-        {
-            id: 'sub-4',
-            name: 'Netflix 4K',
-            category: 'Streaming & Vídeo',
-            amount: 59.90,
-            cycle: 'monthly',
-            billingDay: 22,
-            cardNickname: 'Itaú Personalité',
-            color: '#F43F5E',
-            active: true
-        },
-        {
-            id: 'sub-5',
-            name: 'Amazon Prime',
-            category: 'Benefícios & Compras',
-            amount: 166.80,
-            cycle: 'yearly',
-            billingDay: 5,
-            cardNickname: 'Nubank Ultravioleta',
-            color: '#F59E0B',
-            active: true
-        }
-    ];
 
     const subscriptions = ref<SubscriptionItem[]>([]);
     const filterStatus = ref<'all' | 'active' | 'paused'>('all');
@@ -105,9 +47,7 @@
 
     const presetColors = ['#6366F1', '#8B5CF6', '#10B981', '#38BDF8', '#F43F5E', '#F59E0B', '#EC4899'];
 
-    const isMockMode = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
-
-    const mapRowToSub = (row: any): SubscriptionItem => ({
+    const mapRowToSub = (row: SubscriptionRow | any): SubscriptionItem => ({
         id: String(row.idSubscription),
         name: row.plan_name || '',
         category: row.category || 'Streaming & Música',
@@ -120,26 +60,9 @@
     });
 
     const fetchSubscriptions = async () => {
-        if (isMockMode) {
-            subscriptions.value = [...defaultSubscriptions];
-            return;
-        }
-        // Limpa qualquer lixo legado do localStorage
-        localStorage.removeItem(STORAGE_KEY);
-
-        if (!profileStore.userId) return;
-        const { data, error } = await supabase
-            .from('opt_subscription')
-            .select('*')
-            .eq('user_id', profileStore.userId)
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Erro ao buscar assinaturas:', error);
-            showAlert('Não foi possível carregar suas assinaturas.', 'error');
-            return;
-        }
-        subscriptions.value = (data || []).map(mapRowToSub);
+        localStorage.removeItem('somma_subscriptions_v1');
+        const rows = await financeStore.fetchSubscriptions();
+        subscriptions.value = rows.map(mapRowToSub);
     };
 
     onMounted(async () => {
@@ -230,26 +153,6 @@
             color: form.value.color
         };
 
-        if (isMockMode) {
-            if (editingId.value) {
-                const idx = subscriptions.value.findIndex(s => s.id === editingId.value);
-                if (idx !== -1 && subscriptions.value[idx]) {
-                    subscriptions.value[idx] = { ...subscriptions.value[idx], ...form.value };
-                }
-            } else {
-                subscriptions.value.unshift({
-                    id: `sub-${Date.now()}`,
-                    ...form.value,
-                    name: form.value.name.trim(),
-                    amount: Number(form.value.amount),
-                    billingDay: Number(form.value.billingDay) || 10,
-                    active: true
-                });
-            }
-            isModalOpen.value = false;
-            return;
-        }
-
         try {
             if (editingId.value) {
                 const { data, error } = await supabase
@@ -265,6 +168,7 @@
                 if (idx !== -1 && data) {
                     subscriptions.value[idx] = mapRowToSub(data);
                 }
+                await financeStore.fetchSubscriptions();
                 showAlert('Assinatura atualizada com sucesso!', 'success');
             } else {
                 const { data, error } = await supabase
@@ -281,6 +185,7 @@
                 if (data) {
                     subscriptions.value.unshift(mapRowToSub(data));
                 }
+                await financeStore.fetchSubscriptions();
                 showAlert('Nova assinatura adicionada!', 'success');
             }
             isModalOpen.value = false;
@@ -294,18 +199,17 @@
         const nextActive = !sub.active;
         sub.active = nextActive;
 
-        if (!isMockMode) {
-            const { error } = await supabase
-                .from('opt_subscription')
-                .update({ active: nextActive })
-                .eq('idSubscription', Number(sub.id))
-                .eq('user_id', profileStore.userId);
-            if (error) {
-                sub.active = !nextActive;
-                showAlert('Não foi possível atualizar o status da assinatura.', 'error');
-                return;
-            }
+        const { error } = await supabase
+            .from('opt_subscription')
+            .update({ active: nextActive })
+            .eq('idSubscription', Number(sub.id))
+            .eq('user_id', profileStore.userId);
+        if (error) {
+            sub.active = !nextActive;
+            showAlert('Não foi possível atualizar o status da assinatura.', 'error');
+            return;
         }
+        await financeStore.fetchSubscriptions();
         showAlert(sub.active ? `${sub.name} reativada.` : `${sub.name} pausada.`, 'success');
     };
 
@@ -317,20 +221,19 @@
     const executeDelete = async () => {
         if (subToDelete.value) {
             const targetId = subToDelete.value;
-            if (!isMockMode) {
-                const { error } = await supabase
-                    .from('opt_subscription')
-                    .delete()
-                    .eq('idSubscription', Number(targetId))
-                    .eq('user_id', profileStore.userId);
-                if (error) {
-                    showAlert('Não foi possível remover a assinatura.', 'error');
-                    isConfirmingDelete.value = false;
-                    subToDelete.value = null;
-                    return;
-                }
+            const { error } = await supabase
+                .from('opt_subscription')
+                .delete()
+                .eq('idSubscription', Number(targetId))
+                .eq('user_id', profileStore.userId);
+            if (error) {
+                showAlert('Não foi possível remover a assinatura.', 'error');
+                isConfirmingDelete.value = false;
+                subToDelete.value = null;
+                return;
             }
             subscriptions.value = subscriptions.value.filter(s => s.id !== targetId);
+            await financeStore.fetchSubscriptions();
             showAlert('Assinatura removida.', 'success');
         }
         isConfirmingDelete.value = false;

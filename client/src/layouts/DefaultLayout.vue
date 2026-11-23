@@ -3,15 +3,18 @@
     import { useRoute } from 'vue-router';
     import {
         PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhCreditCard,
-        PhList, PhSparkle, PhShieldCheck, PhLockKey, PhArrowsClockwise, PhEye, PhEyeSlash
+        PhList, PhSparkle, PhShieldCheck, PhLockKey, PhArrowsClockwise, PhEye, PhEyeSlash,
+        PhQrCode, PhTrash
     } from '@phosphor-icons/vue';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
     import Sidebar from '../components/Sidebar.vue';
+    import VaultPairingModal from '../components/VaultPairingModal.vue';
     import { useFilterStore } from '../stores/useFilterStore';
     import { useProfileStore } from '../stores/useProfileStore';
     import { useVaultStore } from '../stores/useVaultStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
+    import { useAssetsStore } from '../stores/useAssetsStore';
 
     const route = useRoute();
     const isSidebarOpen = ref(false);
@@ -20,6 +23,23 @@
     const profileStore = useProfileStore();
     const vaultStore = useVaultStore();
     const piggybankStore = usePiggybankStore();
+    const assetsStore = useAssetsStore();
+
+    const isPairingModalOpen = ref(false);
+    const pairingModalMode = ref<'receive' | 'send'>('receive');
+
+    const openPairingModal = (mode: 'receive' | 'send') => {
+        pairingModalMode.value = mode;
+        isVaultDropdownOpen.value = false;
+        isPairingModalOpen.value = true;
+    };
+
+    const handleClearEphemeralRam = () => {
+        vaultStore.clearEphemeralSession();
+        piggybankStore.piggybanks = [];
+        assetsStore.assets = [];
+        isVaultDropdownOpen.value = false;
+    };
 
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
     const { selectMonth, nextYear, previousYear, monthNames, toggleCardSelection } = filterStore;
@@ -149,7 +169,13 @@
               <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="16" weight="fill" />
               <PhLockKey v-else size="16" weight="fill" />
               <span class="vault-pill-text">
-                {{ vaultStore.isVaultUnlocked ? 'Tailscale Vault' : 'Cofre Isolado' }}
+                {{
+                  vaultStore.isEphemeralPaired
+                    ? 'Cofre (RAM Efêmera)'
+                    : vaultStore.isVaultUnlocked
+                      ? 'Tailscale Vault'
+                      : 'Cofre Isolado'
+                }}
               </span>
               <PhCaretDown size="13" class="caret" />
             </button>
@@ -161,12 +187,22 @@
                   <PhLockKey v-else size="20" weight="duotone" />
                 </div>
                 <div class="vault-drop-titles">
-                  <h4>{{ vaultStore.isVaultUnlocked ? 'Tailscale VPN Conectada' : 'Fora da Rede Tailscale' }}</h4>
+                  <h4>
+                    {{
+                      vaultStore.isEphemeralPaired
+                        ? 'Sessão Efêmera na RAM Ativa'
+                        : vaultStore.isVaultUnlocked
+                          ? 'Tailscale VPN Conectada'
+                          : 'Fora da Rede Tailscale'
+                    }}
+                  </h4>
                   <p>
                     {{
-                      vaultStore.isVaultUnlocked
-                        ? 'Saldos bancários e cofrinhos sincronizados via túnel privado (.ts.net).'
-                        : 'Saldos de contas e cofrinhos não são carregados fora da sua VPN.'
+                      vaultStore.isEphemeralPaired
+                        ? 'Dados recebidos via QR Code (ECDH + AES-256-GCM). Apagam sozinhos ao dar F5 ou fechar a aba.'
+                        : vaultStore.isVaultUnlocked
+                          ? 'Saldos bancários e cofrinhos sincronizados via túnel privado (.ts.net).'
+                          : 'Saldos de contas e cofrinhos não são carregados fora da sua VPN.'
                     }}
                   </p>
                 </div>
@@ -175,7 +211,7 @@
               <div class="vault-meta-box">
                 <div class="meta-line">
                   <span>Arquitetura</span>
-                  <strong>Dual-DB (Zero-Trust)</strong>
+                  <strong>{{ vaultStore.isEphemeralPaired ? 'RAM Only (Zero-Storage)' : 'Dual-DB (Zero-Trust)' }}</strong>
                 </div>
                 <div class="meta-line">
                   <span>Host Tailnet</span>
@@ -188,6 +224,36 @@
               </div>
 
               <div class="vault-actions-list">
+                <button
+                  v-if="!vaultStore.isVaultUnlocked"
+                  type="button"
+                  class="vault-act-item primary"
+                  @click="openPairingModal('receive')"
+                >
+                  <PhQrCode size="16" />
+                  <span>Desbloquear via Celular (QR / RAM)</span>
+                </button>
+
+                <button
+                  v-if="vaultStore.status === 'connected'"
+                  type="button"
+                  class="vault-act-item primary"
+                  @click="openPairingModal('send')"
+                >
+                  <PhQrCode size="16" />
+                  <span>Parear um PC (Enviar Cofre)</span>
+                </button>
+
+                <button
+                  v-if="vaultStore.isEphemeralPaired"
+                  type="button"
+                  class="vault-act-item"
+                  @click="handleClearEphemeralRam"
+                >
+                  <PhTrash size="16" />
+                  <span>Limpar Cofre da RAM Agora</span>
+                </button>
+
                 <button type="button" class="vault-act-item" @click="handleToggleStealth">
                   <PhEyeSlash v-if="!vaultStore.manualStealthMode" size="16" />
                   <PhEye v-else size="16" />
@@ -199,7 +265,7 @@
                   <span>{{ vaultStore.simulatedOffline ? 'Simular: Conectar Tailscale' : 'Simular: Desconectar VPN' }}</span>
                 </button>
 
-                <button type="button" class="vault-act-item primary" @click="handleReconnectVault">
+                <button type="button" class="vault-act-item" @click="handleReconnectVault">
                   <PhArrowsClockwise size="16" />
                   <span>Testar Conexão Tailscale</span>
                 </button>
@@ -291,6 +357,12 @@
         <slot />
       </main>
     </div>
+
+    <VaultPairingModal
+      v-if="isPairingModalOpen"
+      :initialMode="pairingModalMode"
+      @close="isPairingModalOpen = false"
+    />
   </div>
 </template>
 
