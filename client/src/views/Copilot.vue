@@ -2,8 +2,8 @@
     import { ref, onMounted, nextTick, computed } from 'vue';
     import { storeToRefs } from 'pinia';
     import {
-        PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser, PhCalculator,
-        PhShieldCheck, PhLockKey, PhLightning, PhCheckCircle, PhInfo, PhEye, PhEyeSlash
+        PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser,
+        PhShieldCheck, PhLockKey, PhLightning, PhEye, PhEyeSlash
     } from '@phosphor-icons/vue';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
@@ -37,20 +37,10 @@
     const isTyping = ref(false);
     const chatContainer = ref<HTMLElement | null>(null);
 
-    // Contexto Financeiro Real para alimentar a IA e o Simulador
+    // Contexto Financeiro Real para alimentar a IA e o Diagnóstico Local
     const monthlyIncomes = ref(0);
     const monthlyExpenses = ref(0);
     const monthlySubscriptions = ref(0);
-
-    // Simulador de Decisão de Compra (À Vista vs Parcelado)
-    const showSimulator = ref(true);
-    const simForm = ref({
-        itemName: 'Celular Novo',
-        cashPrice: 3200,
-        installmentTotalPrice: 3200,
-        installments: 10,
-        monthlyCdiRatePct: 0.85 // ~100% do CDI líquido mensal
-    });
 
     const loadFinancialContext = async () => {
         try {
@@ -117,57 +107,6 @@
     const freeMonthlyCashFlow = computed(() => {
         return monthlyIncomes.value - monthlyExpenses.value;
     });
-
-    // Matemática Financeira (Valor Presente Líquido das Parcelas descontado pelo CDI do Cofrinho)
-    const simulationAnalysis = computed(() => {
-        const cash = Number(simForm.value.cashPrice) || 0;
-        const totalInst = Number(simForm.value.installmentTotalPrice) || cash;
-        const n = Math.max(1, Number(simForm.value.installments) || 1);
-        const r = (Number(simForm.value.monthlyCdiRatePct) || 0.85) / 100;
-
-        const installmentVal = totalInst / n;
-
-        // Quanto o dinheiro rende no cofrinho se você parcelar e for pagando mês a mês (NPV)
-        let npvInstallments = 0;
-        for (let k = 1; k <= n; k++) {
-            npvInstallments += installmentVal / Math.pow(1 + r, k);
-        }
-
-        const cdiGainByInstallment = totalInst - npvInstallments;
-        const interestCharged = totalInst - cash;
-        const netAdvantageInstallment = cash - npvInstallments; // Se > 0, parcelar é melhor financeiramente
-
-        const freeMargin = Math.max(1, freeMonthlyCashFlow.value);
-        const marginImpactPct = Math.round((installmentVal / freeMargin) * 100);
-
-        let verdict: 'installment' | 'cash' | 'wait' = 'installment';
-        let summaryText = '';
-
-        if (freeMonthlyCashFlow.value <= installmentVal) {
-            verdict = 'wait';
-            summaryText = `Cuidado: A parcela de ${formatCurrency(installmentVal)} compromete 100% da sua margem livre mensal atual (${formatCurrency(freeMonthlyCashFlow.value)}).`;
-        } else if (netAdvantageInstallment >= 0) {
-            verdict = 'installment';
-            summaryText = `Vale mais a pena PARCELAR em ${n}x de ${formatCurrency(installmentVal)}. Mantendo os ${formatCurrency(cash)} no Cofrinho rendendo ${simForm.value.monthlyCdiRatePct}% a.m., você ganha ${formatCurrency(netAdvantageInstallment)} líquidos de vantagem!`;
-        } else {
-            verdict = 'cash';
-            summaryText = `Vale mais a pena COMPRAR À VISTA por ${formatCurrency(cash)}. Os juros/diferença de ${formatCurrency(interestCharged)} no parcelado superam o rendimento do seu Cofrinho em ${formatCurrency(Math.abs(netAdvantageInstallment))}.`;
-        }
-
-        return {
-            installmentVal,
-            cdiGainByInstallment,
-            interestCharged,
-            netAdvantageInstallment,
-            marginImpactPct,
-            verdict,
-            summaryText
-        };
-    });
-
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
-    };
 
     onMounted(async () => {
         if (!profileStore.userId) {
@@ -283,45 +222,119 @@
         }
     };
 
-    const generateLocalCopilotAnswer = () => {
-        const s = simulationAnalysis.value;
-        const cash = formatCurrency(simForm.value.cashPrice);
-        const inst = formatCurrency(s.installmentVal);
-        const free = formatCurrency(freeMonthlyCashFlow.value);
-        const vault = isVaultUnlocked.value
-            ? `Você possui **${formatCurrency(liquidVaultBalance.value)}** de liquidez no Cofre Tailscale (que compõe saldo) e **${formatCurrency(isolatedVaultBalance.value)}** em metas isoladas.`
-            : `*(Nota: Seu Cofre Tailscale está isolado no momento, então estou considerando apenas seu fluxo mensal de ${free}).*`;
+    const generateLocalCopilotAnswer = (userText = '') => {
+        const diag = localDiagnostics.value;
+        const p = diag.anonymizedProfile;
+        const dailyLiquid = isVaultUnlocked.value
+            ? piggybankStore.piggybanks
+                .filter(b => b.liquidity !== 'maturity')
+                .reduce((acc, b) => acc + Number(b.current_amount || 0), 0)
+            : null;
+        const impact = extractMentionedPurchaseImpact(userText, {
+            monthlyIncomes: monthlyIncomes.value,
+            freeMonthlyCashFlow: freeMonthlyCashFlow.value,
+            dailyLiquidReserve: dailyLiquid
+        });
 
-        return [
-            `📊 **Análise do Copilot para: ${simForm.value.itemName} (${cash})**`,
-            ``,
-            `1. **Seu Momento Atual:** Sua margem livre neste mês (Entradas - Saídas) é de **${free}**. ${vault}`,
-            `2. **Impacto no Fluxo Mensal:** Uma parcela de **${inst}** (${simForm.value.installments}x) consome **${s.marginImpactPct}%** da sua sobra mensal (o limite saudável recomendado é até 20%).`,
-            `3. **Matemática À Vista vs. Parcelado (CDI ${simForm.value.monthlyCdiRatePct}% a.m.):**`,
-            `   • Se você parcelar e deixar o dinheiro rendendo no Cofrinho, o rendimento acumulado até o fim das parcelas será de aproximadamente **${formatCurrency(s.cdiGainByInstallment)}**.`,
-            `   • Diferença/Juros cobrados no parcelamento: **${formatCurrency(s.interestCharged)}**.`,
-            ``,
-            `✅ **Recomendação Final:** ${s.summaryText}`
-        ].join('\n');
+        const lines: string[] = [
+            `🛡️ **Resposta do Motor Local (Offline)**`,
+            ``
+        ];
+
+        if (impact) {
+            lines.push(
+                `📌 **Impacto da compra mencionada (${impact.detectedInstallments}x):**`,
+                `• Peso na sobra livre do mês: **${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}%** (${impact.fitsInMonthlyFreeCashFlow ? 'Cabe na sobra mensal ✅' : 'Ultrapassa sua sobra mensal ⚠️'})`,
+                impact.shareOfDailyLiquidityPct !== null ? `• Peso na sua liquidez diária: **${impact.shareOfDailyLiquidityPct}%**` : ``
+            );
+        }
+
+        lines.push(
+            `• **Taxa de Poupança do Mês:** ${p.monthlyCashflowRatios.savingsRatePct}% (Saúde: ${p.monthlyCashflowRatios.healthStatus.toUpperCase()})`,
+            ...diag.localInsights.map(t => `✅ ${t}`)
+        );
+
+        return lines.filter(Boolean).join('\n');
     };
 
-    const sendSimulatorToChat = async () => {
-        const hasInterest = simForm.value.installmentTotalPrice > simForm.value.cashPrice;
-        promptText.value = `Quero comprar "${simForm.value.itemName}" de ${formatCurrency(simForm.value.cashPrice)} à vista` +
-            (hasInterest
-                ? ` (ou ${simForm.value.installments}x totalizando ${formatCurrency(simForm.value.installmentTotalPrice)} com juros).`
-                : ` (ou em ${simForm.value.installments}x sem juros).`) +
-            ` Devo comprar agora? Vale mais a pena manter parcelado rendendo no cofrinho ou pagar à vista no meu caso?`;
+    const escapeHtml = (raw: string): string =>
+        raw
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
 
-        await sendMessage(true);
+    const formatInlineMarkdown = (escapedLine: string): string =>
+        escapedLine
+            .replace(/`([^`]+)`/g, '<code>$1</code>')
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+
+    const renderMarkdown = (raw: string): string => {
+        const lines = raw.replace(/\r\n/g, '\n').split('\n');
+        const htmlParts: string[] = [];
+        let listType: 'ul' | 'ol' | null = null;
+
+        const closeList = () => {
+            if (listType) {
+                htmlParts.push(`</${listType}>`);
+                listType = null;
+            }
+        };
+
+        for (const rawLine of lines) {
+            const trimmed = rawLine.trim();
+
+            if (!trimmed) {
+                closeList();
+                continue;
+            }
+
+            const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+            if (headingMatch) {
+                closeList();
+                const level = headingMatch[1]!.length <= 2 ? 'h3' : 'h4';
+                htmlParts.push(`<${level}>${formatInlineMarkdown(escapeHtml(headingMatch[2]!))}</${level}>`);
+                continue;
+            }
+
+            const ulMatch = trimmed.match(/^[-*•]\s+(.+)$/);
+            if (ulMatch) {
+                if (listType !== 'ul') {
+                    closeList();
+                    listType = 'ul';
+                    htmlParts.push('<ul>');
+                }
+                htmlParts.push(`<li>${formatInlineMarkdown(escapeHtml(ulMatch[1]!))}</li>`);
+                continue;
+            }
+
+            const olMatch = trimmed.match(/^\d+\.\s+(.+)$/);
+            if (olMatch) {
+                if (listType !== 'ol') {
+                    closeList();
+                    listType = 'ol';
+                    htmlParts.push('<ol>');
+                }
+                htmlParts.push(`<li>${formatInlineMarkdown(escapeHtml(olMatch[1]!))}</li>`);
+                continue;
+            }
+
+            closeList();
+            htmlParts.push(`<p>${formatInlineMarkdown(escapeHtml(trimmed))}</p>`);
+        }
+
+        closeList();
+        return htmlParts.join('');
     };
 
     const sendQuickPrompt = async (text: string) => {
         promptText.value = text;
-        await sendMessage(false);
+        await sendMessage();
     };
 
-    const sendMessage = async (fromSimulator = false) => {
+    const sendMessage = async () => {
         const text = promptText.value.trim();
         if (!text) return;
 
@@ -341,11 +354,11 @@
             const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
 
             if (!webhookUrl) {
-                await new Promise(r => setTimeout(r, 550));
+                await new Promise(r => setTimeout(r, 450));
                 messages.value.push({
                     id: Date.now(),
                     role: 'ai',
-                    content: generateLocalCopilotAnswer()
+                    content: generateLocalCopilotAnswer(text)
                 });
                 return;
             }
@@ -359,21 +372,7 @@
                 body: JSON.stringify({
                     sessionId: maxPrivacyMode.value ? 'anonymous-zero-knowledge' : userId,
                     message: text,
-                    financialContext: buildFinancialSnapshotPayload(text),
-                    purchaseSimulation: fromSimulator
-                        ? (maxPrivacyMode.value
-                            ? {
-                                installments: simForm.value.installments,
-                                monthlyCdiRatePct: simForm.value.monthlyCdiRatePct,
-                                marginImpactPct: simulationAnalysis.value.marginImpactPct,
-                                verdict: simulationAnalysis.value.verdict,
-                                hasInterest: simForm.value.installmentTotalPrice > simForm.value.cashPrice
-                              }
-                            : {
-                                ...simForm.value,
-                                computed: simulationAnalysis.value
-                              })
-                        : null
+                    financialContext: buildFinancialSnapshotPayload(text)
                 })
             });
 
@@ -402,7 +401,7 @@
             messages.value.push({
                 id: Date.now(),
                 role: 'ai',
-                content: generateLocalCopilotAnswer()
+                content: generateLocalCopilotAnswer(text)
             });
         } finally {
             isTyping.value = false;
@@ -431,7 +430,7 @@
                             {{ isVaultUnlocked ? 'Contexto Tailscale Vault Ativo' : 'Apenas Contexto Mensal (Cofre Isolado)' }}
                         </span>
                     </div>
-                    <p>Consultor financeiro inteligente com cálculo de VPL (CDI vs. Parcelamento)</p>
+                    <p>Consultor financeiro privado com diagnósticos locais e análise anonimizada</p>
                 </div>
             </div>
 
@@ -439,10 +438,6 @@
                 <button class="btn-secondary" @click="runOfflineDiagnosticInChat">
                     <PhShieldCheck size="17" weight="duotone" />
                     Raio-X Offline
-                </button>
-                <button class="btn-secondary" @click="showSimulator = !showSimulator">
-                    <PhCalculator size="18" />
-                    {{ showSimulator ? 'Ocultar Simulador' : 'Simulador' }}
                 </button>
             </div>
         </header>
@@ -476,8 +471,8 @@
             <pre v-if="showPayloadPreview" class="json-preview-box">{{ previewPayloadJson }}</pre>
         </div>
 
-        <div class="copilot-workspace" :class="{ 'with-simulator': showSimulator }">
-            <!-- COLUNA ESQUERDA: CHAT -->
+        <div class="copilot-workspace">
+            <!-- CHAT FULL-WIDTH -->
             <div class="chat-column">
                 <main class="chat-area" ref="chatContainer">
                     <div class="messages-list">
@@ -490,7 +485,8 @@
                                 <PhRobot size="19" weight="duotone" />
                             </div>
 
-                            <div class="message-bubble">{{ msg.content }}</div>
+                            <div v-if="msg.role === 'ai'" class="message-bubble markdown-body" v-html="renderMarkdown(msg.content)"></div>
+                            <div v-else class="message-bubble">{{ msg.content }}</div>
 
                             <div class="avatar" v-if="msg.role === 'user'">
                                 <img v-if="profileStore.avatarUrl" :src="profileStore.avatarUrl" class="user-avatar-img" alt="User" />
@@ -511,21 +507,21 @@
 
                 <!-- Sugestões Rápidas -->
                 <div class="quick-prompts">
-                    <button type="button" class="prompt-chip" @click="sendSimulatorToChat">
+                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Quero comprar um produto de R$ 300, vale a pena agora com meu momento atual?')">
                         <PhLightning size="13" weight="fill" />
-                        Devo comprar {{ simForm.itemName }} ({{ formatCurrency(simForm.cashPrice) }}) agora?
+                        Posso comprar algo de R$ 300 agora?
                     </button>
-                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Qual é minha margem livre neste mês e quanto posso comprometer em novas parcelas?')">
-                        Quanto posso comprometer em parcelas este mês?
+                    <button type="button" class="prompt-chip" @click="sendQuickPrompt('Como posso economizar melhor nas minhas maiores categorias e balancear minha carteira?')">
+                        Como economizar e investir melhor?
                     </button>
                 </div>
 
                 <footer class="input-area">
-                    <form class="input-wrapper" @submit.prevent="sendMessage(false)">
+                    <form class="input-wrapper" @submit.prevent="sendMessage()">
                         <input
                             type="text"
                             v-model="promptText"
-                            placeholder="Ex: Quero comprar um celular de R$ 3.200, vale parcelar ou pagar à vista?"
+                            placeholder="Ex: Quero comprar algo de 300 reais em 3x, vale a pena?"
                             class="ai-input"
                             :disabled="isTyping"
                         />
@@ -535,104 +531,6 @@
                     </form>
                 </footer>
             </div>
-
-            <!-- COLUNA DIREITA: SIMULADOR DE DECISÃO DE COMPRA (À VISTA VS PARCELADO) -->
-            <aside v-if="showSimulator" class="simulator-panel">
-                <div class="sim-header">
-                    <div class="sim-title-row">
-                        <PhCalculator size="19" weight="duotone" class="sim-icon" />
-                        <h3>Simulador Inteligente de Compra</h3>
-                    </div>
-                    <p>Compara o desconto à vista com o rendimento do seu Cofrinho (CDI) ao parcelar</p>
-                </div>
-
-                <!-- Snapshot do Usuário -->
-                <div class="context-snapshot">
-                    <div class="snap-item">
-                        <span>Sobra Mensal</span>
-                        <strong :class="freeMonthlyCashFlow >= 0 ? 'text-success' : 'text-danger'">
-                            {{ formatCurrency(freeMonthlyCashFlow) }}
-                        </strong>
-                    </div>
-                    <div class="snap-item">
-                        <span>Liquidez no Cofre</span>
-                        <strong>{{ isVaultUnlocked ? formatCurrency(liquidVaultBalance) : '🔒 Isolado' }}</strong>
-                    </div>
-                </div>
-
-                <div class="sim-form">
-                    <div class="input-group">
-                        <label>O que você quer comprar?</label>
-                        <input type="text" v-model="simForm.itemName" placeholder="Ex: Celular Novo" />
-                    </div>
-
-                    <div class="sim-grid-2">
-                        <div class="input-group">
-                            <label>Preço à Vista / Pix (R$)</label>
-                            <input type="number" step="10" v-model.number="simForm.cashPrice" />
-                        </div>
-                        <div class="input-group">
-                            <label>Total Parcelado (R$)</label>
-                            <input type="number" step="10" v-model.number="simForm.installmentTotalPrice" />
-                        </div>
-                    </div>
-
-                    <div class="sim-grid-2">
-                        <div class="input-group">
-                            <label>Nº de Parcelas</label>
-                            <select v-model.number="simForm.installments">
-                                <option v-for="n in [2, 3, 4, 5, 6, 8, 10, 12, 18, 24]" :key="n" :value="n">
-                                    {{ n }}x de {{ formatCurrency((simForm.installmentTotalPrice || 0) / n) }}
-                                </option>
-                            </select>
-                        </div>
-                        <div class="input-group">
-                            <label>Rendimento Cofrinho (% a.m.)</label>
-                            <input type="number" step="0.05" v-model.number="simForm.monthlyCdiRatePct" />
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Resultado Instantâneo VPL -->
-                <div class="verdict-card" :class="simulationAnalysis.verdict">
-                    <div class="verdict-top">
-                        <PhCheckCircle v-if="simulationAnalysis.verdict !== 'wait'" size="18" weight="fill" />
-                        <PhInfo v-else size="18" weight="fill" />
-                        <strong>
-                            {{
-                                simulationAnalysis.verdict === 'installment'
-                                    ? 'Recomendação: Parcelar e investir no Cofrinho'
-                                    : simulationAnalysis.verdict === 'cash'
-                                        ? 'Recomendação: Pagar à Vista (Pix)'
-                                        : 'Alerta: Alto Comprometimento Mensal'
-                            }}
-                        </strong>
-                    </div>
-                    <p class="verdict-desc">{{ simulationAnalysis.summaryText }}</p>
-
-                    <div class="verdict-metrics">
-                        <div class="v-metric">
-                            <span>Ganho CDI parcelando</span>
-                            <strong class="text-success">+ {{ formatCurrency(simulationAnalysis.cdiGainByInstallment) }}</strong>
-                        </div>
-                        <div class="v-metric">
-                            <span>Juros embutidos</span>
-                            <strong :class="simulationAnalysis.interestCharged > 0 ? 'text-danger' : ''">
-                                {{ formatCurrency(simulationAnalysis.interestCharged) }}
-                            </strong>
-                        </div>
-                        <div class="v-metric">
-                            <span>Peso na sobra do mês</span>
-                            <strong>{{ simulationAnalysis.marginImpactPct }}%</strong>
-                        </div>
-                    </div>
-                </div>
-
-                <button type="button" class="btn-primary w-full" @click="sendSimulatorToChat">
-                    <PhSparkle size="17" weight="fill" />
-                    Consultar Parecer Completo da IA
-                </button>
-            </aside>
         </div>
     </div>
 </template>
@@ -803,7 +701,6 @@
         max-width: 82%;
         font-size: 0.9rem;
         line-height: 1.55;
-        white-space: pre-line;
         word-wrap: break-word;
     }
 
@@ -813,11 +710,62 @@
         border-bottom-left-radius: 4px;
         border: 1px solid var(--border-color);
     }
+
+    .markdown-body :deep(p) {
+        margin: 0 0 0.65rem 0;
+    }
+
+    .markdown-body :deep(p:last-child),
+    .markdown-body :deep(ul:last-child),
+    .markdown-body :deep(ol:last-child) {
+        margin-bottom: 0;
+    }
+
+    .markdown-body :deep(h3),
+    .markdown-body :deep(h4) {
+        margin: 0.75rem 0 0.4rem 0;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .markdown-body :deep(h3:first-child),
+    .markdown-body :deep(h4:first-child) {
+        margin-top: 0;
+    }
+
+    .markdown-body :deep(ul),
+    .markdown-body :deep(ol) {
+        margin: 0.35rem 0 0.65rem 0;
+        padding-left: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .markdown-body :deep(li) {
+        line-height: 1.5;
+    }
+
+    .markdown-body :deep(strong) {
+        color: var(--text-primary);
+        font-weight: 700;
+    }
+
+    .markdown-body :deep(code) {
+        background: rgba(99, 102, 241, 0.14);
+        color: var(--primary-color);
+        padding: 0.1rem 0.38rem;
+        border-radius: 5px;
+        font-size: 0.82rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
     
     .is-user .message-bubble {
         background: var(--primary-color);
         color: var(--text-inverse);
         border-bottom-right-radius: 4px;
+        white-space: pre-line;
     }
 
     .quick-prompts {

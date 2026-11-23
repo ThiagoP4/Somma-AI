@@ -18,8 +18,24 @@ if (typeof window !== 'undefined') {
     });
 }
 
+// Detecção blindada: retorna true se estiver rodando dentro do APK Android (Capacitor/WebView) OU como App Instalado (Standalone)
+export function isRunningInsideInstalledApp(): boolean {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    if (Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'web') return true;
+    if ((window as any).Capacitor?.isNativePlatform?.()) return true;
+    // Android WebView (APK Capacitor) sempre inclui "; wv)" no User-Agent ou roda em https://localhost no Android
+    const ua = navigator.userAgent || '';
+    if (/\bwv\b/i.test(ua)) return true;
+    if (/Android/i.test(ua) && (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:')) return true;
+    // App instalado na tela inicial (Standalone / PWA)
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return true;
+    if ((navigator as any).standalone === true) return true;
+    return false;
+}
+
 export function useAppDownload() {
-    const isWebBrowser = !Capacitor.isNativePlatform();
+    const insideApp = isRunningInsideInstalledApp();
+    const isWebBrowser = !insideApp;
     const isAndroidWeb = isWebBrowser && typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
     const fetchLatestRelease = async () => {

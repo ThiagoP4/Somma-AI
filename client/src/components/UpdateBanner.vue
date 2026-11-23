@@ -2,13 +2,17 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
 import { PhSparkle, PhArrowsClockwise, PhDownloadSimple, PhX } from '@phosphor-icons/vue';
+import { useAlertStore } from '../stores/useAlertStore';
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
 
 const DIRECT_LATEST_APK_URL = 'https://github.com/ThiagoP4/Somma-AI/releases/latest/download/app-debug.apk';
+const LAST_SEEN_BUILD_KEY = 'somma_last_seen_build_v1';
 
-const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.1';
+const { showAlert } = useAlertStore();
+
+const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.3';
 const currentBuildId = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : '';
 
 const hasUpdate = ref(false);
@@ -85,19 +89,34 @@ const handleVisibilityChange = () => {
 
 const applyWebUpdateNow = async () => {
     isUpdating.value = true;
+    showAlert(`Aplicando atualização ${updateLabel.value}...`, 'info', 2500);
     try {
         if ('caches' in window) {
             const keys = await caches.keys();
             await Promise.all(keys.map(k => caches.delete(k)));
         }
-        window.location.reload();
+        setTimeout(() => {
+            window.location.reload();
+        }, 450);
     } catch {
         window.location.reload();
     }
 };
 
+const notifyApkDownloadStarted = () => {
+    showAlert(`Baixando Somma AI ${updateLabel.value} (APK)...`, 'info', 4000);
+};
+
 onMounted(async () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Feedback visual automático quando o app abre numa versão mais nova do que a anterior neste aparelho!
+    const currentSignature = `${currentVersion}|${currentBuildId}`;
+    const lastSeen = localStorage.getItem(LAST_SEEN_BUILD_KEY);
+    if (lastSeen && lastSeen !== currentSignature) {
+        showAlert(`Somma AI atualizado para a v${currentVersion} com sucesso!`, 'success', 5000);
+    }
+    localStorage.setItem(LAST_SEEN_BUILD_KEY, currentSignature);
 
     if (Capacitor.isNativePlatform()) {
         await checkGithubReleaseForAndroid();
@@ -145,6 +164,7 @@ onUnmounted(() => {
                     target="_blank"
                     rel="noopener noreferrer"
                     class="btn-update-now"
+                    @click="notifyApkDownloadStarted"
                 >
                     <PhDownloadSimple size="15" weight="bold" />
                     <span>Baixar APK</span>
@@ -156,7 +176,7 @@ onUnmounted(() => {
                     :disabled="isUpdating"
                     @click="applyWebUpdateNow"
                 >
-                    <PhArrowsClockwise size="15" weight="bold" />
+                    <PhArrowsClockwise size="15" weight="bold" :class="{ spinning: isUpdating }" />
                     <span>{{ isUpdating ? 'Atualizando...' : 'Atualizar' }}</span>
                 </button>
                 <button
@@ -256,6 +276,15 @@ onUnmounted(() => {
 
 .btn-update-now:hover:not(:disabled) {
     background: var(--primary-hover);
+}
+
+.spinning {
+    animation: spinUpdate 0.9s linear infinite;
+}
+
+@keyframes spinUpdate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .btn-dismiss {

@@ -33,6 +33,52 @@
     const lastName = ref('');  
     const phone = ref('');
 
+    const BIOMETRIC_PROMPT_DISMISSED_KEY = 'somma_biometric_prompt_dismissed_v1';
+
+    const getPlatformBiometricCopy = () => {
+        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+        if (!isMobile && /Windows/i.test(ua)) {
+            return {
+                methodName: 'Windows Hello / PIN',
+                activateBtn: 'Ativar Windows Hello',
+                loginBtn: 'Entrar com Windows Hello',
+                backBtn: 'Voltar para desbloqueio com Windows Hello',
+                waitingMsg: 'Confirme no Windows Hello para entrar...',
+                promptDesc: 'Da próxima vez que abrir o Somma neste computador, você entra em 1 segundo usando seu PIN ou biometria do Windows.',
+                successAlert: 'Windows Hello ativado! Nas próximas vezes, entre em 1 segundo sem digitar senha.',
+                cancelAlert: 'Cadastro do Windows Hello cancelado. Você pode ativar depois nas Configurações.',
+                authSuccessAlert: 'Autenticado com Windows Hello!',
+            };
+        }
+        if (!isMobile && /Macintosh|Mac OS X/i.test(ua)) {
+            return {
+                methodName: 'Touch ID',
+                activateBtn: 'Ativar Touch ID',
+                loginBtn: 'Entrar com Touch ID',
+                backBtn: 'Voltar para desbloqueio com Touch ID',
+                waitingMsg: 'Confirme com o Touch ID para entrar...',
+                promptDesc: 'Da próxima vez que abrir o Somma neste Mac, você entra em 1 segundo sem precisar digitar e-mail e senha.',
+                successAlert: 'Touch ID ativado! Nas próximas vezes, entre em 1 segundo sem digitar senha.',
+                cancelAlert: 'Cadastro do Touch ID cancelado. Você pode ativar depois nas Configurações.',
+                authSuccessAlert: 'Autenticado com Touch ID!',
+            };
+        }
+        return {
+            methodName: 'Digital / Face ID',
+            activateBtn: 'Ativar Digital Agora',
+            loginBtn: 'Entrar com Digital / Face ID',
+            backBtn: 'Voltar para desbloqueio com Digital',
+            waitingMsg: 'Confirme sua digital ou Face ID para entrar...',
+            promptDesc: 'Da próxima vez que abrir o Somma neste aparelho, você entra em 1 segundo sem precisar digitar e-mail e senha.',
+            successAlert: 'Digital ativada! Nas próximas vezes, entre apenas encostando o dedo.',
+            cancelAlert: 'Cadastro da digital cancelado. Você pode ativar depois nas Configurações.',
+            authSuccessAlert: 'Autenticado com digital!',
+        };
+    };
+
+    const bioCopy = getPlatformBiometricCopy();
+
     const canUseBiometricLogin = ref(false);
     const isBiometricFirstView = ref(false);
     const deviceSupportsBiometric = ref(false);
@@ -61,12 +107,13 @@
         biometricLoading.value = true;
         try {
             await registerBiometricForCurrentUser(true);
-            showAlert('Digital ativada! Nas próximas vezes, entre apenas encostando o dedo.', 'success');
+            localStorage.removeItem(BIOMETRIC_PROMPT_DISMISSED_KEY);
+            showAlert(bioCopy.successAlert, 'success');
         } catch (err: any) {
             showAlert(
                 err?.name === 'NotAllowedError'
-                    ? 'Cadastro da digital cancelado. Você pode ativar depois nas Configurações.'
-                    : (err?.message || 'Não foi possível ativar a digital agora.'),
+                    ? bioCopy.cancelAlert
+                    : (err?.message || 'Não foi possível ativar a biometria agora.'),
                 'warning'
             );
         } finally {
@@ -77,6 +124,7 @@
     };
 
     const handleSkipBiometricPrompt = async () => {
+        localStorage.setItem(BIOMETRIC_PROMPT_DISMISSED_KEY, 'true');
         showBiometricPrompt.value = false;
         await router.replace('/');
     };
@@ -87,12 +135,12 @@
         try {
             await loginWithBiometric();
             localStorage.setItem('lastActivity', Date.now().toString());
-            showAlert('Autenticado com digital!', 'success');
+            showAlert(bioCopy.authSuccessAlert, 'success');
             await router.replace('/');
         } catch (err: any) {
             errorMessage.value = err?.name === 'NotAllowedError'
                 ? 'Leitura biométrica cancelada.'
-                : (err?.message || 'Não foi possível entrar com a digital.');
+                : (err?.message || 'Não foi possível entrar com biometria.');
         } finally {
             biometricLoading.value = false;
         }
@@ -137,9 +185,10 @@
                 localStorage.setItem('lastActivity', Date.now().toString());
                 markSessionBiometricUnlocked();
 
-                // Se o aparelho suporta digital/Face ID e ainda não está ativado, pergunta na hora (estilo Nubank/Inter)!
+                // Se o aparelho suporta biometria/Windows Hello, ainda não está ativado e o usuário não recusou antes, pergunta na hora
                 const existingBio = getBiometricConfig();
-                if (deviceSupportsBiometric.value && !existingBio?.enabled) {
+                const promptDismissed = localStorage.getItem(BIOMETRIC_PROMPT_DISMISSED_KEY) === 'true';
+                if (deviceSupportsBiometric.value && !existingBio?.enabled && !promptDismissed) {
                     showBiometricPrompt.value = true;
                     return;
                 }
@@ -244,7 +293,7 @@
                     <h1>Olá novamente</h1>
                     <span class="bf-email-pill">{{ biometricEmail }}</span>
                     <p class="bf-subtitle">
-                        {{ biometricLoading ? 'Confirme sua digital ou Face ID para entrar...' : 'Toque abaixo para desbloquear sua conta com biometria.' }}
+                        {{ biometricLoading ? bioCopy.waitingMsg : 'Toque abaixo para desbloquear sua conta com rapidez.' }}
                     </p>
 
                     <div v-if="errorMessage" class="error-banner" style="width: 100%; text-align: left;">
@@ -259,7 +308,7 @@
                         @click="handleBiometricLogin"
                     >
                         <PhFingerprint size="20" weight="bold" />
-                        <span>{{ biometricLoading ? 'Aguardando sensor...' : 'Entrar com Digital / Face ID' }}</span>
+                        <span>{{ biometricLoading ? 'Aguardando verificação...' : bioCopy.loginBtn }}</span>
                     </button>
 
                     <button
@@ -405,7 +454,7 @@
                         class="btn-skip-bio"
                         @click="isBiometricFirstView = true; handleBiometricLogin()"
                     >
-                        Voltar para desbloqueio com Digital
+                        {{ bioCopy.backBtn }}
                     </button>
                 </form>
 
@@ -455,15 +504,15 @@
             </div>
         </main>
 
-        <!-- Prompt Instantâneo Pós-Login: Ativar Digital / Face ID -->
-        <div v-if="showBiometricPrompt" class="bio-prompt-overlay" role="dialog" aria-modal="true" aria-label="Ativar login por digital">
+        <!-- Prompt Instantâneo Pós-Login: Ativar Biometria / Windows Hello / Touch ID -->
+        <div v-if="showBiometricPrompt" class="bio-prompt-overlay" role="dialog" aria-modal="true" :aria-label="`Ativar login com ${bioCopy.methodName}`">
             <div class="bio-prompt-card">
                 <div class="bio-prompt-icon">
                     <PhFingerprint size="40" weight="duotone" />
                 </div>
-                <h3>Ativar login com Digital / Face ID?</h3>
+                <h3>Ativar login com {{ bioCopy.methodName }}?</h3>
                 <p>
-                    Da próxima vez que abrir o Somma neste aparelho, você entra em 1 segundo sem precisar digitar e-mail e senha.
+                    {{ bioCopy.promptDesc }}
                 </p>
                 <div class="bio-prompt-actions">
                     <button
@@ -473,7 +522,7 @@
                         @click="handleActivateBiometricAfterLogin"
                     >
                         <PhFingerprint size="20" weight="bold" />
-                        <span>{{ biometricLoading ? 'Aguardando sensor...' : 'Ativar Digital Agora' }}</span>
+                        <span>{{ biometricLoading ? 'Aguardando verificação...' : bioCopy.activateBtn }}</span>
                     </button>
                     <button
                         type="button"

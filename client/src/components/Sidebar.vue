@@ -13,6 +13,9 @@
     import { useAppDownload } from '../composables/useAppDownload';
     import logoUrl from '../assets/somma-logo.svg';
 
+    declare const __APP_VERSION__: string;
+    const appVersion = typeof __APP_VERSION__ !== 'undefined' ? `v${__APP_VERSION__}` : 'v2.0.3';
+
     defineProps<{ isOpen: boolean }>();
     const emit = defineEmits(['close']);
     const router = useRouter();
@@ -114,7 +117,7 @@
                         <span class="brand-name">Somma</span>
                         <span class="brand-badge">AI</span>
                     </div>
-                    <span class="brand-plan">Workspace Financeiro</span>
+                    <span class="brand-plan">Workspace • {{ appVersion }}</span>
                 </div>
             </div>
             <button class="close-btn mobile-only" @click="emit('close')" title="Fechar menu" aria-label="Fechar menu">
