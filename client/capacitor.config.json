@@ -4,8 +4,8 @@
   "webDir": "dist",
   "plugins": {
     "CapacitorUpdater": {
-      "autoUpdate": true,
-      "stats": true,
+      "autoUpdate": false,
+      "stats": false,
       "resetWhenUpdateFailed": true
     }
   }

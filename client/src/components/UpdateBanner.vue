@@ -1,25 +1,26 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { Capacitor } from '@capacitor/core';
-import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { PhSparkle, PhArrowsClockwise, PhDownloadSimple, PhX } from '@phosphor-icons/vue';
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_ID__: string;
 
-const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.0';
+const DIRECT_LATEST_APK_URL = 'https://github.com/ThiagoP4/Somma-AI/releases/latest/download/app-debug.apk';
+
+const currentVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.1';
 const currentBuildId = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : '';
 
 const hasUpdate = ref(false);
 const updateLabel = ref('');
-const updateMode = ref<'web-reload' | 'capgo-ota' | 'github-apk'>('web-reload');
-const apkDownloadUrl = ref<string | null>(null);
+const updateMode = ref<'web-reload' | 'github-apk'>('web-reload');
+const apkDownloadUrl = ref<string>(DIRECT_LATEST_APK_URL);
 const isUpdating = ref(false);
 const dismissed = ref(false);
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
-// Compara versões semânticas simples (ex: "2.1.0" > "2.0.0")
+// Compara versões semânticas simples (ex: "2.1.0" > "2.0.1")
 const isNewerSemver = (remoteVer: string, localVer: string): boolean => {
     const clean = (v: string) => v.replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
     const r = clean(remoteVer);
@@ -51,6 +52,7 @@ const checkWebVersion = async () => {
 const checkGithubReleaseForAndroid = async () => {
     try {
         const res = await fetch('https://api.github.com/repos/ThiagoP4/Somma-AI/releases/latest', {
+            cache: 'no-store',
             headers: { Accept: 'application/vnd.github+json' }
         });
         if (!res.ok) return;
@@ -61,7 +63,7 @@ const checkGithubReleaseForAndroid = async () => {
         const apkAsset = (release?.assets || []).find((a: any) =>
             String(a?.name || '').toLowerCase().endsWith('.apk')
         );
-        apkDownloadUrl.value = apkAsset?.browser_download_url || release?.html_url || null;
+        apkDownloadUrl.value = apkAsset?.browser_download_url || DIRECT_LATEST_APK_URL;
         updateLabel.value = tag;
         updateMode.value = 'github-apk';
         hasUpdate.value = true;
@@ -81,21 +83,9 @@ const handleVisibilityChange = () => {
     }
 };
 
-const applyUpdateNow = async () => {
+const applyWebUpdateNow = async () => {
     isUpdating.value = true;
     try {
-        if (updateMode.value === 'github-apk' && apkDownloadUrl.value) {
-            window.open(apkDownloadUrl.value, '_blank', 'noopener,noreferrer');
-            isUpdating.value = false;
-            return;
-        }
-
-        if (updateMode.value === 'capgo-ota' && Capacitor.isNativePlatform()) {
-            await CapacitorUpdater.reload();
-            return;
-        }
-
-        // PWA / Web: limpa caches antigos e recarrega a aplicação
         if ('caches' in window) {
             const keys = await caches.keys();
             await Promise.all(keys.map(k => caches.delete(k)));
@@ -110,18 +100,6 @@ onMounted(async () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     if (Capacitor.isNativePlatform()) {
-        // Avisa o Capgo que o bundle atual carregou com sucesso (evita rollback automático)
-        try {
-            await CapacitorUpdater.notifyAppReady();
-            CapacitorUpdater.addListener('updateAvailable', (info: any) => {
-                updateLabel.value = info?.bundle?.version ? `v${info.bundle.version}` : 'Live Update';
-                updateMode.value = 'capgo-ota';
-                hasUpdate.value = true;
-                dismissed.value = false;
-            });
-        } catch {
-            // Ignora se Capgo não estiver configurado com token ainda
-        }
         await checkGithubReleaseForAndroid();
     } else {
         await checkWebVersion();
@@ -160,15 +138,26 @@ onUnmounted(() => {
             </div>
 
             <div class="ub-actions">
+                <!-- No Android APK, usar link <a> externo evita que window.open() deixe o WebView em tela cinza/preta! -->
+                <a
+                    v-if="updateMode === 'github-apk'"
+                    :href="apkDownloadUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn-update-now"
+                >
+                    <PhDownloadSimple size="15" weight="bold" />
+                    <span>Baixar APK</span>
+                </a>
                 <button
+                    v-else
                     type="button"
                     class="btn-update-now"
                     :disabled="isUpdating"
-                    @click="applyUpdateNow"
+                    @click="applyWebUpdateNow"
                 >
-                    <PhDownloadSimple v-if="updateMode === 'github-apk'" size="15" weight="bold" />
-                    <PhArrowsClockwise v-else size="15" weight="bold" />
-                    <span>{{ isUpdating ? 'Atualizando...' : (updateMode === 'github-apk' ? 'Baixar APK' : 'Atualizar') }}</span>
+                    <PhArrowsClockwise size="15" weight="bold" />
+                    <span>{{ isUpdating ? 'Atualizando...' : 'Atualizar' }}</span>
                 </button>
                 <button
                     type="button"
@@ -254,6 +243,7 @@ onUnmounted(() => {
     gap: 6px;
     background: var(--primary-color);
     color: white;
+    text-decoration: none;
     border: none;
     border-radius: 9px;
     padding: 0.5rem 0.85rem;

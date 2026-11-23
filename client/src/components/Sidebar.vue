@@ -20,7 +20,7 @@
 
     const profileStore = useProfileStore();
     const { userName, avatarUrl } = storeToRefs(profileStore);
-    const { isWebBrowser, latestVersion, apkDownloadUrl } = useAppDownload();
+    const { isAndroidWeb, latestVersion, apkDownloadUrl } = useAppDownload();
 
     const navigateTo = (path: string) => {
         emit('close');
@@ -207,8 +207,8 @@
             </div>
         </div>
 
-        <!-- Banner Discreto de Download do App Android (apenas quando aberto no navegador) -->
-        <div v-if="isWebBrowser" class="sidebar-download-wrap">
+        <!-- Banner Discreto de Download do App Android (apenas quando aberto no navegador de um celular Android) -->
+        <div v-if="isAndroidWeb" class="sidebar-download-wrap">
             <a
                 :href="apkDownloadUrl"
                 target="_blank"

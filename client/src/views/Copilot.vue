@@ -3,17 +3,28 @@
     import { storeToRefs } from 'pinia';
     import {
         PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser, PhCalculator,
-        PhShieldCheck, PhLockKey, PhLightning, PhCheckCircle, PhInfo
+        PhShieldCheck, PhLockKey, PhLightning, PhCheckCircle, PhInfo, PhEye, PhEyeSlash
     } from '@phosphor-icons/vue';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
+    import { useAssetsStore } from '../stores/useAssetsStore';
     import { useVaultStore } from '../stores/useVaultStore';
+    import {
+        buildZeroKnowledgeDiagnostics,
+        extractMentionedPurchaseImpact
+    } from '../utils/financialDiagnostics';
 
     const profileStore = useProfileStore();
     const piggybankStore = usePiggybankStore();
+    const assetsStore = useAssetsStore();
     const vaultStore = useVaultStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
+
+    // Chave de Privacidade Máxima (ON por padrão!): envia apenas percentuais/índices anonimizados para a IA externa
+    const maxPrivacyMode = ref(true);
+    const showPayloadPreview = ref(false);
+    const categoryTotals = ref<Record<string, number>>({});
 
     interface Message {
         id: number;
@@ -58,11 +69,18 @@
 
             const { data: exp } = await supabase
                 .from('fin_installment')
-                .select('value')
+                .select('value, fin_purchase ( fin_category ( description ) )')
                 .gte('dueDate', startOfMonth)
                 .lte('dueDate', endOfMonth);
 
             monthlyExpenses.value = (exp || []).reduce((acc: number, c: any) => acc + Number(c.value), 0);
+
+            const catMap: Record<string, number> = {};
+            for (const item of (exp || []) as any[]) {
+                const catName = item?.fin_purchase?.fin_category?.description || 'Outros';
+                catMap[catName] = (catMap[catName] || 0) + Number(item.value || 0);
+            }
+            categoryTotals.value = catMap;
 
             // Lê assinaturas salvas
             const rawSubs = localStorage.getItem('somma_subscriptions_v1');
@@ -73,7 +91,10 @@
                     .reduce((acc: number, s: any) => acc + (s.cycle === 'yearly' ? s.amount / 12 : s.amount), 0);
             }
 
-            await piggybankStore.fetchPiggybanks();
+            await Promise.all([
+                piggybankStore.fetchPiggybanks(),
+                assetsStore.fetchAssets()
+            ]);
         } catch (e) {
             console.error('Erro ao carregar contexto do Copilot:', e);
         }
@@ -163,8 +184,42 @@
         });
     });
 
-    const buildFinancialSnapshotPayload = () => {
+    // Motor de Diagnóstico Local (calcula percentuais anonimizados + insights 100% offline no aparelho)
+    const localDiagnostics = computed(() =>
+        buildZeroKnowledgeDiagnostics({
+            monthlyIncomes: monthlyIncomes.value,
+            monthlyExpenses: monthlyExpenses.value,
+            monthlySubscriptions: monthlySubscriptions.value,
+            categoryTotals: categoryTotals.value,
+            isVaultUnlocked: isVaultUnlocked.value,
+            piggybanks: piggybankStore.piggybanks,
+            variableAssets: assetsStore.assets
+        })
+    );
+
+    const buildFinancialSnapshotPayload = (userMessageText = '') => {
+        if (maxPrivacyMode.value) {
+            // MODO PRIVACIDADE MÁXIMA: envia APENAS percentuais e índices anonimizados (0 reais de saldo, 0 nomes de bancos!)
+            // Se o usuário mencionou um valor na pergunta (ex: "produto de 300 reais"), anexa o impacto percentual local desse valor.
+            const dailyLiquid = isVaultUnlocked.value
+                ? piggybankStore.piggybanks
+                    .filter(p => p.liquidity !== 'maturity')
+                    .reduce((acc, p) => acc + Number(p.current_amount || 0), 0)
+                : null;
+
+            const mentionedPurchaseImpact = extractMentionedPurchaseImpact(userMessageText, {
+                monthlyIncomes: monthlyIncomes.value,
+                freeMonthlyCashFlow: freeMonthlyCashFlow.value,
+                dailyLiquidReserve: dailyLiquid
+            });
+
+            return {
+                ...localDiagnostics.value.anonymizedProfile,
+                ...(mentionedPurchaseImpact ? { mentionedPurchaseImpact } : {})
+            };
+        }
         return {
+            privacyMode: 'full-values',
             monthFlow: {
                 incomes: monthlyIncomes.value,
                 expenses: monthlyExpenses.value,
@@ -185,6 +240,47 @@
                     : []
             }
         };
+    };
+
+    const previewPayloadJson = computed(() => JSON.stringify(buildFinancialSnapshotPayload(promptText.value), null, 2));
+
+    const runOfflineDiagnosticInChat = async () => {
+        const diag = localDiagnostics.value;
+        const p = diag.anonymizedProfile;
+        const topCats = p.topExpenseCategoriesPct.length > 0
+            ? p.topExpenseCategoriesPct.map(c => `• ${c.category}: ${c.sharePct}%`).join('\n')
+            : '• Sem despesas categorizadas neste mês.';
+        const tips = diag.localInsights.length > 0
+            ? diag.localInsights.map(t => `✅ ${t}`).join('\n')
+            : '✅ Cadastre receitas, despesas e contas para gerar recomendações locais.';
+
+        messages.value.push({
+            id: Date.now(),
+            role: 'ai',
+            content: [
+                `🛡️ **Raio-X Financeiro Local (100% Offline — Nenhum dado enviado à nuvem)**`,
+                ``,
+                `• **Taxa de Poupança:** ${p.monthlyCashflowRatios.savingsRatePct}% (Comprometimento: ${p.monthlyCashflowRatios.expenseCommitmentPct}%)`,
+                `• **Saúde do Fluxo:** ${p.monthlyCashflowRatios.healthStatus.toUpperCase()}`,
+                p.portfolioAllocationPct.vaultConnected
+                    ? `• **Carteira:** ${p.portfolioAllocationPct.fixedIncomePct}% Renda Fixa / ${p.portfolioAllocationPct.variableIncomeAndCryptoPct}% Variável & Cripto`
+                    : `• **Carteira:** Cofre Tailscale isolado`,
+                p.portfolioAllocationPct.emergencyRunwayMonths !== null
+                    ? `• **Fôlego de Reserva (Liquidez Diária):** ${p.portfolioAllocationPct.emergencyRunwayMonths} meses de custo de vida`
+                    : ``,
+                ``,
+                `📌 **Maiores Categorias do Mês (%):**`,
+                topCats,
+                ``,
+                `💡 **Diagnóstico & Próximos Passos:**`,
+                tips
+            ].filter(Boolean).join('\n')
+        });
+
+        await nextTick();
+        if (chatContainer.value) {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        }
     };
 
     const generateLocalCopilotAnswer = () => {
@@ -261,13 +357,23 @@
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
-                    sessionId: userId,
+                    sessionId: maxPrivacyMode.value ? 'anonymous-zero-knowledge' : userId,
                     message: text,
-                    financialContext: buildFinancialSnapshotPayload(),
-                    purchaseSimulation: fromSimulator ? {
-                        ...simForm.value,
-                        computed: simulationAnalysis.value
-                    } : null
+                    financialContext: buildFinancialSnapshotPayload(text),
+                    purchaseSimulation: fromSimulator
+                        ? (maxPrivacyMode.value
+                            ? {
+                                installments: simForm.value.installments,
+                                monthlyCdiRatePct: simForm.value.monthlyCdiRatePct,
+                                marginImpactPct: simulationAnalysis.value.marginImpactPct,
+                                verdict: simulationAnalysis.value.verdict,
+                                hasInterest: simForm.value.installmentTotalPrice > simForm.value.cashPrice
+                              }
+                            : {
+                                ...simForm.value,
+                                computed: simulationAnalysis.value
+                              })
+                        : null
                 })
             });
 
@@ -329,11 +435,46 @@
                 </div>
             </div>
 
-            <button class="btn-secondary" @click="showSimulator = !showSimulator">
-                <PhCalculator size="18" />
-                {{ showSimulator ? 'Ocultar Simulador' : 'Simulador de Compra' }}
-            </button>
+            <div class="header-right-actions">
+                <button class="btn-secondary" @click="runOfflineDiagnosticInChat">
+                    <PhShieldCheck size="17" weight="duotone" />
+                    Raio-X Offline
+                </button>
+                <button class="btn-secondary" @click="showSimulator = !showSimulator">
+                    <PhCalculator size="18" />
+                    {{ showSimulator ? 'Ocultar Simulador' : 'Simulador' }}
+                </button>
+            </div>
         </header>
+
+        <!-- Barra de Privacidade Máxima (Zero-Knowledge Prompting) + Preview do JSON -->
+        <div class="privacy-bar">
+            <div class="privacy-bar-top">
+                <label class="privacy-toggle-label">
+                    <input type="checkbox" v-model="maxPrivacyMode" />
+                    <span>
+                        <strong>🛡️ Privacidade Máxima na IA</strong> —
+                        {{
+                            maxPrivacyMode
+                                ? 'Ativada: envia apenas percentuais e índices anonimizados (0 reais, 0 bancos, 0 nomes)'
+                                : 'Desativada: envia valores completos do fluxo mensal'
+                        }}
+                    </span>
+                </label>
+
+                <button
+                    type="button"
+                    class="btn-preview-json"
+                    @click="showPayloadPreview = !showPayloadPreview"
+                >
+                    <PhEyeSlash v-if="showPayloadPreview" size="14" />
+                    <PhEye v-else size="14" />
+                    {{ showPayloadPreview ? 'Ocultar JSON' : 'Ver JSON enviado à IA' }}
+                </button>
+            </div>
+
+            <pre v-if="showPayloadPreview" class="json-preview-box">{{ previewPayloadJson }}</pre>
+        </div>
 
         <div class="copilot-workspace" :class="{ 'with-simulator': showSimulator }">
             <!-- COLUNA ESQUERDA: CHAT -->
@@ -923,6 +1064,87 @@
     @keyframes bounce {
         0%, 80%, 100% { transform: scale(0); }
         40% { transform: scale(1); }
+    }
+
+    .header-right-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+    }
+
+    .privacy-bar {
+        background: var(--bg-card);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 13px;
+        padding: 0.7rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+    }
+
+    .privacy-bar-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+    }
+
+    .privacy-toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .privacy-toggle-label strong {
+        color: var(--success-text);
+    }
+
+    .privacy-toggle-label input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: #10B981;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .btn-preview-json {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 0.74rem;
+        font-weight: 600;
+        padding: 0.35rem 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+    .btn-preview-json:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .json-preview-box {
+        margin: 0;
+        padding: 0.85rem 1rem;
+        border-radius: 10px;
+        background: #090A0F;
+        border: 1px solid var(--border-color);
+        color: #A5B4FC;
+        font-size: 0.74rem;
+        line-height: 1.45;
+        max-height: 220px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
     }
 
     @media (max-width: 1024px) {

@@ -20,7 +20,7 @@
     import logoUrl from '../assets/somma-logo.svg';
 
     const { showAlert } = useAlertStore();
-    const { isWebBrowser, latestVersion, apkDownloadUrl, deferredPwaPrompt, installPwa } = useAppDownload();
+    const { isAndroidWeb, latestVersion, apkDownloadUrl, deferredPwaPrompt, installDesktopApp } = useAppDownload();
 
     const router = useRouter();
     const loading = ref(false);
@@ -34,6 +34,7 @@
     const phone = ref('');
 
     const canUseBiometricLogin = ref(false);
+    const isBiometricFirstView = ref(false);
     const deviceSupportsBiometric = ref(false);
     const showBiometricPrompt = ref(false);
     const biometricEmail = ref('');
@@ -45,7 +46,14 @@
         deviceSupportsBiometric.value = supported;
         if (cfg?.enabled && supported) {
             canUseBiometricLogin.value = true;
+            isBiometricFirstView.value = true;
             biometricEmail.value = cfg.email;
+            // Estilo Nubank / Mercado Pago: já solicita a digital automaticamente ao abrir!
+            setTimeout(() => {
+                if (isBiometricFirstView.value) {
+                    handleBiometricLogin();
+                }
+            }, 250);
         }
     });
 
@@ -228,32 +236,70 @@
                     <span class="brand-badge">AI</span>
                 </div>
 
-                <div class="auth-header">
-                    <h1>{{ isSignUp ? 'Criar nova conta' : 'Bem-vindo de volta' }}</h1>
-                    <p>{{ isSignUp ? 'Comece a organizar sua vida financeira em segundos.' : 'Insira suas credenciais para acessar seu workspace.' }}</p>
-                </div>
+                <!-- MODO 1 (ESTILO NUBANK / MERCADO PAGO): TELA SUPER SIMPLIFICADA QUANDO TEM DIGITAL -->
+                <div v-if="isBiometricFirstView" class="biometric-first-box">
+                    <div class="bf-finger-circle" :class="{ pulsing: biometricLoading }">
+                        <PhFingerprint size="46" weight="duotone" />
+                    </div>
+                    <h1>Olá novamente</h1>
+                    <span class="bf-email-pill">{{ biometricEmail }}</span>
+                    <p class="bf-subtitle">
+                        {{ biometricLoading ? 'Confirme sua digital ou Face ID para entrar...' : 'Toque abaixo para desbloquear sua conta com biometria.' }}
+                    </p>
 
-                <!-- Segmented Switcher: Entrar vs Criar Conta -->
-                <div class="auth-tabs">
+                    <div v-if="errorMessage" class="error-banner" style="width: 100%; text-align: left;">
+                        {{ errorMessage }}
+                    </div>
+
                     <button
                         type="button"
-                        class="auth-tab"
-                        :class="{ active: !isSignUp }"
-                        @click="switchMode(false)"
+                        class="submit-btn"
+                        style="width: 100%;"
+                        :disabled="biometricLoading"
+                        @click="handleBiometricLogin"
                     >
-                        Entrar
+                        <PhFingerprint size="20" weight="bold" />
+                        <span>{{ biometricLoading ? 'Aguardando sensor...' : 'Entrar com Digital / Face ID' }}</span>
                     </button>
+
                     <button
                         type="button"
-                        class="auth-tab"
-                        :class="{ active: isSignUp }"
-                        @click="switchMode(true)"
+                        class="btn-skip-bio"
+                        :disabled="biometricLoading"
+                        @click="isBiometricFirstView = false; errorMessage = ''"
                     >
-                        Criar conta
+                        Usar e-mail e senha ou criar conta
                     </button>
                 </div>
 
-                <form @submit.prevent="handleAuth" class="auth-form">
+                <!-- MODO 2: FORMULÁRIO PADRÃO DE E-MAIL / SENHA / CADASTRO -->
+                <template v-else>
+                    <div class="auth-header">
+                        <h1>{{ isSignUp ? 'Criar nova conta' : 'Bem-vindo de volta' }}</h1>
+                        <p>{{ isSignUp ? 'Comece a organizar sua vida financeira em segundos.' : 'Insira suas credenciais para acessar seu workspace.' }}</p>
+                    </div>
+
+                    <!-- Segmented Switcher: Entrar vs Criar Conta -->
+                    <div class="auth-tabs">
+                        <button
+                            type="button"
+                            class="auth-tab"
+                            :class="{ active: !isSignUp }"
+                            @click="switchMode(false)"
+                        >
+                            Entrar
+                        </button>
+                        <button
+                            type="button"
+                            class="auth-tab"
+                            :class="{ active: isSignUp }"
+                            @click="switchMode(true)"
+                        >
+                            Criar conta
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="handleAuth" class="auth-form">
                     <template v-if="isSignUp">
                         <div class="form-row">
                             <div class="field-group">
@@ -353,22 +399,14 @@
                         </template>
                     </button>
 
-                    <!-- Login rápido com Digital / Face ID no celular -->
-                    <template v-if="!isSignUp && canUseBiometricLogin">
-                        <div class="biometric-divider"><span>ou acesse rapidamente</span></div>
-                        <button
-                            type="button"
-                            class="biometric-btn"
-                            :disabled="biometricLoading"
-                            @click="handleBiometricLogin"
-                        >
-                            <PhFingerprint size="22" weight="duotone" />
-                            <div class="bio-btn-text">
-                                <strong>{{ biometricLoading ? 'Validando digital...' : 'Entrar com Digital / Face ID' }}</strong>
-                                <small>{{ biometricEmail }}</small>
-                            </div>
-                        </button>
-                    </template>
+                    <button
+                        v-if="!isSignUp && canUseBiometricLogin"
+                        type="button"
+                        class="btn-skip-bio"
+                        @click="isBiometricFirstView = true; handleBiometricLogin()"
+                    >
+                        Voltar para desbloqueio com Digital
+                    </button>
                 </form>
 
                 <div class="auth-footer">
@@ -379,35 +417,38 @@
                         </a>
                     </p>
                 </div>
+                </template>
 
-                <!-- Card de Download Direto do App (Visível apenas quando aberto pelo site) -->
-                <div v-if="isWebBrowser" class="app-download-card">
+                <!-- Card de Download: mostra APK apenas no Android Web, ou "Instalar no PC" no Desktop quando suportado -->
+                <div v-if="isAndroidWeb || deferredPwaPrompt" class="app-download-card">
                     <div class="adc-left">
                         <div class="adc-icon">
                             <PhDeviceMobile size="20" weight="duotone" />
                         </div>
                         <div class="adc-info">
-                            <strong>Baixar App Somma AI</strong>
-                            <span>Android APK ({{ latestVersion }}) • Download direto</span>
+                            <strong>{{ isAndroidWeb ? 'Baixar App Android' : 'Instalar Somma no PC' }}</strong>
+                            <span>{{ isAndroidWeb ? `APK Direto (${latestVersion})` : 'Abre como aplicativo na sua área de trabalho' }}</span>
                         </div>
                     </div>
                     <div class="adc-actions">
                         <a
+                            v-if="isAndroidWeb"
                             :href="apkDownloadUrl"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="adc-btn"
                         >
                             <PhDownloadSimple size="15" weight="bold" />
-                            <span>APK</span>
+                            <span>Baixar APK</span>
                         </a>
                         <button
-                            v-if="deferredPwaPrompt"
+                            v-else-if="deferredPwaPrompt"
                             type="button"
-                            class="adc-btn pwa-btn"
-                            @click="installPwa"
+                            class="adc-btn"
+                            @click="installDesktopApp"
                         >
-                            Instalar PWA
+                            <PhDownloadSimple size="15" weight="bold" />
+                            <span>Instalar</span>
                         </button>
                     </div>
                 </div>
@@ -953,6 +994,62 @@
     .bio-btn-text small {
         font-size: 0.72rem;
         color: var(--text-secondary);
+    }
+
+    /* Tela Super Simplificada de Digital (Estilo Nubank / Mercado Pago) */
+    .biometric-first-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.85rem;
+        padding: 1rem 0 0.5rem;
+    }
+
+    .bf-finger-circle {
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        background: var(--primary-subtle);
+        border: 1.5px solid rgba(99, 102, 241, 0.4);
+        color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.25rem;
+    }
+
+    .bf-finger-circle.pulsing {
+        animation: bfPulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes bfPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }
+        50% { box-shadow: 0 0 0 14px rgba(99, 102, 241, 0); }
+    }
+
+    .biometric-first-box h1 {
+        margin: 0;
+        font-size: 1.6rem;
+        color: var(--text-primary);
+    }
+
+    .bf-email-pill {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 99px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border-color);
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .bf-subtitle {
+        margin: 0 0 0.4rem 0;
+        font-size: 0.86rem;
+        color: var(--text-secondary);
+        line-height: 1.45;
     }
 
     /* Prompt Pós-Login de Biometria */
