@@ -2,7 +2,7 @@
     import { ref, computed } from 'vue';
     import {
         PhMagnifyingGlass, PhCaretDown, PhShieldCheck, PhSparkle,
-        PhCreditCard, PhPiggyBank, PhHeart, PhWhatsappLogo, PhRobot, PhTerminalWindow
+        PhCreditCard, PhPiggyBank, PhHeart, PhWhatsappLogo, PhRobot
     } from '@phosphor-icons/vue';
 
     interface FaqItem {
@@ -14,33 +14,21 @@
 
     const searchQuery = ref('');
     const activeCategory = ref<'all' | 'vault' | 'cards' | 'ai' | 'couple'>('all');
-    const openFaqId = ref<string | null>('faq-1');
+    const openFaqId = ref<string | null>('faq-3');
 
     const categories = [
         { id: 'all', label: 'Todos os Tópicos', icon: PhSparkle },
-        { id: 'vault', label: 'Cofre Tailscale VPN', icon: PhShieldCheck },
         { id: 'cards', label: 'Faturas & Cartões', icon: PhCreditCard },
         { id: 'ai', label: 'Copilot IA & VPL', icon: PhRobot },
         { id: 'couple', label: 'Modo Casal & Cofrinhos', icon: PhHeart },
+        { id: 'vault', label: 'Privacidade & Segurança', icon: PhShieldCheck },
     ] as const;
 
     const faqs: FaqItem[] = [
         {
-            id: 'faq-1',
-            category: 'vault',
-            question: 'Como funciona o isolamento Zero-Trust com Tailscale VPN?',
-            answer: 'Na Arquitetura Dual-DB do Somma AI, suas despesas cotidianas ficam no Supabase Cloud, mas seus saldos bancários e cofrinhos (fin_piggybank) ficam no seu servidor privado dentro da sua rede Tailscale (100.64.0.0/10). Quando você acessa o app fora da sua VPN Tailscale, o frontend limpa os dados da memória RAM e oculta seu patrimônio automaticamente.'
-        },
-        {
-            id: 'faq-2',
-            category: 'vault',
-            question: 'Como expor meu Cofre local com HTTPS na minha Tailnet?',
-            answer: 'Primeiro inicie o servidor do cofre na raiz do projeto com "npm run vault" (porta 8787). Em seguida, rode "tailscale serve --bg 8787" no terminal da máquina onde o servidor está rodando. O Tailscale criará um endereço HTTPS privado (https://sua-maquina.tailxxxx.ts.net) que só responde para dispositivos autenticados na sua conta Tailscale.'
-        },
-        {
             id: 'faq-3',
             category: 'cards',
-            question: 'Qual a diferença entre o filtro "Por Mês" e "Por Fatura" na Topbar?',
+            question: 'Qual a diferença entre o filtro "Por Mês" e "Por Fatura" na barra superior?',
             answer: 'No modo "Por Mês", o Somma exibe todos os gastos e receitas do dia 1º ao último dia do mês calendário. Já no modo "Por Fatura", o sistema calcula automaticamente a janela de compras com base no "Dia de Fechamento" configurado em cada cartão de crédito (ex: compras feitas entre 26 do mês anterior e 25 do mês atual).'
         },
         {
@@ -60,6 +48,18 @@
             category: 'couple',
             question: 'Como funciona a Divisão Proporcional no Modo Casal?',
             answer: 'Em vez de dividir as contas da casa 50% para cada um (o que pesa mais para quem ganha menos), a divisão proporcional calcula o peso da renda de cada parceiro na renda total do casal. Se você ganha 60% da renda total da casa, sua cota justa nas despesas compartilhadas será de 60%, garantindo que ambos comprometam o mesmo percentual do próprio salário.'
+        },
+        {
+            id: 'faq-1',
+            category: 'vault',
+            question: 'Como ocultar rapidamente meus valores em locais públicos ou no trabalho?',
+            answer: 'Basta clicar no ícone de olho na barra superior (ou usar o atalho Alt+P no teclado). Todos os saldos, gráficos e valores da tela ficam desfocados instantaneamente até você clicar novamente.'
+        },
+        {
+            id: 'faq-2',
+            category: 'vault',
+            question: 'O que é a opção "Servidor de Cofre Privado" nas Configurações?',
+            answer: 'Por padrão, seus cofrinhos e investimentos são salvos com segurança na nuvem da sua conta. Para usuários avançados que preferem hospedar seus próprios dados patrimoniais em um servidor particular, é possível ativar o Servidor de Cofre Privado em Configurações e sincronizar rapidamente com o celular via QR Code quando estiver em outro computador.'
         }
     ];
 
@@ -88,14 +88,14 @@
             <div class="hero-glow"></div>
             <span class="hero-pill">Suporte & Documentação</span>
             <h1>Central de Ajuda Somma AI</h1>
-            <p>Entenda como aproveitar os recursos de inteligência financeira, ciclos de fatura e o Cofre Tailscale Zero-Trust</p>
+            <p>Aprenda a organizar seus ciclos de fatura, planejar reservas nos cofrinhos e tomar decisões melhores com o Copilot IA</p>
 
             <div class="search-box">
                 <PhMagnifyingGlass size="20" class="search-icon" />
                 <input
                     type="text"
                     v-model="searchQuery"
-                    placeholder="Pesquisar dúvida (ex: Tailscale, CDI, Fatura, Modo Casal)..."
+                    placeholder="Pesquisar dúvida (ex: Fatura, Cofrinho, CDI, Modo Casal)..."
                 />
             </div>
         </header>
@@ -104,10 +104,10 @@
         <section class="quick-guides">
             <div class="guide-card">
                 <div class="guide-icon icon-indigo">
-                    <PhTerminalWindow size="22" weight="duotone" />
+                    <PhCreditCard size="22" weight="duotone" />
                 </div>
-                <h3>1. Subindo o Tailscale Vault</h3>
-                <p>Rode <code>npm run vault</code> na raiz e exponha na sua VPN com <code>tailscale serve --bg 8787</code> para blindar seus cofrinhos.</p>
+                <h3>1. Controle por Ciclo de Fatura</h3>
+                <p>Alterne entre o calendário do mês e o ciclo real de fechamento de cada cartão de crédito no seletor de data do topo.</p>
             </div>
 
             <div class="guide-card">

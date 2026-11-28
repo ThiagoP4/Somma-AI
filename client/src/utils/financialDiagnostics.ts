@@ -3,11 +3,15 @@ import type { VariableAsset, AssetClass } from '../stores/useAssetsStore';
 
 export interface CategoryExpenseRatio {
     category: string;
+    amountBrl: number;
     sharePct: number;
 }
 
 export interface MonthlyForecastPoint {
     monthLabel: string;
+    committedAmountBrl: number;
+    projectedTotalSpendBrl: number;
+    projectedSavingsBrl: number;
     committedPctOfIncome: number;
     projectedTotalSpendPctOfIncome: number;
     projectedSavingsPct: number;
@@ -20,9 +24,16 @@ export interface CategoryAnomalyRatio {
 }
 
 export interface AnonymizedFinancialProfile {
-    privacyMode: 'zero-knowledge-ratios-only';
+    privacyMode: 'anonymized-financial-values-no-pii';
     note: string;
     weight1_immediateCashAndCurrentMonth: {
+        monthlyIncomesBrl: number;
+        monthlyExpensesBrl: number;
+        freeMonthlyCashFlowBrl: number;
+        spendableNowFreeBrl: number;
+        monthlyDirectExpensesBrl: number;
+        monthlyCreditCardInvoiceBrl: number;
+        monthlySubscriptionsBrl: number;
         monthProgressPct: number;
         expenseCommitmentPct: number;
         savingsRatePct: number;
@@ -36,6 +47,10 @@ export interface AnonymizedFinancialProfile {
     };
     weight2_trendAndNext3MonthsForecast: {
         forecastEngine: 'postgres-statistical-ml' | 'local-3m-fallback';
+        currentMonthProjectedSpendBrl: number;
+        baselineMonthlyTotalSpendBrl: number;
+        typicalMonthlyDiscretionarySpendBrl: number;
+        linearSlopeBrlPerMonth: number;
         currentMonthProjectedCommitmentPct: number;
         vsLast3MonthsAvgSpendPct: number | null;
         spendingPaceStatus: 'abaixo_do_ritmo' | 'no_ritmo' | 'acelerado';
@@ -47,6 +62,12 @@ export interface AnonymizedFinancialProfile {
     };
     weight3_wealthGoalsAndInvestments: {
         vaultConnected: boolean;
+        totalWealthBrl: number | null;
+        fixedIncomeTotalBrl: number | null;
+        composingBalanceTotalBrl: number | null;
+        isolatedReservesTotalBrl: number | null;
+        lockedUntilMaturityTotalBrl: number | null;
+        variableIncomeAndCryptoTotalBrl: number | null;
         composingBalanceShareOfFixedPct: number;
         isolatedReservesShareOfFixedPct: number;
         lockedUntilMaturityShareOfFixedPct: number;
@@ -58,6 +79,7 @@ export interface AnonymizedFinancialProfile {
         activeGoalsAvgProgressPct: number | null;
     };
     weight4_safetyBufferContextOnly: {
+        dailyLiquidReservesBrl: number | null;
         emergencyRunwayMonths: number | null;
         rule: string;
     };
@@ -96,6 +118,7 @@ export interface LocalDiagnosticInput {
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
     anonymizedProfile: AnonymizedFinancialProfile;
@@ -121,7 +144,7 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
     else if (savingsRatePct >= 0) healthStatus = 'atencao';
     else healthStatus = 'critico';
 
-    // Top 5 categorias de despesa em %
+    // Top 5 categorias de despesa em R$ e %
     const totalCatSum = Object.values(input.categoryTotals).reduce((a, b) => a + b, 0);
     const topExpenseCategoriesPct: CategoryExpenseRatio[] = totalCatSum > 0
         ? Object.entries(input.categoryTotals)
@@ -129,6 +152,7 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
             .slice(0, 5)
             .map(([category, val]) => ({
                 category,
+                amountBrl: round2(val),
                 sharePct: round1((val / totalCatSum) * 100)
             }))
         : [];
@@ -262,6 +286,9 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         const projectedSavingsPct = inc > 0 ? round1(((inc - projectedTotal) / inc) * 100) : 0;
         return {
             monthLabel: m.monthLabel,
+            committedAmountBrl: round2(committed),
+            projectedTotalSpendBrl: round2(projectedTotal),
+            projectedSavingsBrl: round2(inc - projectedTotal),
             committedPctOfIncome,
             projectedTotalSpendPctOfIncome,
             projectedSavingsPct
@@ -275,9 +302,16 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         : null;
 
     const anonymizedProfile: AnonymizedFinancialProfile = {
-        privacyMode: 'zero-knowledge-ratios-only',
-        note: 'Zero-Knowledge: nenhum valor em R$, nome de banco ou dado pessoal foi enviado. Apenas proporções, ritmos e tendências.',
+        privacyMode: 'anonymized-financial-values-no-pii',
+        note: 'Sem dados pessoais identificáveis (sem CPF, e-mail, telefone ou credenciais). Valores em R$ e proporções financeiras reais incluídos para consultoria precisa.',
         weight1_immediateCashAndCurrentMonth: {
+            monthlyIncomesBrl: round2(inc),
+            monthlyExpensesBrl: round2(exp),
+            freeMonthlyCashFlowBrl: round2(inc - exp),
+            spendableNowFreeBrl: round2(spendableNowFree),
+            monthlyDirectExpensesBrl: round2(directExp),
+            monthlyCreditCardInvoiceBrl: round2(cardExp),
+            monthlySubscriptionsBrl: round2(subs),
             monthProgressPct,
             expenseCommitmentPct,
             savingsRatePct,
@@ -291,6 +325,10 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         },
         weight2_trendAndNext3MonthsForecast: {
             forecastEngine,
+            currentMonthProjectedSpendBrl: round2(rawProjectedMonthSpend),
+            baselineMonthlyTotalSpendBrl: round2(baselineTotalSpend),
+            typicalMonthlyDiscretionarySpendBrl: round2(baselineDiscretionarySpend),
+            linearSlopeBrlPerMonth: round2(linearSlopeBrl),
             currentMonthProjectedCommitmentPct,
             vsLast3MonthsAvgSpendPct,
             spendingPaceStatus,
@@ -302,6 +340,12 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
         },
         weight3_wealthGoalsAndInvestments: {
             vaultConnected: input.isVaultUnlocked,
+            totalWealthBrl: input.isVaultUnlocked ? round2(totalWealth) : null,
+            fixedIncomeTotalBrl: input.isVaultUnlocked ? round2(fixedIncomeTotal) : null,
+            composingBalanceTotalBrl: input.isVaultUnlocked ? round2(composingBalanceTotal) : null,
+            isolatedReservesTotalBrl: input.isVaultUnlocked ? round2(isolatedReservesTotal) : null,
+            lockedUntilMaturityTotalBrl: input.isVaultUnlocked ? round2(lockedMaturityTotal) : null,
+            variableIncomeAndCryptoTotalBrl: input.isVaultUnlocked ? round2(variableTotal) : null,
             composingBalanceShareOfFixedPct,
             isolatedReservesShareOfFixedPct,
             lockedUntilMaturityShareOfFixedPct,
@@ -313,6 +357,7 @@ export function buildZeroKnowledgeDiagnostics(input: LocalDiagnosticInput): {
             activeGoalsAvgProgressPct
         },
         weight4_safetyBufferContextOnly: {
+            dailyLiquidReservesBrl: input.isVaultUnlocked ? round2(dailyLiquidTotal) : null,
             emergencyRunwayMonths,
             rule: 'NUNCA use a reserva isolada como justificativa para aprovar compras de consumo quando o Peso 1 ou Peso 2 estiverem apertados.'
         },

@@ -94,16 +94,6 @@
         await piggybankStore.fetchPiggybanks();
     };
 
-    const handleToggleSimulatedNetwork = async () => {
-        await vaultStore.toggleSimulatedOffline();
-        await piggybankStore.fetchPiggybanks();
-    };
-
-    const handleToggleStealth = async () => {
-        vaultStore.toggleStealthMode();
-        await piggybankStore.fetchPiggybanks();
-    };
-
     const handleGlobalKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
             isSidebarOpen.value = false;
@@ -166,8 +156,8 @@
         </div>
 
         <div class="topbar-right">
-          <!-- TAILSCALE VAULT STATUS PILL (Arquitetura A Zero-Trust) -->
-          <div class="vault-selector-container" ref="vaultDropdownRef">
+          <!-- STATUS DO COFRE PRIVADO (Exibido apenas para quem ativou Servidor Privado) -->
+          <div v-if="vaultStore.usePrivateServer" class="vault-selector-container" ref="vaultDropdownRef">
             <button
               class="vault-pill-btn"
               :class="{
@@ -175,8 +165,8 @@
                 'is-locked': !vaultStore.isVaultUnlocked
               }"
               @click="isVaultDropdownOpen = !isVaultDropdownOpen"
-              title="Status do Cofre Tailscale VPN"
-              aria-label="Status do Cofre Tailscale VPN"
+              title="Status do Cofre Privado"
+              aria-label="Status do Cofre Privado"
               :aria-expanded="isVaultDropdownOpen"
             >
               <span class="status-dot"></span>
@@ -185,10 +175,10 @@
               <span class="vault-pill-text">
                 {{
                   vaultStore.isEphemeralPaired
-                    ? 'Cofre (RAM Efêmera)'
+                    ? 'Acesso Temporário'
                     : vaultStore.isVaultUnlocked
-                      ? 'Tailscale Vault'
-                      : 'Cofre Isolado'
+                      ? 'Cofre Ativo'
+                      : 'Cofre Protegido'
                 }}
               </span>
               <PhCaretDown size="13" class="caret" />
@@ -204,36 +194,21 @@
                   <h4>
                     {{
                       vaultStore.isEphemeralPaired
-                        ? 'Sessão Efêmera na RAM Ativa'
+                        ? 'Visualização Temporária Ativa'
                         : vaultStore.isVaultUnlocked
-                          ? 'Tailscale VPN Conectada'
-                          : 'Fora da Rede Tailscale'
+                          ? 'Cofre Privado Conectado'
+                          : 'Cofre Privado Protegido'
                     }}
                   </h4>
                   <p>
                     {{
                       vaultStore.isEphemeralPaired
-                        ? 'Dados recebidos via QR Code (ECDH + AES-256-GCM). Apagam sozinhos ao dar F5 ou fechar a aba.'
+                        ? 'Carteira liberada temporariamente nesta aba. Ao atualizar ou fechar a página, os dados são ocultados.'
                         : vaultStore.isVaultUnlocked
-                          ? 'Saldos bancários e cofrinhos sincronizados via túnel privado (.ts.net).'
-                          : 'Saldos de contas e cofrinhos não são carregados fora da sua VPN.'
+                          ? 'Seus saldos bancários e investimentos estão sincronizados com seu servidor privado.'
+                          : 'Para consultar sua carteira neste computador, sincronize rapidamente com seu celular.'
                     }}
                   </p>
-                </div>
-              </div>
-
-              <div class="vault-meta-box">
-                <div class="meta-line">
-                  <span>Arquitetura</span>
-                  <strong>{{ vaultStore.isEphemeralPaired ? 'RAM Only (Zero-Storage)' : 'Dual-DB (Zero-Trust)' }}</strong>
-                </div>
-                <div class="meta-line">
-                  <span>Host Tailnet</span>
-                  <strong>{{ vaultStore.tailscaleBaseUrl || 'tailnet-local.ts.net' }}</strong>
-                </div>
-                <div class="meta-line" v-if="vaultStore.lastCheckedAt">
-                  <span>Último ping</span>
-                  <strong>{{ vaultStore.lastCheckedAt }}</strong>
                 </div>
               </div>
 
@@ -245,7 +220,7 @@
                   @click="openPairingModal('receive')"
                 >
                   <PhQrCode size="16" />
-                  <span>Desbloquear via Celular (QR / RAM)</span>
+                  <span>Sincronizar com Celular</span>
                 </button>
 
                 <button
@@ -255,7 +230,7 @@
                   @click="openPairingModal('send')"
                 >
                   <PhQrCode size="16" />
-                  <span>Parear um PC (Enviar Cofre)</span>
+                  <span>Liberar Acesso em Outro PC</span>
                 </button>
 
                 <button
@@ -265,23 +240,12 @@
                   @click="handleClearEphemeralRam"
                 >
                   <PhTrash size="16" />
-                  <span>Limpar Cofre da RAM Agora</span>
-                </button>
-
-                <button type="button" class="vault-act-item" @click="handleToggleStealth">
-                  <PhEyeSlash v-if="!vaultStore.manualStealthMode" size="16" />
-                  <PhEye v-else size="16" />
-                  <span>{{ vaultStore.manualStealthMode ? 'Desativar Modo Furtivo' : 'Ocultar Patrimônio Agora' }}</span>
-                </button>
-
-                <button type="button" class="vault-act-item" @click="handleToggleSimulatedNetwork">
-                  <PhLockKey size="16" />
-                  <span>{{ vaultStore.simulatedOffline ? 'Simular: Conectar Tailscale' : 'Simular: Desconectar VPN' }}</span>
+                  <span>Encerrar Acesso Temporário</span>
                 </button>
 
                 <button type="button" class="vault-act-item" @click="handleReconnectVault">
                   <PhArrowsClockwise size="16" />
-                  <span>Testar Conexão Tailscale</span>
+                  <span>Reconectar Servidor</span>
                 </button>
               </div>
             </div>

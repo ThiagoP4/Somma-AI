@@ -85,24 +85,28 @@ export const useAssetsStore = defineStore('variableAssets', () => {
     const profileStore = useProfileStore();
     const vaultStore = useVaultStore();
 
+    const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
+
     const usePrivateTailscaleApi = () => {
-        const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
         if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;
-        return Boolean(vaultStore.tailscaleBaseUrl);
+        return Boolean(vaultStore.usePrivateServer && vaultStore.tailscaleBaseUrl);
     };
+
+    const getLocalAssetsStorageKey = () =>
+        profileStore.userId ? `somma_variable_assets_${profileStore.userId}` : MOCK_ASSETS_KEY;
 
     const loadMockAssets = (): VariableAsset[] => {
         try {
-            const raw = localStorage.getItem(MOCK_ASSETS_KEY);
+            const raw = localStorage.getItem(getLocalAssetsStorageKey());
             if (raw) return JSON.parse(raw);
         } catch {
             // fallback
         }
-        return [...DEFAULT_MOCK_ASSETS];
+        return isMock ? [...DEFAULT_MOCK_ASSETS] : [];
     };
 
     const saveMockAssets = (list: VariableAsset[]) => {
-        localStorage.setItem(MOCK_ASSETS_KEY, JSON.stringify(list));
+        localStorage.setItem(getLocalAssetsStorageKey(), JSON.stringify(list));
     };
 
     // Busca cotação ao vivo + último dividendo (tenta primeiro via proxy do Tailscale Vault para B3/Cripto; se for Cripto, tem fallback direto Binance BRL)

@@ -427,8 +427,8 @@
                         <PhQrCode size="22" weight="duotone" />
                     </div>
                     <div>
-                        <h3>Pareamento Efêmero Zero-Trust</h3>
-                        <p>ECDH P-256 + AES-256-GCM • 100% na Memória RAM</p>
+                        <h3>Sincronizar Carteira com o Celular</h3>
+                        <p>Visualização temporária criptografada • Válida apenas nesta aba</p>
                     </div>
                 </div>
                 <button class="close-btn" @click="emit('close')" aria-label="Fechar">
@@ -445,7 +445,7 @@
                     @click="activeMode = 'receive'"
                 >
                     <PhDesktop size="16" weight="duotone" />
-                    <span>Desbloquear este PC (RAM)</span>
+                    <span>Neste Computador</span>
                 </button>
                 <button
                     type="button"
@@ -454,11 +454,11 @@
                     @click="activeMode = 'send'"
                 >
                     <PhDeviceMobileCamera size="16" weight="duotone" />
-                    <span>Enviar do Celular (Tailscale)</span>
+                    <span>Ler com o Celular</span>
                 </button>
             </div>
 
-            <!-- MODO 1: RECEBER NO PC DO TRABALHO -->
+            <!-- MODO 1: RECEBER NO PC -->
             <div v-if="activeMode === 'receive'" class="mode-body">
                 <div v-if="receiverStatus === 'waiting'" class="qr-receiver-card">
                     <div class="qr-svg-wrapper">
@@ -485,12 +485,12 @@
                     </div>
 
                     <div class="code-display-box">
-                        <span class="code-eyebrow">Código Efêmero de Pareamento</span>
+                        <span class="code-eyebrow">Código de Sincronização</span>
                         <strong class="big-code">{{ formattedPairingCode }}</strong>
                         <div class="crypto-pills">
                             <span class="crypto-pill">
                                 <PhLockKey size="12" weight="fill" />
-                                ECDH Fingerprint: {{ keyFingerprint }}
+                                Criptografia Ponta a Ponta
                             </span>
                             <span class="timer-pill" :class="{ urgent: secondsLeft <= 20 }">
                                 Expira em {{ secondsLeft }}s
@@ -503,27 +503,27 @@
                     <p>{{ receiverStatus === 'expired' ? 'O QR Code expirou após 90 segundos por segurança.' : receiverErrorMsg }}</p>
                     <button type="button" class="btn-primary" @click="initReceiverSession">
                         <PhArrowsClockwise size="16" weight="bold" />
-                        Gerar Novo Par de Chaves na RAM
+                        Gerar Novo Código
                     </button>
                 </div>
 
                 <div v-else class="loading-state">
-                    Gerando par de chaves ECDH P-256 não-extraível na memória RAM...
+                    Preparando código seguro de sincronização...
                 </div>
 
                 <div class="security-steps">
                     <div class="step-line">
                         <PhCheckCircle size="16" weight="fill" class="icon-emerald" />
-                        <span><strong>Como usar:</strong> Abra o Somma no seu <strong>Celular</strong> (com Tailscale ligada), toque no botão do Cofre no topo e escolha <em>"Enviar do Celular"</em>.</span>
+                        <span><strong>Como usar:</strong> Abra o Somma no seu <strong>Celular</strong>, toque em <strong>Cofre Ativo</strong> no topo e escolha <em>"Liberar Acesso em Outro PC"</em>.</span>
                     </div>
                     <div class="step-line">
                         <PhShieldCheck size="16" weight="fill" class="icon-emerald" />
-                        <span><strong>Burn-After-Reading:</strong> Nada é salvo em disco, `localStorage` ou banco na nuvem. Deu `F5` ou fechou a aba, tudo desaparece.</span>
+                        <span><strong>Privacidade Total:</strong> Nenhum dado fica salvo neste computador. Ao atualizar a página ou fechar a aba, o acesso é encerrado automaticamente.</span>
                     </div>
                 </div>
             </div>
 
-            <!-- MODO 2: ENVIAR DO CELULAR CONECTADO NA TAILSCALE -->
+            <!-- MODO 2: ENVIAR DO CELULAR -->
             <div v-else class="mode-body">
                 <div class="sender-status-banner" :class="vaultStore.status === 'connected' ? 'ok' : 'warn'">
                     <PhShieldCheck v-if="vaultStore.status === 'connected'" size="18" weight="fill" />
@@ -531,8 +531,8 @@
                     <span>
                         {{
                             vaultStore.status === 'connected'
-                                ? 'Tailscale VPN ativa neste dispositivo — pronto para transmitir seu Cofre.'
-                                : 'Conecte a VPN Tailscale no celular antes de enviar os dados ao PC.'
+                                ? 'Cofre conectado neste aparelho — pronto para sincronizar com o computador.'
+                                : 'Conecte-se ao seu servidor privado no celular antes de sincronizar com o computador.'
                         }}
                     </span>
                 </div>

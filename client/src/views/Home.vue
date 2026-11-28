@@ -277,10 +277,14 @@
             <div class="card balance-card">
                 <div class="balance-top-row">
                     <span class="balance-badge">Saldo disponível no mês</span>
-                    <span class="vault-mini-tag" :class="isVaultUnlocked ? 'tag-unlocked' : 'tag-locked'">
+                    <span
+                        v-if="vaultStore.usePrivateServer"
+                        class="vault-mini-tag"
+                        :class="isVaultUnlocked ? 'tag-unlocked' : 'tag-locked'"
+                    >
                         <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
                         <PhLockKey v-else size="13" weight="fill" />
-                        {{ isVaultUnlocked ? 'Inclui Cofre Tailscale' : 'Cofre Isolado (Apenas Fluxo Mensal)' }}
+                        {{ isVaultUnlocked ? 'Inclui Carteira' : 'Apenas Fluxo do Mês' }}
                     </span>
                 </div>
                 <h2 class="balance-amount">{{ formatCurrency(currentBalance) }}</h2>

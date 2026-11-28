@@ -119,14 +119,30 @@
         showAlert('Preferências do sistema salvas com sucesso!', 'success');
     };
 
+    const handleTogglePrivateServer = async () => {
+        const nextState = !vaultStore.usePrivateServer;
+        vaultStore.setUsePrivateServer(nextState);
+        if (nextState) {
+            vaultStore.tailscaleBaseUrl = settings.value.tailscaleVaultUrl.replace(/\/+$/, '');
+            await vaultStore.checkTailscaleConnection();
+        }
+        await piggybankStore.fetchPiggybanks();
+        showAlert(
+            nextState
+                ? 'Modo Servidor de Cofre Privado ativado neste dispositivo.'
+                : 'Sincronização em nuvem padrão ativada para sua carteira.',
+            'success'
+        );
+    };
+
     const handleTestTailscale = async () => {
         vaultStore.tailscaleBaseUrl = settings.value.tailscaleVaultUrl.replace(/\/+$/, '');
         const ok = await vaultStore.checkTailscaleConnection();
         await piggybankStore.fetchPiggybanks();
         if (ok) {
-            showAlert('Túnel Tailscale verificado e Cofre sincronizado!', 'success');
+            showAlert('Servidor privado conectado e carteira sincronizada!', 'success');
         } else {
-            showAlert('Cofre isolado: host Tailscale inacessível ou em modo de simulação offline.', 'warning');
+            showAlert('Não foi possível alcançar o servidor privado neste momento.', 'warning');
         }
     };
 
@@ -161,7 +177,7 @@
         <header class="page-header">
             <div>
                 <h1>Configurações do Sistema</h1>
-                <p class="subtitle">Gerencie seu cofre Tailscale Zero-Trust, parâmetros matemáticos da IA e aparência</p>
+                <p class="subtitle">Personalize o armazenamento da sua carteira, parâmetros financeiros da IA e aparência</p>
             </div>
             <button class="btn-primary" @click="handleSaveSettings">
                 <PhFloppyDisk size="17" weight="bold" />
@@ -170,7 +186,7 @@
         </header>
 
         <div class="settings-grid">
-            <!-- CARD 1: COFRE TAILSCALE ZERO-TRUST -->
+            <!-- CARD 1: ARMAZENAMENTO DA CARTEIRA & SERVIDOR PRIVADO -->
             <section class="settings-card">
                 <div class="card-top">
                     <div class="icon-badge" :class="isVaultUnlocked ? 'badge-green' : 'badge-amber'">
@@ -178,63 +194,65 @@
                         <PhLockKey v-else size="20" weight="duotone" />
                     </div>
                     <div class="card-titles">
-                        <h2>Cofre Tailscale VPN (Arquitetura Dual-DB)</h2>
-                        <p>Isolamento físico dos saldos bancários e cofrinhos na sua rede privada</p>
+                        <h2>Armazenamento da Carteira</h2>
+                        <p>Escolha entre sincronização padrão na nuvem ou servidor de cofre próprio</p>
                     </div>
                     <span class="status-tag" :class="isVaultUnlocked ? 'ok' : 'warn'">
-                        {{ isVaultUnlocked ? 'Conectado' : 'Isolado' }}
+                        {{ !vaultStore.usePrivateServer ? 'Nuvem Padrão' : (isVaultUnlocked ? 'Conectado' : 'Protegido') }}
                     </span>
                 </div>
 
                 <div class="form-stack">
-                    <div class="input-group">
-                        <label>Endpoint do Cofre Tailscale (.ts.net)</label>
-                        <input
-                            type="text"
-                            v-model="settings.tailscaleVaultUrl"
-                            placeholder="https://meu-servidor.tailxxxx.ts.net"
-                        />
-                        <small class="field-hint">
-                            Quando conectado à sua Tailnet, o app sincroniza `fin_piggybank` a partir deste host privado.
-                        </small>
-                    </div>
-
                     <div class="toggle-row">
                         <div class="toggle-info">
-                            <strong>Bloquear Patrimônio Automaticamente Fora da VPN</strong>
-                            <span>Zera os saldos de cofrinhos na memória caso o ping Tailscale falhe</span>
+                            <strong>Usar Servidor de Cofre Privado (Avançado)</strong>
+                            <span>Salva seus cofrinhos e investimentos em um servidor próprio em vez da nuvem padrão</span>
                         </div>
                         <button
                             type="button"
                             class="switch"
-                            :class="{ active: settings.autoLockOutsideTailscale }"
-                            @click="settings.autoLockOutsideTailscale = !settings.autoLockOutsideTailscale"
+                            :class="{ active: vaultStore.usePrivateServer }"
+                            @click="handleTogglePrivateServer"
                         >
                             <span class="switch-thumb"></span>
                         </button>
                     </div>
 
-                    <div class="toggle-row">
-                        <div class="toggle-info">
-                            <strong>Simular Desconexão da VPN (Modo de Teste)</strong>
-                            <span>Permite testar como um invasor externo vê o site sem acesso ao seu Tailscale</span>
+                    <template v-if="vaultStore.usePrivateServer">
+                        <div class="input-group">
+                            <label>Endereço do Servidor Privado (HTTPS)</label>
+                            <input
+                                type="text"
+                                v-model="settings.tailscaleVaultUrl"
+                                placeholder="https://seu-servidor-privado.exemplo.com"
+                            />
+                            <small class="field-hint">
+                                O Somma sincronizará seus cofrinhos e ativos diretamente com este endereço privado.
+                            </small>
                         </div>
-                        <button
-                            type="button"
-                            class="switch"
-                            :class="{ active: vaultStore.simulatedOffline }"
-                            @click="vaultStore.toggleSimulatedOffline(); piggybankStore.fetchPiggybanks();"
-                        >
-                            <span class="switch-thumb"></span>
-                        </button>
-                    </div>
 
-                    <div class="card-actions-bar">
-                        <button type="button" class="btn-secondary" @click="handleTestTailscale">
-                            <PhArrowsClockwise size="16" />
-                            Testar Ping Tailscale Agora
-                        </button>
-                    </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <strong>Ocultar Saldos Automaticamente Sem Conexão</strong>
+                                <span>Protege seus saldos na tela quando este dispositivo não estiver conectado ao seu servidor</span>
+                            </div>
+                            <button
+                                type="button"
+                                class="switch"
+                                :class="{ active: settings.autoLockOutsideTailscale }"
+                                @click="settings.autoLockOutsideTailscale = !settings.autoLockOutsideTailscale"
+                            >
+                                <span class="switch-thumb"></span>
+                            </button>
+                        </div>
+
+                        <div class="card-actions-bar">
+                            <button type="button" class="btn-secondary" @click="handleTestTailscale">
+                                <PhArrowsClockwise size="16" />
+                                Testar Conexão com Servidor
+                            </button>
+                        </div>
+                    </template>
                 </div>
             </section>
 
@@ -245,7 +263,7 @@
                         <PhSparkle size="20" weight="duotone" />
                     </div>
                     <div class="card-titles">
-                        <h2>Motor Matemático & Copilot IA</h2>
+                        <h2>Consultor IA & Simulador Financeiro</h2>
                         <p>Taxas de referência para cálculo de compras à vista vs. parceladas (VPL)</p>
                     </div>
                 </div>
@@ -262,11 +280,6 @@
                             <input type="number" min="5" max="80" v-model.number="settings.maxSafeInstallmentCommitmentPct" />
                             <small class="field-hint">Recomendado pelo Copilot: até 20% da margem livre</small>
                         </div>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Webhook do Agente n8n (Tailscale / Cloud)</label>
-                        <input type="text" v-model="settings.n8nWebhookUrl" placeholder="https://n8n.seu-tailnet.ts.net/webhook/..." />
                     </div>
 
                     <div class="toggle-row">
@@ -426,7 +439,7 @@
 
                 <div class="form-stack">
                     <p class="data-desc">
-                        Seus lançamentos principais são sincronizados com o Supabase e seus cofrinhos protegidos pelo Tailscale Vault. Você pode exportar um snapshot JSON das suas configurações locais a qualquer momento.
+                        Seus lançamentos, assinaturas e metas financeiras são sincronizados automaticamente. Você pode exportar uma cópia em JSON das suas preferências e recorrências a qualquer momento.
                     </p>
 
                     <div class="data-buttons">

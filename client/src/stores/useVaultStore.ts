@@ -4,13 +4,57 @@ import { supabase } from '../services/supabase';
 
 export type VaultConnectionStatus = 'checking' | 'connected' | 'disconnected';
 
+const OWNER_DEFAULT_PRIVATE_VAULT_USER_ID = 'a6e90fd9-acd1-42d4-8888-b7e7fa0568d5';
+
 export const useVaultStore = defineStore('vault', () => {
     const status = ref<VaultConnectionStatus>('checking');
     const lastCheckedAt = ref<string | null>(null);
     const manualStealthMode = ref(false);
-    // Sessão Efêmera (somente na memória RAM desta aba!) via Pareamento Criptografado ECDH P-256 + AES-256-GCM com o celular
+    // Sessão Efêmera (somente na memória RAM desta aba) via Pareamento Criptografado com o celular
     const isEphemeralPaired = ref(false);
     const ephemeralPairedAt = ref<string | null>(null);
+
+    const resolveSavedPrivateServerFlag = (): boolean | null => {
+        try {
+            const savedPrefs = localStorage.getItem('somma_app_settings_v1');
+            if (savedPrefs) {
+                const parsed = JSON.parse(savedPrefs);
+                if (typeof parsed?.usePrivateServer === 'boolean') {
+                    return parsed.usePrivateServer;
+                }
+            }
+        } catch {
+            // ignora
+        }
+        return null;
+    };
+
+    const usePrivateServer = ref<boolean>(resolveSavedPrivateServerFlag() ?? false);
+
+    const syncPrivateServerDefaultForUser = (userId?: string | null) => {
+        const explicitPref = resolveSavedPrivateServerFlag();
+        if (explicitPref !== null) {
+            usePrivateServer.value = explicitPref;
+            return;
+        }
+        usePrivateServer.value = Boolean(
+            userId &&
+            userId === OWNER_DEFAULT_PRIVATE_VAULT_USER_ID &&
+            tailscaleBaseUrl.value
+        );
+    };
+
+    const setUsePrivateServer = (enabled: boolean) => {
+        usePrivateServer.value = enabled;
+        try {
+            const raw = localStorage.getItem('somma_app_settings_v1');
+            const parsed = raw ? JSON.parse(raw) : {};
+            parsed.usePrivateServer = enabled;
+            localStorage.setItem('somma_app_settings_v1', JSON.stringify(parsed));
+        } catch {
+            // ignora
+        }
+    };
 
     // URL base do servidor Tailscale lida exclusivamente do .env (VITE_TAILSCALE_VAULT_URL) ou do localStorage do navegador
     const resolveTailscaleBaseUrl = (): string => {
@@ -55,9 +99,12 @@ export const useVaultStore = defineStore('vault', () => {
     // Simulação para o usuário testar o estado "Fora do Tailscale" mesmo em Mock/Dev
     const simulatedOffline = ref(localStorage.getItem('somma_simulate_vault_offline') === 'true');
 
-    // O Cofre está desbloqueado se a conexão Tailscale estiver ativa OU se foi pareado efemeramente na RAM via QR/Código do celular
+    // O Cofre está desbloqueado:
+    // - Para usuários padrão (sem servidor privado próprio): sempre desbloqueado (salvo no Supabase com RLS).
+    // - Para quem ativou o Servidor Privado: desbloqueado quando conectado na rede privada ou sincronizado temporariamente via celular.
     const isVaultUnlocked = computed(() => {
         if (manualStealthMode.value) return false;
+        if (!usePrivateServer.value) return true;
         if (isEphemeralPaired.value) return true;
         if (simulatedOffline.value) return false;
         return status.value === 'connected';
@@ -77,6 +124,16 @@ export const useVaultStore = defineStore('vault', () => {
     };
 
     const checkTailscaleConnection = async (): Promise<boolean> => {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const currentUserId = sessionData.session?.user?.id || null;
+        syncPrivateServerDefaultForUser(currentUserId);
+
+        if (!usePrivateServer.value) {
+            status.value = 'connected';
+            lastCheckedAt.value = new Date().toLocaleTimeString('pt-BR');
+            return true;
+        }
+
         if (simulatedOffline.value) {
             status.value = 'disconnected';
             lastCheckedAt.value = new Date().toLocaleTimeString('pt-BR');
@@ -184,6 +241,7 @@ export const useVaultStore = defineStore('vault', () => {
         status,
         lastCheckedAt,
         tailscaleBaseUrl,
+        usePrivateServer,
         manualStealthMode,
         simulatedOffline,
         isEphemeralPaired,
@@ -194,6 +252,8 @@ export const useVaultStore = defineStore('vault', () => {
         toggleStealthMode,
         toggleSimulatedOffline,
         activateEphemeralSession,
-        clearEphemeralSession
+        clearEphemeralSession,
+        setUsePrivateServer,
+        syncPrivateServerDefaultForUser
     };
 });

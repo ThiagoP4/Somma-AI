@@ -520,11 +520,11 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     const profileStore = useProfileStore();
     const vaultStore = useVaultStore();
 
-    // Em modo real (fora do mock local sem rede), opera 100% na Arquitetura A (Dual-DB: busca do servidor privado Tailscale via .env)
+    // Usa servidor privado apenas quando o usuário ativou o modo de Servidor Privado
     const usePrivateTailscaleApi = () => {
         const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
         if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;
-        return Boolean(vaultStore.tailscaleBaseUrl);
+        return Boolean(vaultStore.usePrivateServer && vaultStore.tailscaleBaseUrl);
     };
 
     const fetchPiggybanks = async () => {

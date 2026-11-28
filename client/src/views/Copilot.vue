@@ -37,7 +37,7 @@
 
     const getWelcomeText = () =>
         'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses' +
-        (isVaultUnlocked.value ? ' e seu patrimônio do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
+        (isVaultUnlocked.value ? ' e sua carteira de investimentos.' : '.') +
         ' Como posso te ajudar hoje?';
 
     const handleResetChat = () => {
@@ -278,6 +278,9 @@
         };
     };
 
+    const formatBrl = (val: number) =>
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
+
     const runOfflineDiagnosticInChat = async () => {
         const diag = localDiagnostics.value;
         const p = diag.anonymizedProfile;
@@ -288,41 +291,41 @@
 
         const forecastLines = w2.next3MonthsForecast.length > 0
             ? w2.next3MonthsForecast.map(m =>
-                `- **${m.monthLabel}:** ${m.committedPctOfIncome}% já comprometido • **tendência total: ${m.projectedTotalSpendPctOfIncome}%** da renda (sobra prevista: ${m.projectedSavingsPct}%)`
+                `- **${m.monthLabel}:** ${formatBrl(m.committedAmountBrl)} já comprometido (${m.committedPctOfIncome}%) • **tendência total: ${formatBrl(m.projectedTotalSpendBrl)}** (${m.projectedTotalSpendPctOfIncome}% da renda)`
             ).join('\n')
             : '- Sem dados futuros cadastrados ainda.';
 
         const topCats = p.topExpenseCategoriesPct.length > 0
-            ? p.topExpenseCategoriesPct.map(c => `- **${c.category}:** ${c.sharePct}%`).join('\n')
+            ? p.topExpenseCategoriesPct.map(c => `- **${c.category}:** ${formatBrl(c.amountBrl)} (${c.sharePct}%)`).join('\n')
             : '- Sem despesas categorizadas neste mês.';
         const tips = diag.localInsights.length > 0
             ? diag.localInsights.map(t => `- ✅ ${t}`).join('\n')
-            : '- ✅ Cadastre receitas, despesas e contas para gerar recomendações locais.';
+            : '- ✅ Cadastre receitas, despesas e contas para gerar recomendações.';
 
         messages.value.push({
             id: Date.now(),
             role: 'ai',
             content: [
-                `### 🛡️ Raio-X Financeiro Local (100% Offline)`,
+                `### 📊 Resumo Financeiro do Mês`,
                 ``,
                 `**1. Caixa & Mês Atual (Entradas × Despesas)**`,
-                `- **Poupança Atual:** ${w1.savingsRatePct}% (Comprometimento: ${w1.expenseCommitmentPct}% com ${w1.monthProgressPct}% do mês decorrido)`,
-                `- **Gastos Diretos:** ${w1.directExpensesSharePct}% das saídas | **Fatura de Cartão:** ${w1.creditCardInvoiceSharePct}% (${w1.creditCardToIncomePct}% da renda)`,
+                `- **Entradas:** ${formatBrl(w1.monthlyIncomesBrl)} | **Despesas:** ${formatBrl(w1.monthlyExpensesBrl)} | **Sobra do Mês:** ${formatBrl(w1.freeMonthlyCashFlowBrl)} (${w1.savingsRatePct}%)`,
+                `- **Gastos Diretos:** ${formatBrl(w1.monthlyDirectExpensesBrl)} (${w1.directExpensesSharePct}%) | **Fatura de Cartão:** ${formatBrl(w1.monthlyCreditCardInvoiceBrl)} (${w1.creditCardToIncomePct}% da renda)`,
                 ``,
                 `**2. Tendência de Consumo & Próximos 3 Meses**`,
-                `- **Projeção de fechamento deste mês:** ~${w2.currentMonthProjectedCommitmentPct}% da renda` +
+                `- **Projeção de fechamento deste mês:** ~${formatBrl(w2.currentMonthProjectedSpendBrl)} (${w2.currentMonthProjectedCommitmentPct}% da renda)` +
                     (w2.vsLast3MonthsAvgSpendPct !== null ? ` (${w2.vsLast3MonthsAvgSpendPct >= 0 ? '+' : ''}${w2.vsLast3MonthsAvgSpendPct}% vs. média dos últimos 3 meses)` : ''),
                 forecastLines,
                 ``,
                 `**3. Patrimônio & Reserva**`,
-                w3.vaultConnected
-                    ? `- **Carteira:** ${w3.fixedIncomePct}% Renda Fixa / ${w3.variableIncomeAndCryptoPct}% Variável & Cripto` + (w3.cryptoShareOfWealthPct > 0 ? ` (Cripto: ${w3.cryptoShareOfWealthPct}%)` : '')
-                    : `- Cofre Tailscale isolado no momento.`,
+                w3.vaultConnected && w3.totalWealthBrl !== null
+                    ? `- **Patrimônio Total:** ${formatBrl(w3.totalWealthBrl)} (${w3.fixedIncomePct}% Renda Fixa / ${w3.variableIncomeAndCryptoPct}% Variável & Cripto)`
+                    : `- Carteira privada protegida no momento.`,
                 w4.emergencyRunwayMonths !== null
                     ? `- **Colchão de Emergência:** ${w4.emergencyRunwayMonths} meses de custo de vida (mantido separado de compras do mês)`
                     : ``,
                 ``,
-                `**📌 Maiores Categorias do Mês (%)**`,
+                `**📌 Maiores Categorias do Mês**`,
                 topCats,
                 ``,
                 `**💡 Diagnóstico & Próximos Passos**`,
@@ -349,20 +352,20 @@
         });
 
         const lines: string[] = [
-            `### 🛡️ Resposta do Motor Local (Offline)`,
+            `### 📊 Análise do Somma Copilot`,
             ``
         ];
 
         if (impact) {
             lines.push(
-                `**📌 Impacto da compra mencionada (R$ ${impact.detectedAmountBrl.toFixed(2)} em ${impact.detectedInstallments}x):**`,
-                `- **Na sobra livre do mês:** ${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}% (${impact.fitsInMonthlyFreeCashFlow ? 'cabe na sobra mensal ✅' : 'ultrapassa sua sobra mensal ⚠️'})`,
-                `- **No saldo disponível agora:** ${impact.shareOfSpendableNowPct ?? 'N/A'}% (${impact.fitsInSpendableNow ? 'cabe no saldo disponível ✅' : 'aperta seu saldo disponível ⚠️'})`
+                `**📌 Impacto da compra mencionada (${formatBrl(impact.detectedAmountBrl)} em ${impact.detectedInstallments}x):**`,
+                `- **Na sobra livre do mês (${formatBrl(w1.freeMonthlyCashFlowBrl)}):** ${impact.shareOfMonthlyFreeCashFlowPct ?? 'N/A'}% (${impact.fitsInMonthlyFreeCashFlow ? 'cabe na sobra mensal ✅' : 'ultrapassa sua sobra mensal ⚠️'})`,
+                `- **No saldo disponível agora (${formatBrl(w1.spendableNowFreeBrl)}):** ${impact.shareOfSpendableNowPct ?? 'N/A'}% (${impact.fitsInSpendableNow ? 'cabe no saldo disponível ✅' : 'aperta seu saldo disponível ⚠️'})`
             );
         }
 
         lines.push(
-            `- **Mês atual:** poupança de ${w1.savingsRatePct}% (projeção de fechamento: ${w2.currentMonthProjectedCommitmentPct}% da renda)`,
+            `- **Mês atual:** Entradas de ${formatBrl(w1.monthlyIncomesBrl)}, despesas de ${formatBrl(w1.monthlyExpensesBrl)} e sobra de ${formatBrl(w1.freeMonthlyCashFlowBrl)} (${w1.savingsRatePct}% de poupança • projeção de fechamento: ${formatBrl(w2.currentMonthProjectedSpendBrl)})`,
             ...diag.localInsights.map(t => `- ✅ ${t}`)
         );
 
@@ -535,17 +538,17 @@
                 <div class="header-titles">
                     <div class="title-row">
                         <h1>Somma Copilot IA</h1>
-                        <span class="context-pill" :class="isVaultUnlocked ? 'unlocked' : 'locked'">
+                        <span
+                            v-if="vaultStore.usePrivateServer"
+                            class="context-pill"
+                            :class="isVaultUnlocked ? 'unlocked' : 'locked'"
+                        >
                             <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
                             <PhLockKey v-else size="13" weight="fill" />
-                            {{ isVaultUnlocked ? 'Cofre Conectado' : 'Apenas Fluxo Mensal' }}
-                        </span>
-                        <span class="context-pill privacy">
-                            <PhShieldCheck size="13" weight="fill" />
-                            Privacidade Zero-Knowledge
+                            {{ isVaultUnlocked ? 'Carteira Conectada' : 'Apenas Fluxo Mensal' }}
                         </span>
                     </div>
-                    <p>Consultor financeiro privado — seus saldos e bancos nunca saem do aparelho</p>
+                    <p>Consultor financeiro inteligente baseado no seu fluxo de caixa, faturas e metas</p>
                 </div>
             </div>
             <button
@@ -598,7 +601,7 @@
                 <div class="quick-prompts">
                     <button type="button" class="prompt-chip offline-chip" @click="runOfflineDiagnosticInChat">
                         <PhShieldCheck size="14" weight="fill" />
-                        Raio-X Offline
+                        Resumo do Meu Mês
                     </button>
                     <button type="button" class="prompt-chip" @click="sendQuickPrompt('Quero comprar um produto de R$ 300 em 3x, vale a pena agora?')">
                         <PhLightning size="13" weight="fill" />

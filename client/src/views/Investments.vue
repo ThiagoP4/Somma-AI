@@ -287,10 +287,14 @@
             <div>
                 <div class="header-title-row">
                     <h1>Carteira Digital & Investimentos</h1>
-                    <span class="vault-status-badge" :class="isVaultUnlocked ? 'unlocked' : 'locked'">
+                    <span
+                        v-if="vaultStore.usePrivateServer"
+                        class="vault-status-badge"
+                        :class="isVaultUnlocked ? 'unlocked' : 'locked'"
+                    >
                         <PhShieldCheck v-if="isVaultUnlocked" size="14" weight="fill" />
                         <PhLockKey v-else size="14" weight="fill" />
-                        {{ isVaultUnlocked ? 'Tailscale Vault Conectado' : 'Cofre Isolado (Fora da VPN)' }}
+                        {{ isVaultUnlocked ? 'Cofre Ativo' : 'Cofre Protegido' }}
                     </span>
                     <span
                         v-if="isVaultUnlocked"
@@ -365,15 +369,15 @@
         </div>
 
         <div v-if="activeTab === 'cofrinhos'" class="tab-content">
-            <!-- ESTADO BLOQUEADO: FORA DA VPN TAILSCALE (Arquitetura A Zero-Trust) -->
+            <!-- ESTADO BLOQUEADO: COFRE PRIVADO PROTEGIDO -->
             <div v-if="!isVaultUnlocked" class="vault-locked-panel">
                 <div class="vault-locked-glow"></div>
                 <div class="vault-locked-icon">
                     <PhLockKey size="32" weight="duotone" />
                 </div>
-                <h2>Carteira Bancária Isolada via Tailscale</h2>
+                <h2>Carteira Privada Protegida</h2>
                 <p>
-                    Por segurança <strong>Zero-Trust (Arquitetura Dual-DB)</strong>, seus saldos em bancos, CDBs e caixinhas ficam isolados no PostgreSQL do seu servidor Oracle e não trafegam fora da sua VPN Tailscale.
+                    Seus saldos em contas, CDBs e aplicações estão protegidos no seu servidor privado. Para visualizá-los temporariamente neste computador, sincronize com seu celular.
                 </p>
 
                 <div class="locked-masked-preview">
@@ -390,17 +394,11 @@
                 <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
                     <button class="btn-primary" @click="isPairingModalOpen = true">
                         <PhQrCode size="17" weight="bold" />
-                        Desbloquear via Celular (QR / RAM)
+                        Sincronizar com Celular
                     </button>
                     <button class="btn-secondary" @click="handleRetryVault">
                         <PhArrowsClockwise size="17" weight="bold" />
-                        {{
-                            vaultStore.simulatedOffline
-                                ? 'Reconectar Tailscale VPN (Simulação)'
-                                : vaultStore.manualStealthMode
-                                    ? 'Desativar Modo Furtivo'
-                                    : 'Verificar Conexão Tailscale'
-                        }}
+                        Tentar Reconectar
                     </button>
                 </div>
             </div>
@@ -737,18 +735,18 @@
                 <div class="vault-locked-icon">
                     <PhLockKey size="32" weight="duotone" />
                 </div>
-                <h2>Carteira de Renda Variável & Cripto Isolada</h2>
+                <h2>Carteira de Renda Variável Protegida</h2>
                 <p>
-                    Por segurança <strong>Zero-Trust (Arquitetura Dual-DB)</strong>, suas posições em Ações, FIIs, ETFs e Criptoativos ficam isoladas no PostgreSQL da sua VPS Oracle via Tailscale.
+                    Suas posições em Ações, FIIs, ETFs e Criptoativos estão protegidas no seu servidor privado. Sincronize com seu celular para visualizá-las nesta sessão.
                 </p>
                 <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
                     <button class="btn-primary" @click="isPairingModalOpen = true">
                         <PhQrCode size="17" weight="bold" />
-                        Desbloquear via Celular (QR / RAM)
+                        Sincronizar com Celular
                     </button>
                     <button class="btn-secondary" @click="handleRetryVault">
                         <PhArrowsClockwise size="17" weight="bold" />
-                        Verificar Conexão Tailscale
+                        Tentar Reconectar
                     </button>
                 </div>
             </div>
