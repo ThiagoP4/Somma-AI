@@ -58,8 +58,8 @@
         {
             id: 'faq-2',
             category: 'vault',
-            question: 'O que é a opção "Servidor de Cofre Privado" nas Configurações?',
-            answer: 'Por padrão, seus cofrinhos e investimentos são salvos com segurança na nuvem da sua conta. Para usuários avançados que preferem hospedar seus próprios dados patrimoniais em um servidor particular, é possível ativar o Servidor de Cofre Privado em Configurações e sincronizar rapidamente com o celular via QR Code quando estiver em outro computador.'
+            question: 'Como funciona o login por Digital / Face ID no celular?',
+            answer: 'Em Configurações, você pode ativar o login biométrico neste aparelho. Sua digital é validada diretamente pelo chip de segurança do seu telefone (WebAuthn / Android BiometricPrompt) e nunca sai do dispositivo, protegendo o acesso ao app estilo Nubank e Inter.'
         }
     ];
 

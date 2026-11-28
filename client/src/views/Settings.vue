@@ -1,12 +1,9 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { storeToRefs } from 'pinia';
     import {
-        PhShieldCheck, PhLockKey, PhSparkle, PhPalette, PhDatabase,
-        PhArrowsClockwise, PhFloppyDisk, PhDownloadSimple, PhTrash, PhFingerprint
+        PhSparkle, PhPalette, PhDatabase,
+        PhFloppyDisk, PhDownloadSimple, PhTrash, PhFingerprint
     } from '@phosphor-icons/vue';
-    import { useVaultStore } from '../stores/useVaultStore';
-    import { usePiggybankStore } from '../stores/usePiggybankStore';
     import { useFinanceStore } from '../stores/useFinanceStore';
     import { useAlertStore } from '../stores/useAlertStore';
     import {
@@ -18,10 +15,7 @@
         verifyBiometric
     } from '../services/biometricAuth';
 
-    const vaultStore = useVaultStore();
-    const piggybankStore = usePiggybankStore();
     const financeStore = useFinanceStore();
-    const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { showAlert } = useAlertStore();
 
     const PREFS_KEY = 'somma_app_settings_v1';
@@ -29,12 +23,9 @@
     const isDarkMode = ref(document.body.classList.contains('dark') || localStorage.getItem('theme') !== 'light');
 
     const settings = ref({
-        tailscaleVaultUrl: vaultStore.tailscaleBaseUrl || '',
-        n8nWebhookUrl: import.meta.env.VITE_N8N_WEBHOOK_URL || '',
         defaultCdiMonthlyPct: 0.85,
         maxSafeInstallmentCommitmentPct: 20,
         protectEmergencyFundInAi: true,
-        autoLockOutsideTailscale: true,
         defaultFilterMode: 'month' as 'month' | 'invoice'
     });
 
@@ -115,35 +106,7 @@
 
     const handleSaveSettings = () => {
         localStorage.setItem(PREFS_KEY, JSON.stringify(settings.value));
-        vaultStore.tailscaleBaseUrl = settings.value.tailscaleVaultUrl.replace(/\/+$/, '');
         showAlert('Preferências do sistema salvas com sucesso!', 'success');
-    };
-
-    const handleTogglePrivateServer = async () => {
-        const nextState = !vaultStore.usePrivateServer;
-        vaultStore.setUsePrivateServer(nextState);
-        if (nextState) {
-            vaultStore.tailscaleBaseUrl = settings.value.tailscaleVaultUrl.replace(/\/+$/, '');
-            await vaultStore.checkTailscaleConnection();
-        }
-        await piggybankStore.fetchPiggybanks();
-        showAlert(
-            nextState
-                ? 'Modo Servidor de Cofre Privado ativado neste dispositivo.'
-                : 'Sincronização em nuvem padrão ativada para sua carteira.',
-            'success'
-        );
-    };
-
-    const handleTestTailscale = async () => {
-        vaultStore.tailscaleBaseUrl = settings.value.tailscaleVaultUrl.replace(/\/+$/, '');
-        const ok = await vaultStore.checkTailscaleConnection();
-        await piggybankStore.fetchPiggybanks();
-        if (ok) {
-            showAlert('Servidor privado conectado e carteira sincronizada!', 'success');
-        } else {
-            showAlert('Não foi possível alcançar o servidor privado neste momento.', 'warning');
-        }
     };
 
     const handleExportBackup = async () => {
@@ -186,77 +149,7 @@
         </header>
 
         <div class="settings-grid">
-            <!-- CARD 1: ARMAZENAMENTO DA CARTEIRA & SERVIDOR PRIVADO -->
-            <section class="settings-card">
-                <div class="card-top">
-                    <div class="icon-badge" :class="isVaultUnlocked ? 'badge-green' : 'badge-amber'">
-                        <PhShieldCheck v-if="isVaultUnlocked" size="20" weight="duotone" />
-                        <PhLockKey v-else size="20" weight="duotone" />
-                    </div>
-                    <div class="card-titles">
-                        <h2>Armazenamento da Carteira</h2>
-                        <p>Escolha entre sincronização padrão na nuvem ou servidor de cofre próprio</p>
-                    </div>
-                    <span class="status-tag" :class="isVaultUnlocked ? 'ok' : 'warn'">
-                        {{ !vaultStore.usePrivateServer ? 'Nuvem Padrão' : (isVaultUnlocked ? 'Conectado' : 'Protegido') }}
-                    </span>
-                </div>
-
-                <div class="form-stack">
-                    <div class="toggle-row">
-                        <div class="toggle-info">
-                            <strong>Usar Servidor de Cofre Privado (Avançado)</strong>
-                            <span>Salva seus cofrinhos e investimentos em um servidor próprio em vez da nuvem padrão</span>
-                        </div>
-                        <button
-                            type="button"
-                            class="switch"
-                            :class="{ active: vaultStore.usePrivateServer }"
-                            @click="handleTogglePrivateServer"
-                        >
-                            <span class="switch-thumb"></span>
-                        </button>
-                    </div>
-
-                    <template v-if="vaultStore.usePrivateServer">
-                        <div class="input-group">
-                            <label>Endereço do Servidor Privado (HTTPS)</label>
-                            <input
-                                type="text"
-                                v-model="settings.tailscaleVaultUrl"
-                                placeholder="https://seu-servidor-privado.exemplo.com"
-                            />
-                            <small class="field-hint">
-                                O Somma sincronizará seus cofrinhos e ativos diretamente com este endereço privado.
-                            </small>
-                        </div>
-
-                        <div class="toggle-row">
-                            <div class="toggle-info">
-                                <strong>Ocultar Saldos Automaticamente Sem Conexão</strong>
-                                <span>Protege seus saldos na tela quando este dispositivo não estiver conectado ao seu servidor</span>
-                            </div>
-                            <button
-                                type="button"
-                                class="switch"
-                                :class="{ active: settings.autoLockOutsideTailscale }"
-                                @click="settings.autoLockOutsideTailscale = !settings.autoLockOutsideTailscale"
-                            >
-                                <span class="switch-thumb"></span>
-                            </button>
-                        </div>
-
-                        <div class="card-actions-bar">
-                            <button type="button" class="btn-secondary" @click="handleTestTailscale">
-                                <PhArrowsClockwise size="16" />
-                                Testar Conexão com Servidor
-                            </button>
-                        </div>
-                    </template>
-                </div>
-            </section>
-
-            <!-- CARD 2: PARÂMETROS DO COPILOT IA & MATEMÁTICA FINANCEIRA -->
+            <!-- CARD 1: PARÂMETROS DO COPILOT IA & MATEMÁTICA FINANCEIRA -->
             <section class="settings-card">
                 <div class="card-top">
                     <div class="icon-badge badge-indigo">

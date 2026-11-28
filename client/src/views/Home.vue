@@ -4,7 +4,7 @@
     import { storeToRefs } from "pinia";
     import {
         PhArrowDownLeft, PhArrowUpRight, PhChartBar, PhCreditCard,
-        PhListDashes, PhReceipt, PhWifiHigh, PhShieldCheck, PhLockKey,
+        PhListDashes, PhReceipt, PhWifiHigh,
         PhArrowsClockwise, PhX, PhCalendarCheck, PhWhatsappLogo, PhPlus
     } from '@phosphor-icons/vue';
     import VueApexCharts from 'vue3-apexcharts';
@@ -12,18 +12,15 @@
     import NewTransaction from '../components/NewTransaction.vue';
     import { useProfileStore } from "../stores/useProfileStore";
     import { usePiggybankStore } from "../stores/usePiggybankStore";
-    import { useVaultStore } from "../stores/useVaultStore";
     import { useFilterStore } from "../stores/useFilterStore";
     import { useFinanceStore } from "../stores/useFinanceStore";
 
     const router = useRouter();
     const profileStore = useProfileStore();
     const piggybankStore = usePiggybankStore();
-    const vaultStore = useVaultStore();
     const filterStore = useFilterStore();
     const financeStore = useFinanceStore();
     const { userName, myCards } = storeToRefs(profileStore);
-    const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
 
     const totalIncome = ref(0);
@@ -216,7 +213,7 @@
         }
     };
 
-    watch([isVaultUnlocked, selectedMonth, selectedYear, filterMode, selectedCardIds], async () => {
+    watch([selectedMonth, selectedYear, filterMode, selectedCardIds], async () => {
         await fetchFinancialSummary();
     }, { deep: true });
 
@@ -277,15 +274,6 @@
             <div class="card balance-card">
                 <div class="balance-top-row">
                     <span class="balance-badge">Saldo disponível no mês</span>
-                    <span
-                        v-if="vaultStore.usePrivateServer"
-                        class="vault-mini-tag"
-                        :class="isVaultUnlocked ? 'tag-unlocked' : 'tag-locked'"
-                    >
-                        <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
-                        <PhLockKey v-else size="13" weight="fill" />
-                        {{ isVaultUnlocked ? 'Inclui Carteira' : 'Apenas Fluxo do Mês' }}
-                    </span>
                 </div>
                 <h2 class="balance-amount">{{ formatCurrency(currentBalance) }}</h2>
                 <div class="balance-details">
@@ -294,7 +282,7 @@
                             <PhArrowDownLeft size="18" weight="bold" />
                         </div>
                         <div class="financial-text">
-                            <span>{{ isVaultUnlocked ? 'Entradas + Reserva' : 'Entradas do mês' }}</span>
+                            <span>Entradas + Reserva</span>
                             <p class="val-income">{{ formatCurrency(totalIncome) }}</p>
                         </div>
                     </div>

@@ -3,13 +3,12 @@
     import { storeToRefs } from 'pinia';
     import {
         PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser,
-        PhShieldCheck, PhLockKey, PhLightning, PhArrowsClockwise
+        PhShieldCheck, PhLightning, PhArrowsClockwise
     } from '@phosphor-icons/vue';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
     import { usePiggybankStore } from '../stores/usePiggybankStore';
     import { useAssetsStore } from '../stores/useAssetsStore';
-    import { useVaultStore } from '../stores/useVaultStore';
     import { useFilterStore } from '../stores/useFilterStore';
     import { useFinanceStore } from '../stores/useFinanceStore';
     import {
@@ -22,10 +21,8 @@
     const profileStore = useProfileStore();
     const piggybankStore = usePiggybankStore();
     const assetsStore = useAssetsStore();
-    const vaultStore = useVaultStore();
     const filterStore = useFilterStore();
     const financeStore = useFinanceStore();
-    const { isVaultUnlocked } = storeToRefs(vaultStore);
     const { selectedMonth, selectedYear } = storeToRefs(filterStore);
 
     const categoryTotals = ref<Record<string, number>>({});
@@ -36,9 +33,7 @@
     const chatContainer = ref<HTMLElement | null>(null);
 
     const getWelcomeText = () =>
-        'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses' +
-        (isVaultUnlocked.value ? ' e sua carteira de investimentos.' : '.') +
-        ' Como posso te ajudar hoje?';
+        'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses e sua carteira de investimentos. Como posso te ajudar hoje?';
 
     const handleResetChat = () => {
         financeStore.resetCopilotChat(getWelcomeText());
@@ -196,7 +191,7 @@
         }
     };
 
-    watch([selectedMonth, selectedYear, isVaultUnlocked], async () => {
+    watch([selectedMonth, selectedYear], async () => {
         if (profileStore.userId) {
             await loadFinancialContext();
         }
@@ -207,14 +202,12 @@
     });
 
     const composingVaultBalance = computed(() => {
-        if (!isVaultUnlocked.value) return 0;
         return piggybankStore.piggybanks
             .filter(p => p.composes_balance)
             .reduce((acc, p) => acc + Number(p.current_amount || 0), 0);
     });
 
     const isolatedLiquidReserves = computed(() => {
-        if (!isVaultUnlocked.value) return null;
         return piggybankStore.piggybanks
             .filter(p => !p.composes_balance && p.liquidity !== 'maturity')
             .reduce((acc, p) => acc + Number(p.current_amount || 0), 0);
@@ -257,7 +250,7 @@
             next3MonthsCommitted: next3MonthsCommitted.value,
             monthDayProgressPct: monthDayProgressPct.value,
             postgresMlStats: postgresMlStats.value,
-            isVaultUnlocked: isVaultUnlocked.value,
+            isVaultUnlocked: true,
             piggybanks: piggybankStore.piggybanks,
             variableAssets: assetsStore.assets,
             financialGoals: profileStore.financialGoals
@@ -538,17 +531,8 @@
                 <div class="header-titles">
                     <div class="title-row">
                         <h1>Somma Copilot IA</h1>
-                        <span
-                            v-if="vaultStore.usePrivateServer"
-                            class="context-pill"
-                            :class="isVaultUnlocked ? 'unlocked' : 'locked'"
-                        >
-                            <PhShieldCheck v-if="isVaultUnlocked" size="13" weight="fill" />
-                            <PhLockKey v-else size="13" weight="fill" />
-                            {{ isVaultUnlocked ? 'Carteira Conectada' : 'Apenas Fluxo Mensal' }}
-                        </span>
                     </div>
-                    <p>Consultor financeiro inteligente baseado no seu fluxo de caixa, faturas e metas</p>
+                    <p>Consultor financeiro inteligente baseado no seu fluxo de caixa, faturas e investimentos</p>
                 </div>
             </div>
             <button

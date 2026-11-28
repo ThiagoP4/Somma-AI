@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '../services/supabase';
 import { useProfileStore } from './useProfileStore';
-import { useVaultStore } from './useVaultStore';
 
 export type AssetClass = 'ACAO' | 'FII' | 'ETF' | 'CRIPTO' | 'BDR';
 
@@ -83,19 +82,13 @@ export const useAssetsStore = defineStore('variableAssets', () => {
     const isSyncingQuotes = ref(false);
 
     const profileStore = useProfileStore();
-    const vaultStore = useVaultStore();
 
     const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
-
-    const usePrivateTailscaleApi = () => {
-        if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;
-        return Boolean(vaultStore.usePrivateServer && vaultStore.tailscaleBaseUrl);
-    };
 
     const getLocalAssetsStorageKey = () =>
         profileStore.userId ? `somma_variable_assets_${profileStore.userId}` : MOCK_ASSETS_KEY;
 
-    const loadMockAssets = (): VariableAsset[] => {
+    const loadLocalAssets = (): VariableAsset[] => {
         try {
             const raw = localStorage.getItem(getLocalAssetsStorageKey());
             if (raw) return JSON.parse(raw);
@@ -105,11 +98,11 @@ export const useAssetsStore = defineStore('variableAssets', () => {
         return isMock ? [...DEFAULT_MOCK_ASSETS] : [];
     };
 
-    const saveMockAssets = (list: VariableAsset[]) => {
+    const saveLocalAssets = (list: VariableAsset[]) => {
         localStorage.setItem(getLocalAssetsStorageKey(), JSON.stringify(list));
     };
 
-    // Busca cotação ao vivo + último dividendo (tenta primeiro via proxy do Tailscale Vault para B3/Cripto; se for Cripto, tem fallback direto Binance BRL)
+    // Busca cotação ao vivo (Cripto via Binance BRL)
     const fetchLiveQuote = async (
         ticker: string,
         assetClass: AssetClass
@@ -122,25 +115,6 @@ export const useAssetsStore = defineStore('variableAssets', () => {
     } | null> => {
         const cleanTicker = ticker.trim().toUpperCase();
         if (!cleanTicker) return null;
-
-        if (usePrivateTailscaleApi() && vaultStore.isVaultUnlocked) {
-            try {
-                const res = await vaultStore.vaultFetch(
-                    `/api/vault/quote?ticker=${encodeURIComponent(cleanTicker)}&asset_class=${encodeURIComponent(assetClass)}`
-                );
-                if (res?.price && Number(res.price) > 0) {
-                    return {
-                        price: Number(res.price),
-                        name: res.name || null,
-                        last_dividend_per_share: res.last_dividend_per_share ?? null,
-                        last_dividend_date: res.last_dividend_date ?? null,
-                        source: res.source || 'vault-quote'
-                    };
-                }
-            } catch {
-                // fallback abaixo para Cripto
-            }
-        }
 
         if (assetClass === 'CRIPTO') {
             try {
@@ -182,30 +156,7 @@ export const useAssetsStore = defineStore('variableAssets', () => {
         isLoading.value = true;
         try {
             if (!profileStore.userId) await profileStore.fetchProfileData();
-
-            if (vaultStore.status === 'checking') {
-                await vaultStore.checkTailscaleConnection();
-            }
-
-            // Regra Zero-Trust: limpa a memória RAM se estiver fora da VPN Tailscale ou em Modo Furtivo
-            if (!vaultStore.isVaultUnlocked) {
-                assets.value = [];
-                return;
-            }
-
-            // Se estiver em Sessão Efêmera na RAM (pareado via QR/Código com o celular fora da Tailscale),
-            // preserva os ativos recebidos na memória RAM!
-            if (vaultStore.isEphemeralPaired && vaultStore.status !== 'connected') {
-                return;
-            }
-
-            if (usePrivateTailscaleApi()) {
-                const data = await vaultStore.vaultFetch('/api/vault/assets');
-                assets.value = Array.isArray(data) ? data : [];
-                return;
-            }
-
-            assets.value = loadMockAssets();
+            assets.value = loadLocalAssets();
         } catch (error) {
             console.error('[AssetsStore] Erro ao carregar ativos:', error);
             assets.value = [];
@@ -215,10 +166,6 @@ export const useAssetsStore = defineStore('variableAssets', () => {
     };
 
     const createAsset = async (payload: Omit<VariableAsset, 'id_asset' | 'user_id' | 'created_at'>) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para cadastrar ativos no Cofre.');
-        }
-
         const cleanPayload = {
             ...payload,
             ticker: payload.ticker.trim().toUpperCase(),
@@ -227,70 +174,33 @@ export const useAssetsStore = defineStore('variableAssets', () => {
             current_price: Number(payload.current_price) || Number(payload.average_price) || 0
         };
 
-        if (usePrivateTailscaleApi()) {
-            const created = await vaultStore.vaultFetch('/api/vault/assets', {
-                method: 'POST',
-                body: JSON.stringify(cleanPayload)
-            });
-            if (created) assets.value.push(created);
-            return created;
-        }
-
         const newItem: VariableAsset = {
             ...cleanPayload,
-            id_asset: `mock-asset-${Date.now()}`,
+            id_asset: `asset-${Date.now()}`,
             user_id: profileStore.userId || 'mock-user-123',
             created_at: new Date().toISOString()
         };
         assets.value.push(newItem);
-        saveMockAssets(assets.value);
+        saveLocalAssets(assets.value);
         return newItem;
     };
 
     const updateAsset = async (id: string, updates: Partial<VariableAsset>) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para editar ativos.');
-        }
-
-        if (usePrivateTailscaleApi()) {
-            const updated = await vaultStore.vaultFetch(`/api/vault/assets/${id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(updates)
-            });
-            const idx = assets.value.findIndex(a => a.id_asset === id);
-            if (idx !== -1 && updated) {
-                assets.value[idx] = updated;
-            }
-            return updated;
-        }
-
         const idx = assets.value.findIndex(a => a.id_asset === id);
         if (idx !== -1) {
             assets.value[idx] = { ...assets.value[idx], ...updates } as VariableAsset;
-            saveMockAssets(assets.value);
+            saveLocalAssets(assets.value);
         }
         return assets.value[idx];
     };
 
     const deleteAsset = async (id: string) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para excluir ativos.');
-        }
-
-        if (usePrivateTailscaleApi()) {
-            await vaultStore.vaultFetch(`/api/vault/assets/${id}`, {
-                method: 'DELETE'
-            });
-        }
-
         assets.value = assets.value.filter(a => a.id_asset !== id);
-        if (!usePrivateTailscaleApi()) {
-            saveMockAssets(assets.value);
-        }
+        saveLocalAssets(assets.value);
     };
 
     const syncAllLivePrices = async (): Promise<{ updatedCount: number; failedCount: number }> => {
-        if (!vaultStore.isVaultUnlocked || assets.value.length === 0) {
+        if (assets.value.length === 0) {
             return { updatedCount: 0, failedCount: 0 };
         }
 

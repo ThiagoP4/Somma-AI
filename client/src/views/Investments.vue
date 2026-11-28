@@ -1,28 +1,22 @@
 <script setup lang="ts">
     import { ref, onMounted, computed } from 'vue';
-    import { storeToRefs } from 'pinia';
     import { usePiggybankStore, type Piggybank } from '../stores/usePiggybankStore';
     import { useAssetsStore } from '../stores/useAssetsStore';
-    import { useVaultStore } from '../stores/useVaultStore';
     import { useAlertStore } from '../stores/useAlertStore';
     import {
         PhWallet, PhTrendUp, PhPlus, PhTrash, PhPencilSimple, PhArrowDownLeft,
-        PhArrowUpRight, PhVault, PhLockKey, PhShieldCheck, PhArrowsClockwise,
-        PhSparkle, PhCheckCircle, PhBank, PhLightning, PhQrCode
+        PhArrowUpRight, PhVault, PhLockKey, PhArrowsClockwise,
+        PhSparkle, PhCheckCircle, PhBank, PhLightning
     } from '@phosphor-icons/vue';
     import PiggybankModal from '../components/Piggybank/PiggybankModal.vue';
     import PiggybankTransaction from '../components/Piggybank/PiggybankTransaction.vue';
     import VariableAssetsPanel from '../components/Investments/VariableAssetsPanel.vue';
-    import VaultPairingModal from '../components/VaultPairingModal.vue';
     import ConfirmModal from '../components/ConfirmModal.vue';
     import { getBankLogoUrl, getBankBrandColor, findBankFromText } from '../utils/banks';
 
     const piggybankStore = usePiggybankStore();
     const assetsStore = useAssetsStore();
-    const vaultStore = useVaultStore();
     const { showAlert } = useAlertStore();
-    const { isVaultUnlocked } = storeToRefs(vaultStore);
-    const isPairingModalOpen = ref(false);
     const isConfirmingDeletePiggy = ref(false);
     const piggyIdToDelete = ref<string | null>(null);
 
@@ -70,20 +64,6 @@
         piggyIdToDelete.value = null;
     };
 
-    const handleRetryVault = async () => {
-        if (vaultStore.simulatedOffline) {
-            await vaultStore.toggleSimulatedOffline();
-        } else if (vaultStore.manualStealthMode) {
-            vaultStore.toggleStealthMode();
-        } else {
-            await vaultStore.checkTailscaleConnection();
-        }
-        await Promise.all([
-            piggybankStore.fetchPiggybanks(),
-            assetsStore.fetchAssets()
-        ]);
-    };
-
     const calculateProgress = (current: number, target: number) => {
         if (!target || target <= 0) return 100;
         const calc = (Number(current) / Number(target)) * 100;
@@ -121,7 +101,7 @@
                 'success'
             );
         } else {
-            showAlert('Saldo real atualizado no Cofre Tailscale!', 'success');
+            showAlert('Saldo real atualizado na sua Carteira Digital!', 'success');
         }
     };
 
@@ -288,16 +268,6 @@
                 <div class="header-title-row">
                     <h1>Carteira Digital & Investimentos</h1>
                     <span
-                        v-if="vaultStore.usePrivateServer"
-                        class="vault-status-badge"
-                        :class="isVaultUnlocked ? 'unlocked' : 'locked'"
-                    >
-                        <PhShieldCheck v-if="isVaultUnlocked" size="14" weight="fill" />
-                        <PhLockKey v-else size="14" weight="fill" />
-                        {{ isVaultUnlocked ? 'Cofre Ativo' : 'Cofre Protegido' }}
-                    </span>
-                    <span
-                        v-if="isVaultUnlocked"
                         class="bcb-live-badge"
                         :title="piggybankStore.marketRates.source === 'bcb-live' ? 'Taxa de referência sincronizada ao vivo com o Banco Central do Brasil' : 'Taxa de referência CDI / IPCA'"
                     >
@@ -307,7 +277,7 @@
                 </div>
                 <p class="subtitle">Saldos em bancos, caixinhas RDB, CDBs, LCI/LCA, indexadores (CDI / Prefixado / IPCA+) e vencimentos</p>
             </div>
-            <div class="header-actions" v-if="activeTab === 'cofrinhos' && isVaultUnlocked">
+            <div class="header-actions" v-if="activeTab === 'cofrinhos'">
                 <button class="btn-primary" @click="openCreateModal">
                     <PhPlus size="16" weight="bold" />
                     Nova Conta / Aplicação
@@ -336,7 +306,7 @@
                 </button>
             </div>
 
-            <div class="sub-filters" v-if="activeTab === 'cofrinhos' && isVaultUnlocked && piggybankStore.piggybanks.length > 0">
+            <div class="sub-filters" v-if="activeTab === 'cofrinhos' && piggybankStore.piggybanks.length > 0">
                 <button
                     class="filter-chip"
                     :class="{ active: filterType === 'all' }"
@@ -369,42 +339,7 @@
         </div>
 
         <div v-if="activeTab === 'cofrinhos'" class="tab-content">
-            <!-- ESTADO BLOQUEADO: COFRE PRIVADO PROTEGIDO -->
-            <div v-if="!isVaultUnlocked" class="vault-locked-panel">
-                <div class="vault-locked-glow"></div>
-                <div class="vault-locked-icon">
-                    <PhLockKey size="32" weight="duotone" />
-                </div>
-                <h2>Carteira Privada Protegida</h2>
-                <p>
-                    Seus saldos em contas, CDBs e aplicações estão protegidos no seu servidor privado. Para visualizá-los temporariamente neste computador, sincronize com seu celular.
-                </p>
-
-                <div class="locked-masked-preview">
-                    <div class="masked-box">
-                        <span>Patrimônio em Bancos</span>
-                        <strong>R$ •••••••</strong>
-                    </div>
-                    <div class="masked-box">
-                        <span>Rendimento Passivo</span>
-                        <strong>+ R$ •••••/mês</strong>
-                    </div>
-                </div>
-
-                <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
-                    <button class="btn-primary" @click="isPairingModalOpen = true">
-                        <PhQrCode size="17" weight="bold" />
-                        Sincronizar com Celular
-                    </button>
-                    <button class="btn-secondary" @click="handleRetryVault">
-                        <PhArrowsClockwise size="17" weight="bold" />
-                        Tentar Reconectar
-                    </button>
-                </div>
-            </div>
-
-            <!-- ESTADO DESBLOQUEADO: CONECTADO NA TAILSCALE VPN -->
-            <template v-else>
+            <template v-if="true">
                 <!-- 1. HERO PORTFOLIO BANNER + 2 BOLSOS -->
                 <section class="wealth-overview-grid">
                     <!-- Card Principal: Patrimônio Acumulado & Barra de Alocação -->
@@ -488,7 +423,7 @@
 
                 <!-- 2. GRID DE CONTAS & APLICAÇÕES BANCÁRIAS -->
                 <div v-if="piggybankStore.isLoading" class="loading-box">
-                    Sincronizando carteira bancária via túnel Tailscale...
+                    Carregando sua carteira...
                 </div>
 
                 <div v-else-if="filteredPiggybanks.length > 0" class="piggybanks-grid">
@@ -711,7 +646,7 @@
                             <PhPlus size="22" weight="bold" />
                         </div>
                         <strong>Adicionar Conta ou Aplicação</strong>
-                        <span>Cadastre saldos em bancos, CDBs, RDBs, LCI/LCA prefixadas ou pós-fixadas no seu Cofre Tailscale</span>
+                        <span>Cadastre saldos em bancos, CDBs, RDBs, LCI/LCA prefixadas ou pós-fixadas na sua Carteira Digital</span>
                     </button>
                 </div>
 
@@ -719,7 +654,7 @@
                     <div class="ghost-circle" style="margin-bottom: 0.5rem;">
                         <PhWallet size="26" weight="duotone" />
                     </div>
-                    <h3>Sua Carteira Digital Tailscale está pronta</h3>
+                    <h3>Sua Carteira Digital está pronta</h3>
                     <p>Adicione suas contas bancárias, caixinhas RDB ou CDBs com seus respectivos indexadores (CDI, Prefixado, IPCA+) e prazos de vencimento.</p>
                     <button class="btn-primary" @click="openCreateModal" style="margin-top: 0.5rem;">
                         <PhPlus size="16" weight="bold" /> Cadastrar Primeira Conta
@@ -730,35 +665,9 @@
 
         <!-- ABA 2: RENDA VARIÁVEL & CRIPTO -->
         <div v-if="activeTab === 'ativos'" class="tab-content">
-            <div v-if="!isVaultUnlocked" class="vault-locked-panel">
-                <div class="vault-locked-glow"></div>
-                <div class="vault-locked-icon">
-                    <PhLockKey size="32" weight="duotone" />
-                </div>
-                <h2>Carteira de Renda Variável Protegida</h2>
-                <p>
-                    Suas posições em Ações, FIIs, ETFs e Criptoativos estão protegidas no seu servidor privado. Sincronize com seu celular para visualizá-las nesta sessão.
-                </p>
-                <div class="locked-actions" style="display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center;">
-                    <button class="btn-primary" @click="isPairingModalOpen = true">
-                        <PhQrCode size="17" weight="bold" />
-                        Sincronizar com Celular
-                    </button>
-                    <button class="btn-secondary" @click="handleRetryVault">
-                        <PhArrowsClockwise size="17" weight="bold" />
-                        Tentar Reconectar
-                    </button>
-                </div>
-            </div>
-            <VariableAssetsPanel v-else />
+            <VariableAssetsPanel />
         </div>  
     </div>
-
-    <VaultPairingModal
-        v-if="isPairingModalOpen"
-        initialMode="receive"
-        @close="isPairingModalOpen = false"
-    />
 
     <PiggybankModal 
         v-if="isCreateModalOpen" 
@@ -776,7 +685,7 @@
     <ConfirmModal
         :isOpen="isConfirmingDeletePiggy"
         title="Excluir Conta / Aplicação?"
-        message="Tem certeza que deseja excluir esta conta ou aplicação da sua carteira no Cofre Tailscale?"
+        message="Tem certeza que deseja excluir esta conta ou aplicação da sua Carteira Digital?"
         @confirm="executeDeletePiggy"
         @cancel="isConfirmingDeletePiggy = false"
     />

@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '../services/supabase';
 import { useProfileStore } from './useProfileStore';
-import { useVaultStore } from './useVaultStore';
 
 export type YieldIndexer = 'CDI' | 'PREFIXADO' | 'IPCA' | 'SELIC' | 'NONE';
 export type LiquidityType = 'daily' | 'maturity';
@@ -491,76 +490,103 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         }
     };
 
-    // Blindagem C (Zero-Trust): Nunca grava valores financeiros (saldos ou total_yield_earned em R$) no localStorage do navegador.
-    // Quando conectado ao Tailscale Vault, os metadados já ficam no PostgreSQL isolado da VPS.
     const saveLocalMeta = (id: string, meta: PiggybankMeta) => {
-        if (usePrivateTailscaleApi()) {
-            // Remove qualquer cache antigo de metadados sensíveis do localStorage
-            localStorage.removeItem(META_STORAGE_KEY);
-            return;
-        }
         const map = getLocalMetaMap();
-        const { total_yield_earned: _ignoredYield, ...safeStructuralMeta } = meta;
-        map[id] = { ...(map[id] || {}), ...safeStructuralMeta };
+        map[id] = { ...(map[id] || {}), ...meta };
         localStorage.setItem(META_STORAGE_KEY, JSON.stringify(map));
     };
 
-    const enrichWithMeta = (items: any[]): Piggybank[] => {
-        if (usePrivateTailscaleApi()) {
-            localStorage.removeItem(META_STORAGE_KEY);
-            return items as Piggybank[];
+    // Codifica metadados da aplicação no campo title da tabela fin_piggybank do Supabase
+    // Ex: "Mercado Pago • Cofrinho da Virada | CDB Liquidez Diária • CDI:130% • VENC:2027-04-09"
+    const encodeTitleWithMeta = (baseTitle: string, meta: PiggybankMeta): string => {
+        const cleanBase = String(baseTitle || '').split('|')[0]?.trim() || 'Conta Digital';
+        const tags: string[] = [];
+        if (meta.product_type) tags.push(meta.product_type);
+        const idx = meta.indexer || 'CDI';
+        const rate = meta.rate_value !== undefined && meta.rate_value !== null ? Number(meta.rate_value) : 100;
+        if (idx === 'NONE') {
+            tags.push('NONE:0%');
+        } else {
+            tags.push(`${idx}:${rate}%`);
         }
+        if (meta.liquidity === 'maturity' && meta.maturity_date) {
+            tags.push(`VENC:${String(meta.maturity_date).slice(0, 10)}`);
+        }
+        if (meta.effective_tax_rate !== undefined && meta.effective_tax_rate !== null) {
+            tags.push(`IR:${Number(meta.effective_tax_rate)}%`);
+        }
+        return tags.length > 0 ? `${cleanBase} | ${tags.join(' • ')}` : cleanBase;
+    };
+
+    // Decodifica metadados embutidos no title do Supabase (compatível com qualquer dispositivo sem depender de localStorage)
+    const decodeMetaFromRow = (row: any, localMeta: PiggybankMeta = {}): Piggybank => {
+        const rawTitle = String(row.title || '');
+        const [cleanTitlePart, metaPart] = rawTitle.split('|').map(s => s.trim());
+        const cleanTitle = cleanTitlePart || rawTitle;
+
+        const bankFromTitle = cleanTitle.includes('•') ? cleanTitle.split('•')[0]?.trim() : undefined;
+        let parsedProduct = row.product_type || localMeta.product_type;
+        let parsedIndexer: YieldIndexer = (row.indexer || localMeta.indexer || 'CDI') as YieldIndexer;
+        let parsedRate: number = row.rate_value !== undefined && row.rate_value !== null
+            ? Number(row.rate_value)
+            : (localMeta.rate_value !== undefined ? Number(localMeta.rate_value) : 120);
+        let parsedLiquidity: LiquidityType = (row.liquidity || localMeta.liquidity || 'daily') as LiquidityType;
+        let parsedMaturity: string | null = row.maturity_date || localMeta.maturity_date || null;
+        let parsedTaxRate: number | null | undefined = row.effective_tax_rate ?? localMeta.effective_tax_rate ?? null;
+
+        if (metaPart) {
+            const segments = metaPart.split('•').map(s => s.trim()).filter(Boolean);
+            for (const seg of segments) {
+                const rateMatch = seg.match(/^(CDI|PREFIXADO|IPCA|SELIC|NONE)\s*:\s*([\d.,]+)%?$/i);
+                const vencMatch = seg.match(/^VENC\s*:\s*(\d{4}-\d{2}-\d{2})/i);
+                const irMatch = seg.match(/^IR\s*:\s*([\d.,]+)%?$/i);
+                if (rateMatch) {
+                    parsedIndexer = rateMatch[1]!.toUpperCase() as YieldIndexer;
+                    parsedRate = parseFloat(rateMatch[2]!.replace(',', '.')) || 0;
+                } else if (vencMatch) {
+                    parsedLiquidity = 'maturity';
+                    parsedMaturity = vencMatch[1]!;
+                } else if (irMatch) {
+                    parsedTaxRate = parseFloat(irMatch[1]!.replace(',', '.'));
+                } else if (!parsedProduct) {
+                    parsedProduct = seg;
+                }
+            }
+        }
+
+        if (!parsedProduct) {
+            parsedProduct = parsedLiquidity === 'maturity' ? 'CDB Vencimento Fixo' : 'CDB Liquidez Diária';
+        }
+
+        return {
+            ...localMeta,
+            ...row,
+            title: cleanTitle,
+            target_amount: Number(row.target_amount || 0),
+            current_amount: Number(row.current_amount || 0),
+            bank_name: row.bank_name || localMeta.bank_name || bankFromTitle,
+            product_type: parsedProduct,
+            indexer: parsedIndexer,
+            rate_value: parsedRate,
+            liquidity: parsedLiquidity,
+            maturity_date: parsedMaturity,
+            effective_tax_rate: parsedTaxRate
+        };
+    };
+
+    const enrichWithMeta = (items: any[]): Piggybank[] => {
         const metaMap = getLocalMetaMap();
-        return items.map(item => ({
-            ...metaMap[item.id_piggybank],
-            ...item
-        }));
+        return items.map(item => decodeMetaFromRow(item, metaMap[item.id_piggybank] || {}));
     };
 
     const profileStore = useProfileStore();
-    const vaultStore = useVaultStore();
-
-    // Usa servidor privado apenas quando o usuário ativou o modo de Servidor Privado
-    const usePrivateTailscaleApi = () => {
-        const isMock = import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock';
-        if (isMock && !localStorage.getItem('somma_app_settings_v1')) return false;
-        return Boolean(vaultStore.usePrivateServer && vaultStore.tailscaleBaseUrl);
-    };
 
     const fetchPiggybanks = async () => {
         isLoading.value = true;
         try {
             if (!profileStore.userId) await profileStore.fetchProfileData();
 
-            // Garante que o status do Tailscale foi verificado
-            if (vaultStore.status === 'checking') {
-                await vaultStore.checkTailscaleConnection();
-            }
-
-            // REGRA ZERO-TRUST (Arquitetura A):
-            // Se o usuário NÃO estiver na rede Tailscale (ou ativou Stealth Mode),
-            // limpamos os dados da memória RAM e NÃO fazemos requisição de patrimônio!
-            if (!vaultStore.isVaultUnlocked) {
-                piggybanks.value = [];
-                return;
-            }
-
-            // Se estiver em Sessão Efêmera na RAM (pareado via QR/Código com o celular fora da Tailscale),
-            // preserva os dados recebidos na memória RAM sem tentar bater na URL privada da Tailscale!
-            if (vaultStore.isEphemeralPaired && vaultStore.status !== 'connected') {
-                await fetchBcbMarketRates();
-                return;
-            }
-
-            // Busca a taxa CDI/IPCA real no Banco Central antes de capitalizar os saldos
             await fetchBcbMarketRates();
-
-            if (usePrivateTailscaleApi()) {
-                const data = await vaultStore.vaultFetch('/api/vault/piggybanks');
-                const list = Array.isArray(data) ? data : (data?.items || []);
-                piggybanks.value = enrichWithMeta(list);
-                return;
-            }
 
             const { data, error } = await supabase
                 .from('fin_piggybank')
@@ -586,10 +612,6 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         meta: PiggybankMeta = {},
         initial_amount = 0
     ) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para criar ou alterar contas no Cofre.');
-        }
-
         const todayStr = new Date().toISOString().slice(0, 10);
         const fullMeta: PiggybankMeta = {
             last_yield_date: todayStr,
@@ -598,34 +620,15 @@ export const usePiggybankStore = defineStore('piggybank', () => {
         };
 
         try {
-            if (usePrivateTailscaleApi()) {
-                const created = await vaultStore.vaultFetch('/api/vault/piggybanks', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        user_id: profileStore.userId,
-                        title,
-                        target_amount,
-                        composes_balance,
-                        current_amount: initial_amount,
-                        ...fullMeta
-                    })
-                });
-                if (created) {
-                    saveLocalMeta(created.id_piggybank, fullMeta);
-                    piggybanks.value.push({ ...fullMeta, ...created });
-                }
-                return;
-            }
-
+            const dbTitle = encodeTitleWithMeta(title, fullMeta);
             const { data, error } = await supabase
                 .from('fin_piggybank')
                 .insert([{
                     user_id: profileStore.userId,
-                    title,
+                    title: dbTitle,
                     target_amount,
                     composes_balance,
-                    current_amount: initial_amount,
-                    ...fullMeta
+                    current_amount: initial_amount
                 }])
                 .select()
                 .single();
@@ -633,7 +636,7 @@ export const usePiggybankStore = defineStore('piggybank', () => {
             if (error) throw error;
             if (data) {
                 saveLocalMeta(data.id_piggybank, fullMeta);
-                piggybanks.value.push({ ...fullMeta, ...data });
+                piggybanks.value.push(decodeMetaFromRow(data, fullMeta));
             }
         } catch (error) {
             console.error('[PiggybankStore] Error creating piggybank:', error);
@@ -642,41 +645,45 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
     
     const updatePiggybank = async (id: string, updates: Partial<Piggybank>) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para modificar cofrinhos.');
-        }
-
         try {
-            if (usePrivateTailscaleApi()) {
-                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify(updates)
-                });
-            } else {
-                const { error } = await supabase
-                    .from('fin_piggybank')
-                    .update(updates)
-                    .eq('id_piggybank', id);
-
-                if (error) throw error;
-            }
-
             const index = piggybanks.value.findIndex(p => p.id_piggybank === id);
+            const current = index !== -1 ? piggybanks.value[index] : null;
+            const mergedMeta: PiggybankMeta = {
+                bank_name: updates.bank_name ?? current?.bank_name,
+                product_type: updates.product_type ?? current?.product_type,
+                indexer: updates.indexer ?? current?.indexer,
+                rate_value: updates.rate_value ?? current?.rate_value,
+                liquidity: updates.liquidity ?? current?.liquidity,
+                maturity_date: updates.maturity_date !== undefined ? updates.maturity_date : current?.maturity_date,
+                last_yield_date: updates.last_yield_date !== undefined ? updates.last_yield_date : current?.last_yield_date,
+                total_yield_earned: updates.total_yield_earned ?? current?.total_yield_earned,
+                effective_tax_rate: updates.effective_tax_rate !== undefined ? updates.effective_tax_rate : current?.effective_tax_rate
+            };
+
+            const baseTitle = updates.title ?? current?.title ?? 'Conta Digital';
+            const dbUpdates: Record<string, any> = {
+                title: encodeTitleWithMeta(baseTitle, mergedMeta)
+            };
+            if (updates.target_amount !== undefined) dbUpdates.target_amount = updates.target_amount;
+            if (updates.current_amount !== undefined) dbUpdates.current_amount = updates.current_amount;
+            if (updates.composes_balance !== undefined) dbUpdates.composes_balance = updates.composes_balance;
+
+            const { error } = await supabase
+                .from('fin_piggybank')
+                .update(dbUpdates)
+                .eq('id_piggybank', id);
+
+            if (error) throw error;
+
+            saveLocalMeta(id, mergedMeta);
             if (index !== -1) {
-                const metaFields: PiggybankMeta = {};
-                if (updates.bank_name !== undefined) metaFields.bank_name = updates.bank_name;
-                if (updates.product_type !== undefined) metaFields.product_type = updates.product_type;
-                if (updates.indexer !== undefined) metaFields.indexer = updates.indexer;
-                if (updates.rate_value !== undefined) metaFields.rate_value = updates.rate_value;
-                if (updates.liquidity !== undefined) metaFields.liquidity = updates.liquidity;
-                if (updates.maturity_date !== undefined) metaFields.maturity_date = updates.maturity_date;
-                if (updates.last_yield_date !== undefined) metaFields.last_yield_date = updates.last_yield_date;
-                if (updates.total_yield_earned !== undefined) metaFields.total_yield_earned = updates.total_yield_earned;
-                if (updates.effective_tax_rate !== undefined) metaFields.effective_tax_rate = updates.effective_tax_rate;
-                if (Object.keys(metaFields).length > 0) {
-                    saveLocalMeta(id, metaFields);
-                }
-                piggybanks.value[index] = { ...piggybanks.value[index], ...updates } as Piggybank;
+                const cleanTitle = String(baseTitle).split('|')[0]?.trim() || baseTitle;
+                piggybanks.value[index] = {
+                    ...piggybanks.value[index],
+                    ...updates,
+                    ...mergedMeta,
+                    title: cleanTitle
+                } as Piggybank;
             }
         } catch (error) {
             console.error('Erro ao atualizar cofrinho:', error);
@@ -685,23 +692,13 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
 
     const deletePiggybank = async (id: string) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para excluir cofrinhos.');
-        }
-
         try {
-            if (usePrivateTailscaleApi()) {
-                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id}`, {
-                    method: 'DELETE'
-                });
-            } else {
-                const { error } = await supabase
-                    .from('fin_piggybank')
-                    .delete()
-                    .eq('id_piggybank', id);
-                
-                if (error) throw error;
-            }
+            const { error } = await supabase
+                .from('fin_piggybank')
+                .delete()
+                .eq('id_piggybank', id);
+            
+            if (error) throw error;
 
             piggybanks.value = piggybanks.value.filter(p => p.id_piggybank !== id);
         } catch (error) {
@@ -711,7 +708,6 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
 
     const getAvailableToDeposit = async () => {
-        if (!vaultStore.isVaultUnlocked) return 0;
         try {
             const { data: incomes } = await supabase
                 .from('fin_income')
@@ -733,10 +729,6 @@ export const usePiggybankStore = defineStore('piggybank', () => {
     };
 
     const addTransaction = async (id_piggybank: string, type: 'deposit' | 'withdraw', amount: number) => {
-        if (!vaultStore.isVaultUnlocked) {
-            throw new Error('Conecte-se à VPN Tailscale para movimentar valores do Cofre.');
-        }
-
         try {
             const piggybank = piggybanks.value.find(p => p.id_piggybank === id_piggybank);
 
@@ -762,28 +754,16 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 }
             }
 
-            if (usePrivateTailscaleApi()) {
-                await vaultStore.vaultFetch(`/api/vault/piggybanks/${id_piggybank}/transactions`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        piggybank_id: id_piggybank,
-                        user_id: profileStore.userId,
-                        transaction_type: type,
-                        amount
-                    })
-                });
-            } else {
-                const { error: txError } = await supabase
-                    .from('fin_piggybank_transaction')
-                    .insert([{
-                        piggybank_id: id_piggybank,
-                        user_id: profileStore.userId,
-                        transaction_type: type,
-                        amount
-                    }]);
-                    
-                if (txError) throw txError;
-            }
+            const { error: txError } = await supabase
+                .from('fin_piggybank_transaction')
+                .insert([{
+                    piggybank_id: id_piggybank,
+                    user_id: profileStore.userId,
+                    transaction_type: type,
+                    amount
+                }]);
+                
+            if (txError) throw txError;
 
             const newAmount = type === 'deposit'
                 ? Number(piggybank.current_amount) + Number(amount)

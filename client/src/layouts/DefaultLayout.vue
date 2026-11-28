@@ -3,43 +3,19 @@
     import { useRoute } from 'vue-router';
     import {
         PhCalendarBlank, PhCaretDown, PhCaretLeft, PhCaretRight, PhCreditCard,
-        PhList, PhSparkle, PhShieldCheck, PhLockKey, PhArrowsClockwise, PhEye, PhEyeSlash,
-        PhQrCode, PhTrash
+        PhList, PhSparkle, PhEye, PhEyeSlash
     } from '@phosphor-icons/vue';
     import { storeToRefs } from 'pinia';
     import { onClickOutside } from '@vueuse/core';
     import Sidebar from '../components/Sidebar.vue';
-    import VaultPairingModal from '../components/VaultPairingModal.vue';
     import { useFilterStore } from '../stores/useFilterStore';
     import { useProfileStore } from '../stores/useProfileStore';
-    import { useVaultStore } from '../stores/useVaultStore';
-    import { usePiggybankStore } from '../stores/usePiggybankStore';
-    import { useAssetsStore } from '../stores/useAssetsStore';
 
     const route = useRoute();
     const isSidebarOpen = ref(false);
 
     const filterStore = useFilterStore();
     const profileStore = useProfileStore();
-    const vaultStore = useVaultStore();
-    const piggybankStore = usePiggybankStore();
-    const assetsStore = useAssetsStore();
-
-    const isPairingModalOpen = ref(false);
-    const pairingModalMode = ref<'receive' | 'send'>('receive');
-
-    const openPairingModal = (mode: 'receive' | 'send') => {
-        pairingModalMode.value = mode;
-        isVaultDropdownOpen.value = false;
-        isPairingModalOpen.value = true;
-    };
-
-    const handleClearEphemeralRam = () => {
-        vaultStore.clearEphemeralSession();
-        piggybankStore.piggybanks = [];
-        assetsStore.assets = [];
-        isVaultDropdownOpen.value = false;
-    };
 
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
     const {
@@ -48,9 +24,6 @@
     } = filterStore;
     const isDateDropdownOpen = ref(false);
     const dateDropdownRef = ref<HTMLElement | null>(null);
-
-    const isVaultDropdownOpen = ref(false);
-    const vaultDropdownRef = ref<HTMLElement | null>(null);
 
     const isPrivacyBlurActive = ref(sessionStorage.getItem('somma_privacy_blur') === 'true');
 
@@ -80,25 +53,15 @@
         isDateDropdownOpen.value = false;
     });
 
-    onClickOutside(vaultDropdownRef, () => {
-        isVaultDropdownOpen.value = false;
-    });
-
     const handleMonthSelection = (index: number) => {
         selectMonth(index);
         isDateDropdownOpen.value = false;
-    };
-
-    const handleReconnectVault = async () => {
-        await vaultStore.checkTailscaleConnection();
-        await piggybankStore.fetchPiggybanks();
     };
 
     const handleGlobalKeydown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
             isSidebarOpen.value = false;
             isDateDropdownOpen.value = false;
-            isVaultDropdownOpen.value = false;
         }
         if (e.altKey && (e.key === 'p' || e.key === 'P')) {
             e.preventDefault();
@@ -115,7 +78,6 @@
         } else {
             document.body.classList.remove('dark');
         }
-        await vaultStore.checkTailscaleConnection();
         await profileStore.fetchProfileData();
 
         if (filterMode.value === 'invoice' && selectedCardIds.value.length === 0 && profileStore.myCards.length > 0) {
@@ -156,101 +118,6 @@
         </div>
 
         <div class="topbar-right">
-          <!-- STATUS DO COFRE PRIVADO (Exibido apenas para quem ativou Servidor Privado) -->
-          <div v-if="vaultStore.usePrivateServer" class="vault-selector-container" ref="vaultDropdownRef">
-            <button
-              class="vault-pill-btn"
-              :class="{
-                'is-unlocked': vaultStore.isVaultUnlocked,
-                'is-locked': !vaultStore.isVaultUnlocked
-              }"
-              @click="isVaultDropdownOpen = !isVaultDropdownOpen"
-              title="Status do Cofre Privado"
-              aria-label="Status do Cofre Privado"
-              :aria-expanded="isVaultDropdownOpen"
-            >
-              <span class="status-dot"></span>
-              <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="16" weight="fill" />
-              <PhLockKey v-else size="16" weight="fill" />
-              <span class="vault-pill-text">
-                {{
-                  vaultStore.isEphemeralPaired
-                    ? 'Acesso Temporário'
-                    : vaultStore.isVaultUnlocked
-                      ? 'Cofre Ativo'
-                      : 'Cofre Protegido'
-                }}
-              </span>
-              <PhCaretDown size="13" class="caret" />
-            </button>
-
-            <div class="vault-dropdown" v-if="isVaultDropdownOpen">
-              <div class="vault-drop-header">
-                <div class="vault-badge-icon" :class="vaultStore.isVaultUnlocked ? 'unlocked' : 'locked'">
-                  <PhShieldCheck v-if="vaultStore.isVaultUnlocked" size="20" weight="duotone" />
-                  <PhLockKey v-else size="20" weight="duotone" />
-                </div>
-                <div class="vault-drop-titles">
-                  <h4>
-                    {{
-                      vaultStore.isEphemeralPaired
-                        ? 'Visualização Temporária Ativa'
-                        : vaultStore.isVaultUnlocked
-                          ? 'Cofre Privado Conectado'
-                          : 'Cofre Privado Protegido'
-                    }}
-                  </h4>
-                  <p>
-                    {{
-                      vaultStore.isEphemeralPaired
-                        ? 'Carteira liberada temporariamente nesta aba. Ao atualizar ou fechar a página, os dados são ocultados.'
-                        : vaultStore.isVaultUnlocked
-                          ? 'Seus saldos bancários e investimentos estão sincronizados com seu servidor privado.'
-                          : 'Para consultar sua carteira neste computador, sincronize rapidamente com seu celular.'
-                    }}
-                  </p>
-                </div>
-              </div>
-
-              <div class="vault-actions-list">
-                <button
-                  v-if="!vaultStore.isVaultUnlocked"
-                  type="button"
-                  class="vault-act-item primary"
-                  @click="openPairingModal('receive')"
-                >
-                  <PhQrCode size="16" />
-                  <span>Sincronizar com Celular</span>
-                </button>
-
-                <button
-                  v-if="vaultStore.status === 'connected'"
-                  type="button"
-                  class="vault-act-item primary"
-                  @click="openPairingModal('send')"
-                >
-                  <PhQrCode size="16" />
-                  <span>Liberar Acesso em Outro PC</span>
-                </button>
-
-                <button
-                  v-if="vaultStore.isEphemeralPaired"
-                  type="button"
-                  class="vault-act-item"
-                  @click="handleClearEphemeralRam"
-                >
-                  <PhTrash size="16" />
-                  <span>Encerrar Acesso Temporário</span>
-                </button>
-
-                <button type="button" class="vault-act-item" @click="handleReconnectVault">
-                  <PhArrowsClockwise size="16" />
-                  <span>Reconectar Servidor</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- BOTÃO RÁPIDO DE PRIVACIDADE (OLHINHO GLOBAL PARA AMBIENTE DE TRABALHO) -->
           <button
             type="button"
@@ -370,12 +237,6 @@
         <slot />
       </main>
     </div>
-
-    <VaultPairingModal
-      v-if="isPairingModalOpen"
-      :initialMode="pairingModalMode"
-      @close="isPairingModalOpen = false"
-    />
   </div>
 </template>
 
