@@ -526,31 +526,31 @@
         <header class="ai-header">
             <div class="header-left">
                 <div class="icon-box">
-                    <PhSparkle size="22" weight="fill"/>
+                    <PhSparkle size="20" weight="fill"/>
                 </div>
                 <div class="header-titles">
                     <div class="title-row">
                         <h1>Somma Copilot IA</h1>
                     </div>
-                    <p>Consultor financeiro inteligente baseado no seu fluxo de caixa, faturas e investimentos</p>
+                    <p class="header-sub">Consultor financeiro baseado no seu fluxo, faturas e investimentos</p>
                 </div>
             </div>
             <button
                 type="button"
-                class="btn-secondary"
-                style="padding: 0.45rem 0.85rem; font-size: 0.8rem;"
+                class="btn-secondary reset-chat-btn"
                 @click="handleResetChat"
                 title="Iniciar uma nova conversa limpa"
+                aria-label="Nova Conversa"
             >
                 <PhArrowsClockwise size="15" weight="bold" />
-                <span>Nova Conversa</span>
+                <span class="reset-btn-text">Nova Conversa</span>
             </button>
         </header>
 
         <div class="copilot-workspace">
             <!-- CHAT FULL-WIDTH -->
             <div class="chat-column">
-                <main class="chat-area" ref="chatContainer">
+                <main class="chat-area" ref="chatContainer" aria-live="polite">
                     <div class="messages-list">
                         <div
                             v-for="msg in messages"
@@ -558,7 +558,7 @@
                             :class="['message-wrapper', msg.role === 'user' ? 'is-user' : 'is-ai']"
                         >
                             <div class="avatar" v-if="msg.role === 'ai'">
-                                <PhRobot size="19" weight="duotone" />
+                                <PhRobot size="18" weight="duotone" />
                             </div>
 
                             <div v-if="msg.role === 'ai'" class="message-bubble markdown-body" v-html="renderMarkdown(msg.content)"></div>
@@ -566,13 +566,13 @@
 
                             <div class="avatar" v-if="msg.role === 'user'">
                                 <img v-if="profileStore.avatarUrl" :src="profileStore.avatarUrl" class="user-avatar-img" alt="User" />
-                                <PhUser v-else size="19" weight="regular"/>
+                                <PhUser v-else size="18" weight="regular"/>
                             </div>
                         </div>
 
                         <div class="message-wrapper is-ai" v-if="isTyping">
                             <div class="avatar">
-                                <PhRobot size="19" weight="duotone"/>
+                                <PhRobot size="18" weight="duotone"/>
                             </div>
                             <div class="message-bubble typing-indicator">
                                 <span></span><span></span><span></span>
@@ -585,14 +585,14 @@
                 <div class="quick-prompts">
                     <button type="button" class="prompt-chip offline-chip" @click="runOfflineDiagnosticInChat">
                         <PhShieldCheck size="14" weight="fill" />
-                        Resumo do Meu Mês
+                        Resumo do Mês
                     </button>
                     <button type="button" class="prompt-chip" @click="sendQuickPrompt('Quero comprar um produto de R$ 300 em 3x, vale a pena agora?')">
                         <PhLightning size="13" weight="fill" />
-                        Posso comprar algo de R$ 300?
+                        Simular R$ 300 em 3x
                     </button>
                     <button type="button" class="prompt-chip" @click="sendQuickPrompt('Analise meus gastos diretos vs. fatura do cartão e como posso economizar melhor.')">
-                        Analisar fatura e gastos
+                        Analisar Fatura & Gastos
                     </button>
                 </div>
 
@@ -601,11 +601,18 @@
                         <input
                             type="text"
                             v-model="promptText"
-                            placeholder="Ex: Quero comprar algo de 300 reais em 3x, vale a pena?"
+                            placeholder="Pergunte sobre compras, faturas ou metas..."
                             class="ai-input"
+                            enterkeyhint="send"
+                            autocomplete="off"
                             :disabled="isTyping"
                         />
-                        <button type="submit" class="send-btn" :disabled="!promptText.trim() || isTyping">
+                        <button
+                            type="submit"
+                            class="send-btn"
+                            :disabled="!promptText.trim() || isTyping"
+                            aria-label="Enviar mensagem"
+                        >
                             <PhPaperPlaneTilt size="19" weight="fill" />
                         </button>
                     </form>
@@ -674,6 +681,15 @@
         margin: 2px 0 0 0;
         font-size: 0.85rem;
         color: var(--text-secondary);
+    }
+
+    .reset-chat-btn {
+        padding: 0.45rem 0.85rem;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-shrink: 0;
     }
 
     .context-pill {
@@ -971,10 +987,129 @@
 
     @media (max-width: 1024px) {
         .copilot-layout {
-            height: auto;
+            height: calc(100dvh - 88px);
+            gap: 0.65rem;
         }
         .chat-column {
-            height: 520px;
+            flex: 1;
+            min-height: 0;
+            height: 100%;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .copilot-layout {
+            /* Ocupa a tela inteira no celular sem precisar rolar a página por fora */
+            height: calc(100dvh - 64px - 1.1rem - env(safe-area-inset-bottom, 0px));
+            margin: -0.6rem -0.35rem -4.8rem -0.35rem;
+            gap: 0.5rem;
+        }
+
+        .ai-header {
+            padding: 0.15rem 0.25rem 0.55rem 0.25rem;
+            gap: 0.5rem;
+            flex-wrap: nowrap;
+        }
+
+        .header-left {
+            gap: 0.6rem;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .icon-box {
+            width: 34px;
+            height: 34px;
+            border-radius: 9px;
+        }
+
+        .header-titles {
+            min-width: 0;
+        }
+
+        .header-titles h1 {
+            font-size: 1.05rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .header-sub {
+            display: none;
+        }
+
+        .reset-chat-btn {
+            padding: 0.4rem 0.65rem;
+            font-size: 0.75rem;
+            height: 34px;
+            border-radius: 9px;
+        }
+
+        .chat-column {
+            border-radius: 14px;
+        }
+
+        .chat-area {
+            padding: 0.85rem 0.75rem;
+        }
+
+        .messages-list {
+            gap: 0.85rem;
+        }
+
+        .message-wrapper {
+            gap: 7px;
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+        }
+
+        .message-bubble {
+            max-width: 88%;
+            padding: 0.75rem 0.95rem;
+            font-size: 0.88rem;
+            line-height: 1.5;
+            border-radius: 13px;
+        }
+
+        .quick-prompts {
+            padding: 0.45rem 0.75rem;
+            gap: 0.4rem;
+            scrollbar-width: none;
+        }
+
+        .quick-prompts::-webkit-scrollbar {
+            display: none;
+        }
+
+        .prompt-chip {
+            padding: 0.42rem 0.75rem;
+            font-size: 0.75rem;
+        }
+
+        .input-area {
+            padding: 0.65rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+        }
+
+        .input-wrapper {
+            gap: 8px;
+        }
+
+        /* 16px evita o auto-zoom forçado do iOS/Android ao tocar no campo de digitação */
+        .ai-input {
+            font-size: 16px;
+            padding: 0.65rem 0.9rem;
+            height: 44px;
+            border-radius: 11px;
+        }
+
+        .send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 11px;
         }
     }
 </style>
