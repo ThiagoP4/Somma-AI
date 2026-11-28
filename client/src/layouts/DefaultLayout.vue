@@ -151,9 +151,10 @@
                 aria-label="Selecionar mês ou fatura"
                 :aria-expanded="isDateDropdownOpen"
               >
-                <PhCalendarBlank size="16" v-if="filterMode === 'month'" />
-                <PhCreditCard size="16" v-else />
-                <span>{{ filterMode === 'month' ? monthNames[selectedMonth] + ' ' + selectedYear : 'Fatura • ' + monthNames[selectedMonth] }}</span>
+                <PhCalendarBlank size="16" class="date-btn-icon" v-if="filterMode === 'month'" />
+                <PhCreditCard size="16" class="date-btn-icon" v-else />
+                <span class="date-text-desktop">{{ filterMode === 'month' ? monthNames[selectedMonth] + ' ' + selectedYear : 'Fatura • ' + monthNames[selectedMonth] }}</span>
+                <span class="date-text-mobile">{{ filterMode === 'month' ? monthNames[selectedMonth] + '/' + String(selectedYear).slice(-2) : 'Fat • ' + monthNames[selectedMonth] }}</span>
                 <PhCaretDown size="14" class="caret" />
               </button>
 
@@ -579,6 +580,10 @@
     .date-btn .caret {
       color: var(--text-secondary);
     }
+
+    .date-text-mobile {
+      display: none;
+    }
     
     .date-dropdown {
       position: absolute;
@@ -818,22 +823,53 @@
     }
 
     @media (max-width: 640px) {
+      .topbar {
+        padding: 0 0.75rem;
+        gap: 0.4rem;
+      }
+      .topbar-left {
+        gap: 0.5rem;
+      }
+      .hamburger-btn {
+        width: 34px;
+        height: 34px;
+        flex-shrink: 0;
+      }
       .bc-root,
       .bc-sep,
-      .vault-pill-text {
+      .date-text-desktop,
+      .date-btn-icon {
         display: none;
       }
-      .vault-pill-btn {
-        padding: 0 0.65rem;
-        height: 38px;
+      .date-text-mobile {
+        display: inline;
+      }
+      .bc-current {
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+      .topbar-right {
+        gap: 0.35rem;
+        flex-shrink: 0;
+      }
+      .privacy-eye-btn {
+        width: 32px;
+        height: 34px;
+      }
+      .date-stepper-group {
+        gap: 2px;
+      }
+      .month-step-btn {
+        width: 26px;
+        height: 34px;
       }
       .date-btn {
-        padding: 0.4rem 0.7rem;
-        font-size: 0.8rem;
-        height: 38px;
+        padding: 0 0.5rem;
+        font-size: 0.78rem;
+        height: 34px;
+        gap: 0.25rem;
         white-space: nowrap;
       }
-      .vault-dropdown,
       .date-dropdown {
         position: fixed;
         top: 68px;
