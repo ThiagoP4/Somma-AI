@@ -9,6 +9,7 @@ import {
 import { useAlertStore } from '../../stores/useAlertStore';
 import { getBankLogoUrl } from '../../utils/banks';
 import AssetModal from './AssetModal.vue';
+import ConfirmModal from '../ConfirmModal.vue';
 import {
     PhPlus,
     PhArrowsClockwise,
@@ -27,6 +28,8 @@ const { showAlert } = useAlertStore();
 const selectedClass = ref<'ALL' | AssetClass>('ALL');
 const isModalOpen = ref(false);
 const editingAsset = ref<VariableAsset | null>(null);
+const isConfirmingDeleteAsset = ref(false);
+const assetToDelete = ref<VariableAsset | null>(null);
 
 // Estado inline para lançar dividendo / rendimento de FII em 1 clique nos Proventos do mês
 const dividendAssetId = ref<string | null>(null);
@@ -158,11 +161,19 @@ const openEdit = (asset: VariableAsset) => {
     isModalOpen.value = true;
 };
 
-const handleDelete = async (asset: VariableAsset) => {
-    if (confirm(`Remover ${asset.ticker} da sua carteira de renda variável?`)) {
-        await assetsStore.deleteAsset(asset.id_asset);
-        showAlert(`${asset.ticker} removido da carteira.`, 'success');
+const handleDelete = (asset: VariableAsset) => {
+    assetToDelete.value = asset;
+    isConfirmingDeleteAsset.value = true;
+};
+
+const executeDeleteAsset = async () => {
+    if (assetToDelete.value) {
+        const ticker = assetToDelete.value.ticker;
+        await assetsStore.deleteAsset(assetToDelete.value.id_asset);
+        showAlert(`${ticker} removido da carteira.`, 'success');
     }
+    isConfirmingDeleteAsset.value = false;
+    assetToDelete.value = null;
 };
 
 const handleSyncQuotes = async () => {
@@ -536,6 +547,14 @@ const formatQty = (qty: number, cls: AssetClass) => {
         v-if="isModalOpen"
         :assetToEdit="editingAsset"
         @close="isModalOpen = false"
+    />
+
+    <ConfirmModal
+        :isOpen="isConfirmingDeleteAsset"
+        title="Remover Ativo da Carteira?"
+        :message="`Tem certeza que deseja remover ${assetToDelete?.ticker || 'este ativo'} da sua carteira de renda variável?`"
+        @confirm="executeDeleteAsset"
+        @cancel="isConfirmingDeleteAsset = false"
     />
 </template>
 

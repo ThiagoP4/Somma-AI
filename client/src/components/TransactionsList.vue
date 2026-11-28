@@ -23,7 +23,105 @@
     });
 
     const toBRL = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
-    const toDate = (d: string) => d ? new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
+    const toDate = (d: string) => {
+        if (!d) return '-';
+        const isoDate = d.split('T')[0] || '';
+        const parts = isoDate.split('-');
+        const formatted = parts.length === 3
+            ? `${parts[2]}/${parts[1]}/${parts[0]}`
+            : new Date(d).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+
+        const now = new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        const yestIso = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, '0')}-${String(yest.getDate()).padStart(2, '0')}`;
+
+        if (isoDate === todayIso) return `Hoje • ${formatted}`;
+        if (isoDate === yestIso) return `Ontem • ${formatted}`;
+        return formatted;
+    };
+
+    // Garante alto contraste em Dark Mode mesmo quando a cor salva no banco é muito escura, preta ou fora do padrão #RRGGBB
+    const parseHexToRgb = (raw?: string): { r: number; g: number; b: number } | null => {
+        if (!raw) return null;
+        const clean = raw.trim().replace(/^#/, '');
+        if (/^[0-9a-fA-F]{3}$/.test(clean)) {
+            const r = parseInt(clean[0]! + clean[0]!, 16);
+            const g = parseInt(clean[1]! + clean[1]!, 16);
+            const b = parseInt(clean[2]! + clean[2]!, 16);
+            return { r, g, b };
+        }
+        if (/^[0-9a-fA-F]{6,8}$/.test(clean)) {
+            const r = parseInt(clean.slice(0, 2), 16);
+            const g = parseInt(clean.slice(2, 4), 16);
+            const b = parseInt(clean.slice(4, 6), 16);
+            return { r, g, b };
+        }
+        return null;
+    };
+
+    const rgbToHsl = (r: number, g: number, b: number): { h: number; s: number; l: number } => {
+        const rn = r / 255;
+        const gn = g / 255;
+        const bn = b / 255;
+        const max = Math.max(rn, gn, bn);
+        const min = Math.min(rn, gn, bn);
+        let h = 0;
+        let s = 0;
+        const l = (max + min) / 2;
+
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case rn:
+                    h = (gn - bn) / d + (gn < bn ? 6 : 0);
+                    break;
+                case gn:
+                    h = (bn - rn) / d + 2;
+                    break;
+                case bn:
+                    h = (rn - gn) / d + 4;
+                    break;
+            }
+            h /= 6;
+        }
+        return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+    };
+
+    const getCategoryBadgeStyle = (rawColor?: string) => {
+        const rgb = parseHexToRgb(rawColor);
+        if (!rgb) {
+            return {
+                backgroundColor: 'rgba(148, 163, 184, 0.14)',
+                color: '#CBD5E1',
+                border: '1px solid rgba(148, 163, 184, 0.28)',
+            };
+        }
+
+        const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+
+        // Se a cor for muito acinzentada/preta (ex: #000000 ou #1f2937 em "Aplicativos"), usa tom ardósia claro legível
+        if (s < 14 && l < 55) {
+            return {
+                backgroundColor: 'rgba(148, 163, 184, 0.15)',
+                color: '#E2E8F0',
+                border: '1px solid rgba(148, 163, 184, 0.32)',
+            };
+        }
+
+        // Clampa a luminosidade do texto entre 68% e 82% para leitura perfeita no fundo escuro,
+        // mantendo o fundo translúcido suave (14% opacidade) e borda sutil (30% opacidade)
+        const safeTextL = Math.max(68, Math.min(82, l));
+        const safeTextS = Math.max(65, Math.min(92, s));
+        const safeBgL = Math.max(48, Math.min(62, l));
+
+        return {
+            backgroundColor: `hsla(${h}, ${safeTextS}%, ${safeBgL}%, 0.15)`,
+            color: `hsl(${h}, ${safeTextS}%, ${safeTextL}%)`,
+            border: `1px solid hsla(${h}, ${safeTextS}%, ${safeTextL}%, 0.32)`,
+        };
+    };
 
     const isConfirmingDelete = ref(false);
     const itemToDelete = ref<number | string | null>(null);
@@ -71,27 +169,22 @@
                 <div
                     v-else
                     class="tx-avatar"
-                    :style="{
-                        backgroundColor: (item.fin_category?.color || '#6366F1') + '1A',
-                        color: item.fin_category?.color || '#6366F1',
-                        borderColor: (item.fin_category?.color || '#6366F1') + '33'
-                    }"
+                    :style="getCategoryBadgeStyle(item.fin_category?.color)"
                 >
                     <PhReceipt size="18" weight="duotone" />
                 </div>
                 
                 <div class="record-info">
-                    <span class="title">{{ item.title }}</span>
+                    <span class="title">{{ item.rawTitle || item.title }}</span>
                     <div class="meta-row">
                         <span
-                            v-if="item.fin_category?.description"
                             class="cat-badge"
-                            :style="{
-                                backgroundColor: (item.fin_category?.color || '#6366F1') + '14',
-                                color: item.fin_category?.color || '#6366F1'
-                            }"
+                            :style="getCategoryBadgeStyle(item.fin_category?.color)"
                         >
-                            {{ item.fin_category.description }}
+                            {{ item.fin_category?.description || 'Sem categoria' }}
+                        </span>
+                        <span v-if="item.installmentBadge" class="installment-pill">
+                            {{ item.installmentBadge }}
                         </span>
                         <span v-if="item.payment?.nickname" class="payment-tag">
                             <PhCreditCard size="12" weight="fill" />
@@ -273,6 +366,19 @@
         font-weight: 600;
         padding: 2px 8px;
         border-radius: 6px;
+    }
+
+    .installment-pill {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.71rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 6px;
+        background: rgba(99, 102, 241, 0.14);
+        color: #A5B4FC;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        font-feature-settings: "tnum";
     }
 
     .payment-tag {

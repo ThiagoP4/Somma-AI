@@ -14,6 +14,7 @@
     import PiggybankTransaction from '../components/Piggybank/PiggybankTransaction.vue';
     import VariableAssetsPanel from '../components/Investments/VariableAssetsPanel.vue';
     import VaultPairingModal from '../components/VaultPairingModal.vue';
+    import ConfirmModal from '../components/ConfirmModal.vue';
     import { getBankLogoUrl, getBankBrandColor, findBankFromText } from '../utils/banks';
 
     const piggybankStore = usePiggybankStore();
@@ -22,6 +23,8 @@
     const { showAlert } = useAlertStore();
     const { isVaultUnlocked } = storeToRefs(vaultStore);
     const isPairingModalOpen = ref(false);
+    const isConfirmingDeletePiggy = ref(false);
+    const piggyIdToDelete = ref<string | null>(null);
 
     const activeTab = ref<'cofrinhos' | 'ativos'>('cofrinhos');
     const filterType = ref<'all' | 'liquid' | 'locked' | 'maturity'>('all');
@@ -54,10 +57,17 @@
         isTransactionModalOpen.value = true;
     };
 
-    const handleDelete = async (id: string) => {
-        if (confirm('Tem certeza que deseja excluir esta conta/aplicação da sua carteira?')) {
-            await piggybankStore.deletePiggybank(id);
+    const handleDelete = (id: string) => {
+        piggyIdToDelete.value = id;
+        isConfirmingDeletePiggy.value = true;
+    };
+
+    const executeDeletePiggy = async () => {
+        if (piggyIdToDelete.value) {
+            await piggybankStore.deletePiggybank(piggyIdToDelete.value);
         }
+        isConfirmingDeletePiggy.value = false;
+        piggyIdToDelete.value = null;
     };
 
     const handleRetryVault = async () => {
@@ -763,6 +773,14 @@
         :piggybank="transactionData.piggybank" 
         :type="transactionData.type" 
         @close="isTransactionModalOpen = false" 
+    />
+
+    <ConfirmModal
+        :isOpen="isConfirmingDeletePiggy"
+        title="Excluir Conta / Aplicação?"
+        message="Tem certeza que deseja excluir esta conta ou aplicação da sua carteira no Cofre Tailscale?"
+        @confirm="executeDeletePiggy"
+        @cancel="isConfirmingDeletePiggy = false"
     />
 </template>
 

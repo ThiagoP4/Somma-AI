@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { ref, computed } from 'vue';
-    import { PhPalette, PhTrash } from '@phosphor-icons/vue';
+    import { PhPalette, PhTrash, PhPencilSimple } from '@phosphor-icons/vue';
     import ConfirmModal from './ConfirmModal.vue';
     
     const props = defineProps<{ items: any[] }>();
@@ -9,10 +9,13 @@
     const incomeCategories = computed(() => props.items.filter(cat => cat.type === 'receita'))
 
 
-    const emit = defineEmits(['add', 'delete']);
+    const emit = defineEmits(['add', 'edit', 'delete']);
 
     const isConfirmingDelete = ref(false);
     const itemToDelete = ref<number | string | null>(null);
+
+    const toBRL = (v: number) =>
+        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v || 0));
 
     const confirmDelete = (id: number | string) => {
         itemToDelete.value = id;
@@ -39,11 +42,23 @@
                     <div class="cat-card hover-lift" v-for="cat in expenseCategories" :key="cat.idCategory">
                         <div class="cat-card-left">
                             <PhPalette size="20" :style="{ color: cat.color }" weight="fill" />
-                            <span class="title">{{ cat.description }}</span>
+                            <div class="cat-info-stack">
+                                <span class="title">{{ cat.description }}</span>
+                                <span v-if="Number(cat.value) > 0" class="cat-month-total expense">
+                                    {{ toBRL(cat.value) }} no mês
+                                    <template v-if="cat.count">({{ cat.count }})</template>
+                                </span>
+                                <span v-else class="cat-month-total muted">Sem lançamentos no mês</span>
+                            </div>
                         </div>
-                        <button class="icon-btn delete-btn" @click="confirmDelete(cat.idCategory)" title="Excluir">
-                            <PhTrash size="18" />
-                        </button>
+                        <div class="cat-card-actions" style="display: flex; gap: 4px;">
+                            <button class="icon-btn edit-btn" @click="emit('edit', cat)" title="Editar categoria">
+                                <PhPencilSimple size="18" />
+                            </button>
+                            <button class="icon-btn delete-btn" @click="confirmDelete(cat.idCategory)" title="Excluir">
+                                <PhTrash size="18" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -53,11 +68,23 @@
                     <div class="cat-card hover-lift" v-for="cat in incomeCategories" :key="cat.idCategory">
                         <div class="cat-card-left">
                             <PhPalette size="20" :style="{ color: cat.color }" weight="fill" />
-                            <span class="title">{{ cat.description }}</span>
+                            <div class="cat-info-stack">
+                                <span class="title">{{ cat.description }}</span>
+                                <span v-if="Number(cat.value) > 0" class="cat-month-total income">
+                                    + {{ toBRL(cat.value) }} no mês
+                                    <template v-if="cat.count">({{ cat.count }})</template>
+                                </span>
+                                <span v-else class="cat-month-total muted">Sem lançamentos no mês</span>
+                            </div>
                         </div>
-                        <button class="icon-btn delete-btn" @click="confirmDelete(cat.idCategory)" title="Excluir">
-                            <PhTrash size="18" />
-                        </button>
+                        <div class="cat-card-actions" style="display: flex; gap: 4px;">
+                            <button class="icon-btn edit-btn" @click="emit('edit', cat)" title="Editar categoria">
+                                <PhPencilSimple size="18" />
+                            </button>
+                            <button class="icon-btn delete-btn" @click="confirmDelete(cat.idCategory)" title="Excluir">
+                                <PhTrash size="18" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -124,9 +151,15 @@
         display: flex; justify-content: space-between; align-items: center;
     }
     .cat-card-left { display: flex; align-items: center; gap: 12px; }
-    .cat-card-left .title { font-weight: 500; font-size: 0.95rem; color: var(--text-primary); }
+    .cat-card-left .title { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+    .cat-info-stack { display: flex; flex-direction: column; gap: 2px; }
+    .cat-month-total { font-size: 0.74rem; font-weight: 600; font-feature-settings: "tnum"; }
+    .cat-month-total.expense { color: var(--text-secondary); }
+    .cat-month-total.income { color: var(--success-text); }
+    .cat-month-total.muted { color: var(--text-muted); font-weight: 500; }
 
-    .icon-btn { background: transparent; border: none; padding: 6px; cursor: pointer; transition: 0.2s; border-radius: 6px; display: flex;}
+    .icon-btn { background: transparent; border: none; padding: 6px; cursor: pointer; transition: 0.2s; border-radius: 6px; display: flex; color: var(--text-secondary); }
+    .icon-btn.edit-btn:hover { color: var(--primary-color); background: rgba(99, 102, 241, 0.12); }
     .icon-btn.delete-btn { color: var(--danger-color); }
     .icon-btn.delete-btn:hover { background: rgba(239, 68, 68, 0.1); }
 

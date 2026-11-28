@@ -1,6 +1,6 @@
 <script setup lang="ts">
     import { ref, onMounted } from 'vue';
-    import { useRouter } from 'vue-router';
+    import { useRouter, useRoute } from 'vue-router';
     import { supabase } from '../services/supabase';
     import {
         PhEnvelope, PhLockKey, PhArrowRight, PhUser, PhPhone,
@@ -23,6 +23,7 @@
     const { isAndroidWeb, latestVersion, apkDownloadUrl, deferredPwaPrompt, installDesktopApp } = useAppDownload();
 
     const router = useRouter();
+    const route = useRoute();
     const loading = ref(false);
     const isSignUp = ref(false);
     const showPassword = ref(false);
@@ -35,49 +36,17 @@
 
     const BIOMETRIC_PROMPT_DISMISSED_KEY = 'somma_biometric_prompt_dismissed_v1';
 
-    const getPlatformBiometricCopy = () => {
-        const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-        if (!isMobile && /Windows/i.test(ua)) {
-            return {
-                methodName: 'Windows Hello / PIN',
-                activateBtn: 'Ativar Windows Hello',
-                loginBtn: 'Entrar com Windows Hello',
-                backBtn: 'Voltar para desbloqueio com Windows Hello',
-                waitingMsg: 'Confirme no Windows Hello para entrar...',
-                promptDesc: 'Da próxima vez que abrir o Somma neste computador, você entra em 1 segundo usando seu PIN ou biometria do Windows.',
-                successAlert: 'Windows Hello ativado! Nas próximas vezes, entre em 1 segundo sem digitar senha.',
-                cancelAlert: 'Cadastro do Windows Hello cancelado. Você pode ativar depois nas Configurações.',
-                authSuccessAlert: 'Autenticado com Windows Hello!',
-            };
-        }
-        if (!isMobile && /Macintosh|Mac OS X/i.test(ua)) {
-            return {
-                methodName: 'Touch ID',
-                activateBtn: 'Ativar Touch ID',
-                loginBtn: 'Entrar com Touch ID',
-                backBtn: 'Voltar para desbloqueio com Touch ID',
-                waitingMsg: 'Confirme com o Touch ID para entrar...',
-                promptDesc: 'Da próxima vez que abrir o Somma neste Mac, você entra em 1 segundo sem precisar digitar e-mail e senha.',
-                successAlert: 'Touch ID ativado! Nas próximas vezes, entre em 1 segundo sem digitar senha.',
-                cancelAlert: 'Cadastro do Touch ID cancelado. Você pode ativar depois nas Configurações.',
-                authSuccessAlert: 'Autenticado com Touch ID!',
-            };
-        }
-        return {
-            methodName: 'Digital / Face ID',
-            activateBtn: 'Ativar Digital Agora',
-            loginBtn: 'Entrar com Digital / Face ID',
-            backBtn: 'Voltar para desbloqueio com Digital',
-            waitingMsg: 'Confirme sua digital ou Face ID para entrar...',
-            promptDesc: 'Da próxima vez que abrir o Somma neste aparelho, você entra em 1 segundo sem precisar digitar e-mail e senha.',
-            successAlert: 'Digital ativada! Nas próximas vezes, entre apenas encostando o dedo.',
-            cancelAlert: 'Cadastro da digital cancelado. Você pode ativar depois nas Configurações.',
-            authSuccessAlert: 'Autenticado com digital!',
-        };
+    const bioCopy = {
+        methodName: 'Digital / Face ID',
+        activateBtn: 'Ativar Digital Agora',
+        loginBtn: 'Entrar com Digital / Face ID',
+        backBtn: 'Voltar para desbloqueio com Digital',
+        waitingMsg: 'Confirme sua digital ou Face ID para entrar...',
+        promptDesc: 'Da próxima vez que abrir o Somma neste aparelho, você entra em 1 segundo sem precisar digitar e-mail e senha.',
+        successAlert: 'Digital ativada! Nas próximas vezes, entre apenas encostando o dedo.',
+        cancelAlert: 'Cadastro da digital cancelado. Você pode ativar depois nas Configurações.',
+        authSuccessAlert: 'Autenticado com digital!',
     };
-
-    const bioCopy = getPlatformBiometricCopy();
 
     const canUseBiometricLogin = ref(false);
     const isBiometricFirstView = ref(false);
@@ -90,10 +59,14 @@
         const cfg = getBiometricConfig();
         const supported = await isBiometricSupported();
         deviceSupportsBiometric.value = supported;
-        if (cfg?.enabled && supported) {
+        if (cfg?.email) {
+            biometricEmail.value = cfg.email;
+            email.value = cfg.email;
+        }
+        const forcePassword = route.query.password === '1';
+        if (cfg?.enabled && supported && !forcePassword) {
             canUseBiometricLogin.value = true;
             isBiometricFirstView.value = true;
-            biometricEmail.value = cfg.email;
             // Estilo Nubank / Mercado Pago: já solicita a digital automaticamente ao abrir!
             setTimeout(() => {
                 if (isBiometricFirstView.value) {
@@ -102,6 +75,15 @@
             }, 250);
         }
     });
+
+    const switchToPasswordForm = () => {
+        biometricLoading.value = false;
+        isBiometricFirstView.value = false;
+        errorMessage.value = '';
+        if (biometricEmail.value && !email.value) {
+            email.value = biometricEmail.value;
+        }
+    };
 
     const handleActivateBiometricAfterLogin = async () => {
         biometricLoading.value = true;
@@ -138,9 +120,19 @@
             showAlert(bioCopy.authSuccessAlert, 'success');
             await router.replace('/');
         } catch (err: any) {
-            errorMessage.value = err?.name === 'NotAllowedError'
-                ? 'Leitura biométrica cancelada.'
-                : (err?.message || 'Não foi possível entrar com biometria.');
+            const msg = String(err?.message || '');
+            if (biometricEmail.value && !email.value) {
+                email.value = biometricEmail.value;
+            }
+            // Se falhar ou expirar, já libera direto o formulário de e-mail e senha para nunca travar o login no celular!
+            if (err?.name !== 'NotAllowedError') {
+                isBiometricFirstView.value = false;
+                errorMessage.value = msg.includes('expirou') || msg.includes('Sessão expirada')
+                    ? 'Sua sessão anterior expirou. Entre com sua senha uma vez para reativar a digital.'
+                    : 'Não foi possível ler a digital neste aparelho. Entre com sua senha abaixo.';
+            } else {
+                errorMessage.value = 'Leitura biométrica cancelada. Toque em "Usar e-mail e senha" abaixo para entrar com sua senha.';
+            }
         } finally {
             biometricLoading.value = false;
         }
@@ -180,7 +172,11 @@
                 });
                 if (error) throw error;
                 if (data.session?.user) {
-                    syncBiometricSessionToken(data.session.user.id, data.session.refresh_token);
+                    syncBiometricSessionToken(
+                        data.session.user.id,
+                        data.session.refresh_token,
+                        data.session.access_token
+                    );
                 }
                 localStorage.setItem('lastActivity', Date.now().toString());
                 markSessionBiometricUnlocked();
@@ -196,9 +192,16 @@
                 showAlert('Login realizado com sucesso!', 'success');
                 await router.replace('/');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Erro de autenticação:', error);
-            errorMessage.value = 'Credenciais inválidas ou erro na conexão. Verifique seus dados e tente novamente.';
+            const rawMsg = String(error?.message || '');
+            if (rawMsg.toLowerCase().includes('invalid login credentials')) {
+                errorMessage.value = 'E-mail ou senha incorretos. Verifique seus dados e tente novamente.';
+            } else if (rawMsg.toLowerCase().includes('email not confirmed')) {
+                errorMessage.value = 'Confirme seu e-mail antes de fazer login.';
+            } else {
+                errorMessage.value = `Falha ao autenticar (${rawMsg || 'erro de conexão'}). Tente novamente.`;
+            }
         } finally {
             loading.value = false;
         }
@@ -314,8 +317,7 @@
                     <button
                         type="button"
                         class="btn-skip-bio"
-                        :disabled="biometricLoading"
-                        @click="isBiometricFirstView = false; errorMessage = ''"
+                        @click="switchToPasswordForm"
                     >
                         Usar e-mail e senha ou criar conta
                     </button>
@@ -417,9 +419,9 @@
                                 id="password"
                                 :type="showPassword ? 'text' : 'password'"
                                 v-model="password"
-                                placeholder="Mínimo de 8 caracteres"
+                                :placeholder="isSignUp ? 'Mínimo de 6 caracteres' : 'Sua senha'"
                                 required
-                                minlength="8"
+                                :minlength="isSignUp ? 6 : undefined"
                                 autocomplete="current-password"
                                 class="has-right-btn"
                             />
@@ -527,7 +529,6 @@
                     <button
                         type="button"
                         class="btn-skip-bio"
-                        :disabled="biometricLoading"
                         @click="handleSkipBiometricPrompt"
                     >
                         Agora não, ir para o app

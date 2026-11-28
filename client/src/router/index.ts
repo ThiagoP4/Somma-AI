@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { AuthApiError } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
+import { isBiometricEnabled, clearSessionBiometricUnlocked } from '../services/biometricAuth';
 
 const INACTIVITY_TIMEOUT = 24 * 60 * 60 * 1000;
 
@@ -97,8 +98,15 @@ router.beforeEach(async (to, from, next) => {
 
         // Se o usuário acabou de sair da tela /login, nunca aplica o timeout antigo de 24h!
         if (from.path !== '/login' && lastActivity && (now - parseInt(lastActivity)) > INACTIVITY_TIMEOUT) {
-            await supabase.auth.signOut();
             localStorage.removeItem('lastActivity');
+            // Se a digital estiver ativa no celular, NÃO revoga o refresh_token no servidor!
+            // Faz apenas signOut local (ou exige a digital novamente) para que a digital continue funcionando mesmo após 24h+ sem abrir o app.
+            if (isBiometricEnabled()) {
+                clearSessionBiometricUnlocked();
+                await supabase.auth.signOut({ scope: 'local' });
+            } else {
+                await supabase.auth.signOut();
+            }
             return next('/login');
         }
         localStorage.setItem('lastActivity', now.toString());

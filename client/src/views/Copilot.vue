@@ -3,7 +3,7 @@
     import { storeToRefs } from 'pinia';
     import {
         PhSparkle, PhRobot, PhPaperPlaneTilt, PhUser,
-        PhShieldCheck, PhLockKey, PhLightning
+        PhShieldCheck, PhLockKey, PhLightning, PhArrowsClockwise
     } from '@phosphor-icons/vue';
     import { supabase } from '../services/supabase';
     import { useProfileStore } from '../stores/useProfileStore';
@@ -30,16 +30,19 @@
 
     const categoryTotals = ref<Record<string, number>>({});
 
-    interface Message {
-        id: number;
-        role: 'user' | 'ai';
-        content: string;
-    }
-
     const promptText = ref('');
-    const messages = ref<Message[]>([]);
+    const { copilotMessages: messages, copilotSessionId } = storeToRefs(financeStore);
     const isTyping = ref(false);
     const chatContainer = ref<HTMLElement | null>(null);
+
+    const getWelcomeText = () =>
+        'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses' +
+        (isVaultUnlocked.value ? ' e seu patrimônio do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
+        ' Como posso te ajudar hoje?';
+
+    const handleResetChat = () => {
+        financeStore.resetCopilotChat(getWelcomeText());
+    };
 
     // Contexto Financeiro Real para alimentar o Motor Zero-Knowledge (calculado localmente)
     const monthlyIncomes = ref(0);
@@ -227,13 +230,17 @@
         }
         await loadFinancialContext();
 
-        messages.value.push({
-            id: Date.now(),
-            role: 'ai',
-            content: 'Olá! Sou o Somma Copilot. Já carreguei seu fluxo do mês, fatura do cartão, tendência dos próximos 3 meses' +
-                (isVaultUnlocked.value ? ' e seu patrimônio do Cofre Tailscale.' : ' (Cofre Tailscale isolado no momento).') +
-                ' Como posso te ajudar hoje?'
-        });
+        if (messages.value.length === 0) {
+            messages.value.push({
+                id: Date.now(),
+                role: 'ai',
+                content: getWelcomeText()
+            });
+        }
+        await nextTick();
+        if (chatContainer.value) {
+            chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+        }
     });
 
     // Motor de Diagnóstico Local (100% Zero-Knowledge com 4 níveis de peso + tendência de consumo)
@@ -474,7 +481,7 @@
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
-                    sessionId: 'anonymous-zero-knowledge',
+                    sessionId: copilotSessionId.value,
                     message: text,
                     financialContext: buildFinancialSnapshotPayload(text)
                 })
@@ -541,6 +548,16 @@
                     <p>Consultor financeiro privado — seus saldos e bancos nunca saem do aparelho</p>
                 </div>
             </div>
+            <button
+                type="button"
+                class="btn-secondary"
+                style="padding: 0.45rem 0.85rem; font-size: 0.8rem;"
+                @click="handleResetChat"
+                title="Iniciar uma nova conversa limpa"
+            >
+                <PhArrowsClockwise size="15" weight="bold" />
+                <span>Nova Conversa</span>
+            </button>
         </header>
 
         <div class="copilot-workspace">

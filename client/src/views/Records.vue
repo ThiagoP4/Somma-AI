@@ -1,7 +1,7 @@
 <script setup lang="ts">
     import { ref, onMounted, computed, watch } from 'vue';
     import { supabase } from '../services/supabase';
-    import { PhFunnel, PhMicrosoftExcelLogo, PhCreditCard } from '@phosphor-icons/vue';
+    import { PhFunnel, PhMicrosoftExcelLogo, PhCreditCard, PhMagnifyingGlass, PhX } from '@phosphor-icons/vue';
     import * as XLSX from 'xlsx';
     import ListLayout from '../layouts/ListLayout.vue';
     import NewTransaction from '../components/NewTransaction.vue';
@@ -13,10 +13,12 @@
     import { useAlertStore } from '../stores/useAlertStore';
     import { useFilterStore } from '../stores/useFilterStore';
     import { useProfileStore } from '../stores/useProfileStore';
+    import { useFinanceStore } from '../stores/useFinanceStore';
     import { storeToRefs } from 'pinia';
 
     const { showAlert } = useAlertStore();
     const profileStore = useProfileStore();
+    const financeStore = useFinanceStore();
 
     interface Registry {
         idPurchase?: number;
@@ -241,25 +243,60 @@
             if (profileStore.myCards.length === 0) {
                 await profileStore.fetchProfileData();
             }
+            const now = new Date();
+            if (selectedYear.value === now.getFullYear() && selectedMonth.value === now.getMonth()) {
+                await financeStore.syncDueSubscriptionsToRecords();
+            }
             const startDate = new Date(selectedYear.value, selectedMonth.value, 1).toISOString().split('T')[0];
             const endDate = new Date(selectedYear.value, selectedMonth.value + 1, 0).toISOString().split('T')[0];
 
             // 1. ABA CATEGORIAS
             if (currentTab.value === 'categorias') {
-                const { data, error } = await supabase
-                    .from('fin_category')
-                    .select('*, fin_purchase(value)')
-                    .gte('fin_purchase.date', startDate)
-                    .lte('fin_purchase.date', endDate);
-                
-                if (error) throw error;
-                registries.value = (data || []).map((cat: any) => ({
-                    idCategory: cat.idCategory,
-                    description: cat.description || '',
-                    color: cat.color || '#cccccc',
-                    type: cat.type,
-                    value: (cat.fin_purchase || []).reduce((acc: number, p: any) => acc + (p.value || 0), 0),
-                }));
+                const [{ data: catData, error: catErr }, { data: instData }, { data: incData }] = await Promise.all([
+                    supabase.from('fin_category').select('*').order('description', { ascending: true }),
+                    supabase
+                        .from('fin_installment')
+                        .select('value, fin_purchase!inner(categoryId)')
+                        .gte('dueDate', startDate)
+                        .lte('dueDate', endDate),
+                    supabase
+                        .from('fin_income')
+                        .select('value, categoryId')
+                        .gte('date', startDate)
+                        .lte('date', endDate),
+                ]);
+
+                if (catErr) throw catErr;
+
+                const sumByCatId = new Map<number, { total: number; count: number }>();
+                for (const row of (instData || []) as any[]) {
+                    const cid = Number(row?.fin_purchase?.categoryId);
+                    if (!cid) continue;
+                    const prev = sumByCatId.get(cid) || { total: 0, count: 0 };
+                    prev.total += Number(row.value || 0);
+                    prev.count += 1;
+                    sumByCatId.set(cid, prev);
+                }
+                for (const row of (incData || []) as any[]) {
+                    const cid = Number(row?.categoryId);
+                    if (!cid) continue;
+                    const prev = sumByCatId.get(cid) || { total: 0, count: 0 };
+                    prev.total += Number(row.value || 0);
+                    prev.count += 1;
+                    sumByCatId.set(cid, prev);
+                }
+
+                registries.value = (catData || []).map((cat: any) => {
+                    const stat = sumByCatId.get(Number(cat.idCategory));
+                    return {
+                        idCategory: cat.idCategory,
+                        description: cat.description || '',
+                        color: cat.color || '#cccccc',
+                        type: cat.type,
+                        value: stat?.total || 0,
+                        count: stat?.count || 0,
+                    };
+                });
                 return;
             }
 
@@ -317,13 +354,17 @@
                 if (error) throw error;
 
                 let result = (data || []).map((item: any) => {
-                    const sufixo = item.fin_purchase.total_installments > 1
-                        ? `(${item.installmentNumber}/${item.fin_purchase.total_installments}x)`
-                        : '';
+                    const isMulti = Number(item.fin_purchase.total_installments) > 1;
+                    const installmentBadge = isMulti
+                        ? `${item.installmentNumber}/${item.fin_purchase.total_installments}x`
+                        : null;
+                    const sufixo = installmentBadge ? `(${installmentBadge})` : '';
 
                     return {
                         idPurchase: item.purchaseId,
                         idInstallment: item.idInstallment,
+                        rawTitle: item.fin_purchase.title,
+                        installmentBadge,
                         title: `${item.fin_purchase.title} ${sufixo}`.trim(),
                         value: item.value,
                         date: item.dueDate,
@@ -402,6 +443,24 @@
             </template>
 
             <template #actions>
+                <div class="quick-search-box">
+                    <PhMagnifyingGlass size="16" class="qs-icon" />
+                    <input
+                        type="text"
+                        v-model="search"
+                        :placeholder="currentTab === 'categorias' ? 'Buscar categoria...' : 'Buscar lançamento...'"
+                        class="qs-input"
+                    />
+                    <button
+                        v-if="search"
+                        type="button"
+                        class="qs-clear"
+                        @click="search = ''"
+                        aria-label="Limpar busca"
+                    >
+                        <PhX size="13" weight="bold" />
+                    </button>
+                </div>
                 <button 
                     class="btn-secondary"
                     @click="showFilter = !showFilter" 
@@ -466,6 +525,7 @@
                     v-else-if="currentTab === 'categorias'" 
                     :items="filteredRegistries"
                     @add="openNewModal"
+                    @edit="openEditModal"
                     @delete="deleteRegistry"
                 />
             </template>
@@ -512,5 +572,50 @@
         font-weight: 700;
         padding: 1px 6px;
         border-radius: 99px;
+    }
+
+    .quick-search-box {
+        position: relative;
+        display: flex;
+        align-items: center;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 0 0.65rem;
+        height: 40px;
+        min-width: 210px;
+        transition: border-color 0.15s ease;
+    }
+
+    .quick-search-box:focus-within {
+        border-color: var(--primary-color);
+    }
+
+    .qs-icon {
+        color: var(--text-secondary);
+        flex-shrink: 0;
+        margin-right: 0.45rem;
+    }
+
+    .qs-input {
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 0.84rem;
+        width: 100%;
+        outline: none;
+        padding: 0;
+    }
+
+    .qs-clear {
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px;
+        margin-left: 4px;
     }
 </style>

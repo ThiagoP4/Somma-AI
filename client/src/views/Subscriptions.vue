@@ -46,6 +46,41 @@
     });
 
     const presetColors = ['#6366F1', '#8B5CF6', '#10B981', '#38BDF8', '#F43F5E', '#F59E0B', '#EC4899'];
+    const userCategories = ref<string[]>([]);
+    const defaultCategoryOptions = [
+        'Streaming & Música',
+        'Streaming & Vídeo',
+        'Produtividade & IA',
+        'Cloud & DevTools',
+        'Benefícios & Compras',
+        'Saúde & Academia',
+        'Educação'
+    ];
+
+    const allCategoryOptions = computed(() => {
+        const set = new Set<string>([...userCategories.value, ...defaultCategoryOptions]);
+        return Array.from(set);
+    });
+
+    const getBillingCycleBadge = (sub: SubscriptionItem): { label: string; tone: 'billed' | 'today' | 'upcoming' | 'paused' } => {
+        if (!sub.active) return { label: 'Pausada', tone: 'paused' };
+        const now = new Date();
+        const todayDay = now.getDate();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const effectiveDay = Math.min(Math.max(1, Number(sub.billingDay || 10)), daysInMonth);
+
+        if (todayDay === effectiveDay) {
+            return { label: 'Cobrança hoje!', tone: 'today' };
+        }
+        if (todayDay > effectiveDay) {
+            return { label: 'Já lançada neste mês ✓', tone: 'billed' };
+        }
+        const diff = effectiveDay - todayDay;
+        return {
+            label: diff === 1 ? 'Vence amanhã' : `Em ${diff} dias`,
+            tone: 'upcoming'
+        };
+    };
 
     const mapRowToSub = (row: SubscriptionRow | any): SubscriptionItem => ({
         id: String(row.idSubscription),
@@ -61,8 +96,14 @@
 
     const fetchSubscriptions = async () => {
         localStorage.removeItem('somma_subscriptions_v1');
-        const rows = await financeStore.fetchSubscriptions();
+        const [rows, { data: catRows }] = await Promise.all([
+            financeStore.fetchSubscriptions(),
+            supabase.from('fin_category').select('description, type').eq('type', 'despesa')
+        ]);
         subscriptions.value = rows.map(mapRowToSub);
+        userCategories.value = (catRows || [])
+            .map((c: any) => String(c.description || '').trim())
+            .filter(Boolean);
     };
 
     onMounted(async () => {
@@ -376,6 +417,25 @@
                         <span class="meta-chip">
                             <PhCalendarCheck size="14" />Todo dia {{ sub.billingDay }}
                         </span>
+                        <span
+                            class="meta-chip"
+                            :style="{
+                                color:
+                                    getBillingCycleBadge(sub).tone === 'billed'
+                                        ? '#10B981'
+                                        : getBillingCycleBadge(sub).tone === 'today'
+                                          ? '#F59E0B'
+                                          : 'var(--text-secondary)',
+                                borderColor:
+                                    getBillingCycleBadge(sub).tone === 'billed'
+                                        ? 'rgba(16, 185, 129, 0.3)'
+                                        : getBillingCycleBadge(sub).tone === 'today'
+                                          ? 'rgba(245, 158, 11, 0.35)'
+                                          : 'var(--border-color)'
+                            }"
+                        >
+                            {{ getBillingCycleBadge(sub).label }}
+                        </span>
                         <span class="meta-chip">
                             <PhCreditCard size="14" />{{ sub.cardNickname }}
                         </span>
@@ -458,13 +518,9 @@
                         <div class="input-group">
                             <label>Categoria</label>
                             <select v-model="form.category">
-                                <option value="Streaming & Música">Streaming & Música</option>
-                                <option value="Streaming & Vídeo">Streaming & Vídeo</option>
-                                <option value="Produtividade & IA">Produtividade & IA</option>
-                                <option value="Cloud & DevTools">Cloud & DevTools</option>
-                                <option value="Benefícios & Compras">Benefícios & Compras</option>
-                                <option value="Saúde & Academia">Saúde & Academia</option>
-                                <option value="Educação">Educação</option>
+                                <option v-for="catOpt in allCategoryOptions" :key="catOpt" :value="catOpt">
+                                    {{ catOpt }}
+                                </option>
                             </select>
                         </div>
 

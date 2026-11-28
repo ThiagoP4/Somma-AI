@@ -116,6 +116,32 @@
         date.setUTCHours(12);
         return date.toLocaleDateString('pt-BR');
     };
+
+    const getGoalPaceHint = (goal: any): { monthsLabel: string; monthlySuggested: string } | null => {
+        if (!goal?.deadline || !goal?.target_amount || goal.status !== 'em andamento') return null;
+        const target = Number(goal.target_amount || 0);
+        if (target <= 0) return null;
+
+        const now = new Date();
+        const deadlineDate = new Date(goal.deadline);
+        deadlineDate.setUTCHours(12);
+        const diffMs = deadlineDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 0) {
+            return {
+                monthsLabel: 'Prazo atingido',
+                monthlySuggested: formatCurrency(target),
+            };
+        }
+
+        const monthsLeft = Math.max(1, Math.round(diffDays / 30.44));
+        const monthly = target / monthsLeft;
+        return {
+            monthsLabel: monthsLeft === 1 ? 'Falta ~1 mês' : `Faltam ~${monthsLeft} meses`,
+            monthlySuggested: `${formatCurrency(monthly)}/mês`,
+        };
+    };
 </script>
 
 <template>
@@ -196,6 +222,15 @@
                                 <span class="detail-label">Prazo limite</span>
                                 <span class="detail-value">{{ formatDate(goal.deadline) }}</span>
                             </div>
+                        </div>
+
+                        <div
+                            v-if="getGoalPaceHint(goal)"
+                            class="goal-pace-strip"
+                            style="display: flex; justify-content: space-between; align-items: center; padding: 0.45rem 0.7rem; border-radius: 8px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.75rem; color: var(--text-secondary);"
+                        >
+                            <span>⏱️ {{ getGoalPaceHint(goal)?.monthsLabel }}</span>
+                            <span>Ritmo sugerido: <strong style="color: var(--primary-color);">{{ getGoalPaceHint(goal)?.monthlySuggested }}</strong></span>
                         </div>
                     </div>
                 </div>

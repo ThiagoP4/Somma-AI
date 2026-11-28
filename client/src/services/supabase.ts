@@ -1,7 +1,9 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-anon-key';
+const supabaseUrl =
+    import.meta.env.VITE_SUPABASE_URL || 'https://jtkiygoalkrxyqwxwiid.supabase.co';
+const supabaseKey =
+    import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_-ySODaoNlEVJoy-Fnzh8pQ_u6IDSezm';
 
 let mockClient: SupabaseClient | null = null;
 if (import.meta.env.VITE_USE_MOCK === 'true' || import.meta.env.MODE === 'mock') {

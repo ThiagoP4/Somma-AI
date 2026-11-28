@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { ref, onMounted, watch, computed } from 'vue';
+  import { useRouter } from 'vue-router';
   import { supabase } from '../services/supabase';
   import { useFilterStore } from '../stores/useFilterStore';
   import { useProfileStore } from '../stores/useProfileStore';
@@ -24,6 +25,7 @@
   import VueApexCharts from 'vue3-apexcharts';
   import type { ApexOptions } from 'apexcharts';
 
+  const router = useRouter();
   const filterStore = useFilterStore();
   const profileStore = useProfileStore();
   const financeStore = useFinanceStore();
@@ -125,15 +127,17 @@
 
   // === 3. CONCENTRAÇÃO DE GASTOS POR CARTÃO ===
   const cardBreakdown = computed(() => {
-    const map = new Map<string, { nickname: string; bank: string; total: number; count: number }>();
+    const map = new Map<string, { paymentId: number | null; nickname: string; bank: string; total: number; count: number }>();
 
     rawInstallmentsMonth.value.forEach((item: any) => {
       const payment = item.fin_purchase?.usr_payment;
+      const paymentId = Number(payment?.id_payment || item.fin_purchase?.payment_id || 0) || null;
       const nickname = payment?.nickname || 'Outros / À Vista';
       const bank = payment?.bank_name || 'Geral';
-      const prev = map.get(nickname) || { nickname, bank, total: 0, count: 0 };
+      const prev = map.get(nickname) || { paymentId, nickname, bank, total: 0, count: 0 };
       prev.total += Number(item.value || 0);
       prev.count += 1;
+      if (!prev.paymentId && paymentId) prev.paymentId = paymentId;
       map.set(nickname, prev);
     });
 
@@ -145,6 +149,17 @@
       }))
       .sort((a, b) => b.total - a.total);
   });
+
+  const openCardInvoiceInRecords = (paymentId: number | null) => {
+    if (!paymentId) {
+      filterStore.setFilterMode('month');
+      router.push('/records');
+      return;
+    }
+    filterStore.setFilterMode('invoice');
+    selectedCardIds.value = [paymentId];
+    router.push('/records');
+  };
 
   // === 4. TOP MAIORES DESPESAS DO MÊS (PARETO) ===
   const topExpenses = computed(() => {
@@ -495,7 +510,14 @@
         </div>
 
         <div class="card-breakdown-list" v-if="cardBreakdown.length > 0">
-          <div class="cb-item" v-for="c in cardBreakdown" :key="c.nickname">
+          <div
+            class="cb-item clickable-card-row"
+            v-for="c in cardBreakdown"
+            :key="c.nickname"
+            style="cursor: pointer; padding: 0.55rem 0.65rem; border-radius: 10px; transition: background-color 0.15s ease;"
+            title="Clique para abrir os lançamentos deste cartão em Registros"
+            @click="openCardInvoiceInRecords(c.paymentId)"
+          >
             <div class="cb-top">
               <div class="cb-info">
                 <strong>{{ c.nickname }}</strong>

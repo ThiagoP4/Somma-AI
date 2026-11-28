@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { PhFingerprint, PhSignOut, PhShieldCheck } from '@phosphor-icons/vue';
-import { verifyBiometric, getBiometricConfig } from '../services/biometricAuth';
+import { verifyBiometric, getBiometricConfig, clearSessionBiometricUnlocked } from '../services/biometricAuth';
 import { supabase } from '../services/supabase';
 import logoUrl from '../assets/somma-logo.svg';
 
 const emit = defineEmits(['unlocked']);
+const router = useRouter();
 
 const isVerifying = ref(false);
 const errorMsg = ref('');
@@ -30,8 +32,10 @@ const triggerUnlock = async () => {
 };
 
 const handleFallbackLogout = async () => {
-    await supabase.auth.signOut();
+    clearSessionBiometricUnlocked();
+    await supabase.auth.signOut({ scope: 'local' });
     emit('unlocked');
+    await router.replace('/login?password=1');
 };
 
 onMounted(() => {

@@ -5,10 +5,11 @@
     import {
         PhArrowDownLeft, PhArrowUpRight, PhChartBar, PhCreditCard,
         PhListDashes, PhReceipt, PhWifiHigh, PhShieldCheck, PhLockKey,
-        PhArrowsClockwise, PhX, PhCalendarCheck, PhWhatsappLogo
+        PhArrowsClockwise, PhX, PhCalendarCheck, PhWhatsappLogo, PhPlus
     } from '@phosphor-icons/vue';
     import VueApexCharts from 'vue3-apexcharts';
     import type { ApexOptions } from 'apexcharts';
+    import NewTransaction from '../components/NewTransaction.vue';
     import { useProfileStore } from "../stores/useProfileStore";
     import { usePiggybankStore } from "../stores/usePiggybankStore";
     import { useVaultStore } from "../stores/useVaultStore";
@@ -34,6 +35,7 @@
     // Estado do Cartão 3D em Destaque (Showcase Modal)
     const activeCard3D = ref<any | null>(null);
     const isCardFlipped = ref(false);
+    const isQuickTxModalOpen = ref(false);
 
     const openCardShowcase = (card: any) => {
         activeCard3D.value = card;
@@ -254,11 +256,21 @@
                 <button class="btn-secondary" @click="$router.push('/dashboard')">
                     <PhChartBar size="18" /> Dashboard Completo
                 </button>
-                <button class="btn-primary" @click="$router.push('/records')">
-                    <PhListDashes size="18" /> Gerenciar Registros
+                <button class="btn-secondary" @click="$router.push('/records')">
+                    <PhListDashes size="18" /> Ver Registros
+                </button>
+                <button class="btn-primary" @click="isQuickTxModalOpen = true">
+                    <PhPlus size="18" weight="bold" /> Novo Lançamento
                 </button>
             </div>
         </header>
+
+        <NewTransaction
+            v-if="isQuickTxModalOpen"
+            type="compras"
+            @close="isQuickTxModalOpen = false"
+            @saved="fetchFinancialSummary"
+        />
 
         <div class="dashboard-grid">
             <!-- CARTÃO DE SALDO -->

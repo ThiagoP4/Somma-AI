@@ -35,6 +35,29 @@ export const useFilterStore = defineStore('filter', () => {
         selectedYear.value--;
     };
 
+    const nextMonth = () => {
+        if (selectedMonth.value >= 11) {
+            selectedMonth.value = 0;
+            selectedYear.value++;
+        } else {
+            selectedMonth.value++;
+        }
+    };
+
+    const previousMonth = () => {
+        if (selectedMonth.value <= 0) {
+            selectedMonth.value = 11;
+            selectedYear.value--;
+        } else {
+            selectedMonth.value--;
+        }
+    };
+
+    const goToCurrentMonth = () => {
+        const now = new Date();
+        selectedMonth.value = now.getMonth();
+        selectedYear.value = now.getFullYear();
+    };
 
     return {
         selectedMonth,
@@ -46,6 +69,9 @@ export const useFilterStore = defineStore('filter', () => {
         selectMonth,
         nextYear,
         previousYear,
+        nextMonth,
+        previousMonth,
+        goToCurrentMonth,
         toggleCardSelection
     };
 })

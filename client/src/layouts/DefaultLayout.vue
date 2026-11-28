@@ -42,12 +42,22 @@
     };
 
     const { selectedMonth, selectedYear, filterMode, selectedCardIds } = storeToRefs(filterStore);
-    const { selectMonth, nextYear, previousYear, monthNames, toggleCardSelection } = filterStore;
+    const {
+        selectMonth, nextYear, previousYear, nextMonth, previousMonth,
+        goToCurrentMonth, monthNames, toggleCardSelection
+    } = filterStore;
     const isDateDropdownOpen = ref(false);
     const dateDropdownRef = ref<HTMLElement | null>(null);
 
     const isVaultDropdownOpen = ref(false);
     const vaultDropdownRef = ref<HTMLElement | null>(null);
+
+    const isPrivacyBlurActive = ref(sessionStorage.getItem('somma_privacy_blur') === 'true');
+
+    const togglePrivacyBlur = () => {
+        isPrivacyBlurActive.value = !isPrivacyBlurActive.value;
+        sessionStorage.setItem('somma_privacy_blur', isPrivacyBlurActive.value ? 'true' : 'false');
+    };
 
     const currentSectionLabel = computed(() => {
         const map: Record<string, string> = {
@@ -100,6 +110,10 @@
             isDateDropdownOpen.value = false;
             isVaultDropdownOpen.value = false;
         }
+        if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+            e.preventDefault();
+            togglePrivacyBlur();
+        }
     };
 
     onMounted(async () => {
@@ -129,7 +143,7 @@
     <slot />
   </div>
 
-  <div v-else class="app-shell">
+  <div v-else class="app-shell" :class="{ 'privacy-blur-active': isPrivacyBlurActive }">
     <Sidebar :isOpen="isSidebarOpen" @close="isSidebarOpen = false" />
 
     <div class="main-column">
@@ -273,20 +287,55 @@
             </div>
           </div>
 
-          <!-- SELETOR DE MÊS / FATURA -->
+          <!-- BOTÃO RÁPIDO DE PRIVACIDADE (OLHINHO GLOBAL PARA AMBIENTE DE TRABALHO) -->
+          <button
+            type="button"
+            class="privacy-eye-btn"
+            :class="{ active: isPrivacyBlurActive }"
+            @click="togglePrivacyBlur"
+            :title="isPrivacyBlurActive ? 'Mostrar valores na tela (Alt+P)' : 'Ocultar todos os valores na tela (Alt+P)'"
+            :aria-label="isPrivacyBlurActive ? 'Mostrar valores' : 'Ocultar valores'"
+          >
+            <PhEyeSlash v-if="isPrivacyBlurActive" size="17" weight="bold" />
+            <PhEye v-else size="17" />
+          </button>
+
+          <!-- SELETOR DE MÊS / FATURA COM SETAS RÁPIDAS < > -->
           <div class="date-selector-container" ref="dateDropdownRef">
-            <button
-              class="date-btn"
-              :class="{ 'mode-invoice-active': filterMode === 'invoice' }"
-              @click="isDateDropdownOpen = !isDateDropdownOpen"
-              aria-label="Selecionar mês ou fatura"
-              :aria-expanded="isDateDropdownOpen"
-            >
-              <PhCalendarBlank size="16" v-if="filterMode === 'month'" />
-              <PhCreditCard size="16" v-else />
-              <span>{{ filterMode === 'month' ? monthNames[selectedMonth] + ' ' + selectedYear : 'Fatura • ' + monthNames[selectedMonth] }}</span>
-              <PhCaretDown size="14" class="caret" />
-            </button>
+            <div class="date-stepper-group">
+              <button
+                type="button"
+                class="month-step-btn"
+                @click="previousMonth()"
+                title="Mês anterior"
+                aria-label="Mês anterior"
+              >
+                <PhCaretLeft size="14" weight="bold" />
+              </button>
+
+              <button
+                class="date-btn"
+                :class="{ 'mode-invoice-active': filterMode === 'invoice' }"
+                @click="isDateDropdownOpen = !isDateDropdownOpen"
+                aria-label="Selecionar mês ou fatura"
+                :aria-expanded="isDateDropdownOpen"
+              >
+                <PhCalendarBlank size="16" v-if="filterMode === 'month'" />
+                <PhCreditCard size="16" v-else />
+                <span>{{ filterMode === 'month' ? monthNames[selectedMonth] + ' ' + selectedYear : 'Fatura • ' + monthNames[selectedMonth] }}</span>
+                <PhCaretDown size="14" class="caret" />
+              </button>
+
+              <button
+                type="button"
+                class="month-step-btn"
+                @click="nextMonth()"
+                title="Próximo mês"
+                aria-label="Próximo mês"
+              >
+                <PhCaretRight size="14" weight="bold" />
+              </button>
+            </div>
 
             <div class="date-dropdown" v-if="isDateDropdownOpen">
               <div class="filter-tabs">
@@ -309,7 +358,7 @@
               <div v-if="filterMode === 'month'">
                 <div class="year-selector">
                   <button @click="previousYear()"><PhCaretLeft size="16" weight="bold" /></button>
-                  <span>{{ selectedYear }}</span>
+                  <span style="cursor: pointer;" title="Voltar para o mês atual" @click="goToCurrentMonth(); isDateDropdownOpen = false">{{ selectedYear }}</span>
                   <button @click="nextYear()"><PhCaretRight size="16" weight="bold" /></button>
                 </div>
                 <div class="months-grid">
@@ -626,6 +675,58 @@
     /* === SELETOR DE DATA === */
     .date-selector-container {
       position: relative;
+    }
+
+    .privacy-eye-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+
+    .privacy-eye-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--text-primary);
+    }
+
+    .privacy-eye-btn.active {
+      background-color: var(--primary-subtle);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .date-stepper-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .month-step-btn {
+      width: 30px;
+      height: 36px;
+      border-radius: 9px;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-card);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      padding: 0;
+    }
+
+    .month-step-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--text-primary);
     }
 
     .date-btn {

@@ -517,3 +517,53 @@ textarea:focus {
     font-family: inherit;
     font-size: 0.9rem;
 }
+
+
+/* =========================================================================
+   MODO PRIVACIDADE GLOBAL (OLHINHO NA TOPBAR / ALT+P PARA AMBIENTE DE TRABALHO)
+   ========================================================================= */
+.privacy-blur-active .balance-amount,
+.privacy-blur-active .val-income,
+.privacy-blur-active .val-expense,
+.privacy-blur-active .tx-value,
+.privacy-blur-active .legend-val,
+.privacy-blur-active .stat-value,
+.privacy-blur-active .metric-val,
+.privacy-blur-active .record-value,
+.privacy-blur-active .hero-total-val,
+.privacy-blur-active .split-val,
+.privacy-blur-active .piggy-amount,
+.privacy-blur-active .pm-val,
+.privacy-blur-active .kpi-value,
+.privacy-blur-active .kpi-val,
+.privacy-blur-active .price-val,
+.privacy-blur-active .p-val,
+.privacy-blur-active .total-amt,
+.privacy-blur-active .te-val,
+.privacy-blur-active .cb-values strong {
+  filter: blur(7px);
+  transition: filter 0.18s ease;
+  user-select: none;
+}
+
+.privacy-blur-active .balance-amount:hover,
+.privacy-blur-active .val-income:hover,
+.privacy-blur-active .val-expense:hover,
+.privacy-blur-active .tx-value:hover,
+.privacy-blur-active .legend-val:hover,
+.privacy-blur-active .stat-value:hover,
+.privacy-blur-active .metric-val:hover,
+.privacy-blur-active .record-value:hover,
+.privacy-blur-active .hero-total-val:hover,
+.privacy-blur-active .split-val:hover,
+.privacy-blur-active .piggy-amount:hover,
+.privacy-blur-active .pm-val:hover,
+.privacy-blur-active .kpi-value:hover,
+.privacy-blur-active .kpi-val:hover,
+.privacy-blur-active .price-val:hover,
+.privacy-blur-active .p-val:hover,
+.privacy-blur-active .total-amt:hover,
+.privacy-blur-active .te-val:hover,
+.privacy-blur-active .cb-values strong:hover {
+  filter: none;
+}

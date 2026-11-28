@@ -42,7 +42,15 @@
 
     const emit = defineEmits(['close', 'saved']);
     const isEditing = computed(() => !!props.transactionData);
-    const isIncome = computed(() => props.type === 'entradas');
+    const localType = ref<string>(props.type === 'entradas' ? 'entradas' : 'compras');
+    const isIncome = computed(() => localType.value === 'entradas');
+
+    const switchTransactionType = async (nextType: 'compras' | 'entradas') => {
+        if (isEditing.value || localType.value === nextType) return;
+        localType.value = nextType;
+        categoryId.value = '';
+        await fetchCategories();
+    };
 
     onMounted(async () => {
         await fetchCategories();
@@ -261,6 +269,40 @@
     <FormLayout :title="isEditing ? (isIncome ? 'Editar Entrada' : 'Editar Compra') : (isIncome ? 'Nova Entrada' : 'Nova Compra')" :subtitle="isIncome ? 'Preencha os dados da receita' : 'Preencha os dados da despesa'" @close="$emit('close')">
         
         <form @submit.prevent="handleSubmit">
+            <div v-if="!isEditing" class="tx-type-switcher" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; background: var(--bg-page); padding: 0.3rem; border-radius: 10px; border: 1px solid var(--border-color); margin-bottom: 1.25rem;">
+                <button
+                    type="button"
+                    :style="{
+                        padding: '0.5rem',
+                        borderRadius: '7px',
+                        border: 'none',
+                        fontWeight: '600',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        background: !isIncome ? 'var(--bg-card)' : 'transparent',
+                        color: !isIncome ? 'var(--text-primary)' : 'var(--text-secondary)'
+                    }"
+                    @click="switchTransactionType('compras')"
+                >
+                    🛒 Despesa / Compra
+                </button>
+                <button
+                    type="button"
+                    :style="{
+                        padding: '0.5rem',
+                        borderRadius: '7px',
+                        border: 'none',
+                        fontWeight: '600',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        background: isIncome ? 'var(--bg-card)' : 'transparent',
+                        color: isIncome ? 'var(--success-text)' : 'var(--text-secondary)'
+                    }"
+                    @click="switchTransactionType('entradas')"
+                >
+                    💰 Entrada / Receita
+                </button>
+            </div>
 
             <div class="form-group">
                 <label>Descrição <span class="required">*</span></label>
