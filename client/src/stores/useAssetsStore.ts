@@ -90,8 +90,19 @@ export const useAssetsStore = defineStore('variableAssets', () => {
 
     const loadLocalAssets = (): VariableAsset[] => {
         try {
-            const raw = localStorage.getItem(getLocalAssetsStorageKey());
+            const userKey = getLocalAssetsStorageKey();
+            const raw = localStorage.getItem(userKey);
             if (raw) return JSON.parse(raw);
+
+            // Migra automaticamente ativos salvos na chave antiga antes da unificação (ex: MXRF11 e USDT)
+            const legacyRaw = localStorage.getItem(MOCK_ASSETS_KEY);
+            if (legacyRaw) {
+                const parsed = JSON.parse(legacyRaw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    localStorage.setItem(userKey, JSON.stringify(parsed));
+                    return parsed;
+                }
+            }
         } catch {
             // fallback
         }
@@ -152,32 +163,147 @@ export const useAssetsStore = defineStore('variableAssets', () => {
         return Math.round(qty * divPerShare * 100) / 100;
     };
 
+    const ASSET_ROW_PREFIX = '[ASSET]';
+
+    const encodeAssetToPiggyRow = (asset: Omit<VariableAsset, 'id_asset' | 'created_at'>, userId: string) => {
+        const metaPayload = {
+            ticker: asset.ticker.trim().toUpperCase(),
+            name: asset.name || null,
+            asset_class: asset.asset_class || 'ACAO',
+            broker: asset.broker || null,
+            quantity: Number(asset.quantity) || 0,
+            average_price: Number(asset.average_price) || 0,
+            current_price: Number(asset.current_price) || Number(asset.average_price) || 0,
+            currency: asset.currency || 'BRL',
+            last_dividend_per_share: asset.last_dividend_per_share ?? null,
+            last_dividend_date: asset.last_dividend_date ?? null,
+            staking_apy: asset.staking_apy ?? null
+        };
+        const currentTotalBrl = Math.round(metaPayload.quantity * metaPayload.current_price * 100) / 100;
+        const costTotalBrl = Math.round(metaPayload.quantity * metaPayload.average_price * 100) / 100;
+
+        return {
+            user_id: userId,
+            title: `${ASSET_ROW_PREFIX} ${JSON.stringify(metaPayload)}`,
+            current_amount: currentTotalBrl,
+            target_amount: costTotalBrl,
+            composes_balance: false
+        };
+    };
+
+    const decodePiggyRowToAsset = (row: any): VariableAsset | null => {
+        const rawTitle = String(row?.title || '');
+        if (!rawTitle.startsWith(ASSET_ROW_PREFIX)) return null;
+        try {
+            const jsonPart = rawTitle.slice(ASSET_ROW_PREFIX.length).trim();
+            const parsed = JSON.parse(jsonPart);
+            return {
+                id_asset: String(row.id_piggybank),
+                user_id: String(row.user_id),
+                ticker: String(parsed.ticker || '').toUpperCase(),
+                name: parsed.name || null,
+                asset_class: (parsed.asset_class || 'ACAO') as AssetClass,
+                broker: parsed.broker || null,
+                quantity: Number(parsed.quantity) || 0,
+                average_price: Number(parsed.average_price) || 0,
+                current_price: Number(parsed.current_price) || 0,
+                currency: parsed.currency || 'BRL',
+                last_dividend_per_share: parsed.last_dividend_per_share ?? null,
+                last_dividend_date: parsed.last_dividend_date ?? null,
+                staking_apy: parsed.staking_apy ?? null,
+                created_at: row.created_at
+            };
+        } catch {
+            return null;
+        }
+    };
+
     const fetchAssets = async () => {
         isLoading.value = true;
         try {
             if (!profileStore.userId) await profileStore.fetchProfileData();
-            assets.value = loadLocalAssets();
+            if (isMock) {
+                assets.value = loadLocalAssets();
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from('fin_piggybank')
+                .select('*')
+                .eq('user_id', profileStore.userId)
+                .like('title', `${ASSET_ROW_PREFIX}%`)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            const cloudAssets = (data || [])
+                .map(decodePiggyRowToAsset)
+                .filter((a): a is VariableAsset => a !== null);
+
+            // Se ainda não houver ativos no Supabase, verifica se há ativos no cache local do aparelho e migra para a nuvem
+            if (cloudAssets.length === 0 && profileStore.userId) {
+                const localOnes = loadLocalAssets();
+                if (localOnes.length > 0) {
+                    const migrated: VariableAsset[] = [];
+                    for (const item of localOnes) {
+                        const rowToInsert = encodeAssetToPiggyRow(item, profileStore.userId);
+                        const { data: inserted } = await supabase
+                            .from('fin_piggybank')
+                            .insert([rowToInsert])
+                            .select()
+                            .single();
+                        const decoded = inserted ? decodePiggyRowToAsset(inserted) : null;
+                        if (decoded) migrated.push(decoded);
+                    }
+                    if (migrated.length > 0) {
+                        assets.value = migrated;
+                        saveLocalAssets(migrated);
+                        return;
+                    }
+                }
+            }
+
+            assets.value = cloudAssets;
+            saveLocalAssets(cloudAssets);
         } catch (error) {
             console.error('[AssetsStore] Erro ao carregar ativos:', error);
-            assets.value = [];
+            assets.value = loadLocalAssets();
         } finally {
             isLoading.value = false;
         }
     };
 
     const createAsset = async (payload: Omit<VariableAsset, 'id_asset' | 'user_id' | 'created_at'>) => {
+        if (!profileStore.userId) await profileStore.fetchProfileData();
         const cleanPayload = {
             ...payload,
+            user_id: profileStore.userId || 'mock-user-123',
             ticker: payload.ticker.trim().toUpperCase(),
             quantity: Number(payload.quantity) || 0,
             average_price: Number(payload.average_price) || 0,
             current_price: Number(payload.current_price) || Number(payload.average_price) || 0
         };
 
+        if (!isMock && profileStore.userId) {
+            const rowPayload = encodeAssetToPiggyRow(cleanPayload, profileStore.userId);
+            const { data, error } = await supabase
+                .from('fin_piggybank')
+                .insert([rowPayload])
+                .select()
+                .single();
+
+            if (error) throw error;
+            const created = decodePiggyRowToAsset(data);
+            if (created) {
+                assets.value.push(created);
+                saveLocalAssets(assets.value);
+                return created;
+            }
+        }
+
         const newItem: VariableAsset = {
             ...cleanPayload,
             id_asset: `asset-${Date.now()}`,
-            user_id: profileStore.userId || 'mock-user-123',
             created_at: new Date().toISOString()
         };
         assets.value.push(newItem);
@@ -187,14 +313,37 @@ export const useAssetsStore = defineStore('variableAssets', () => {
 
     const updateAsset = async (id: string, updates: Partial<VariableAsset>) => {
         const idx = assets.value.findIndex(a => a.id_asset === id);
-        if (idx !== -1) {
-            assets.value[idx] = { ...assets.value[idx], ...updates } as VariableAsset;
-            saveLocalAssets(assets.value);
+        if (idx === -1) return null;
+
+        const merged = { ...assets.value[idx], ...updates } as VariableAsset;
+
+        if (!isMock && profileStore.userId && !id.startsWith('mock-') && !id.startsWith('asset-')) {
+            const rowPayload = encodeAssetToPiggyRow(merged, profileStore.userId);
+            const { error } = await supabase
+                .from('fin_piggybank')
+                .update(rowPayload)
+                .eq('id_piggybank', id)
+                .eq('user_id', profileStore.userId);
+
+            if (error) throw error;
         }
-        return assets.value[idx];
+
+        assets.value[idx] = merged;
+        saveLocalAssets(assets.value);
+        return merged;
     };
 
     const deleteAsset = async (id: string) => {
+        if (!isMock && profileStore.userId && !id.startsWith('mock-') && !id.startsWith('asset-')) {
+            const { error } = await supabase
+                .from('fin_piggybank')
+                .delete()
+                .eq('id_piggybank', id)
+                .eq('user_id', profileStore.userId);
+
+            if (error) throw error;
+        }
+
         assets.value = assets.value.filter(a => a.id_asset !== id);
         saveLocalAssets(assets.value);
     };

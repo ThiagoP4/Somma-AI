@@ -140,7 +140,7 @@ const handleSave = async () => {
         }
         emit('close');
     } catch (err: any) {
-        showAlert(err?.message || 'Erro ao salvar ativo no Cofre Tailscale.', 'error');
+        showAlert(err?.message || 'Erro ao salvar ativo na carteira.', 'error');
     } finally {
         isSaving.value = false;
     }
@@ -158,7 +158,7 @@ const handleSave = async () => {
                     </div>
                     <div>
                         <h3>{{ isEditing ? `Editar ${props.assetToEdit?.ticker}` : 'Novo Ativo (B3 / Cripto)' }}</h3>
-                        <p class="modal-sub">Custódia privada no PostgreSQL isolado do seu Cofre Tailscale</p>
+                        <p class="modal-sub">Cadastre uma Ação, FII, ETF, BDR ou Criptomoeda na sua Carteira Digital</p>
                     </div>
                 </div>
                 <button class="close-btn" @click="$emit('close')"><PhX size="20" /></button>

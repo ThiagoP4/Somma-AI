@@ -184,7 +184,7 @@ const handleSyncQuotes = async () => {
             'success'
         );
     } else {
-        showAlert('Não foi possível sincronizar cotações agora. Verifique se o Cofre Tailscale está atualizado.', 'warning');
+        showAlert('Não foi possível sincronizar cotações agora. Tente novamente em instantes.', 'warning');
     }
 };
 
@@ -350,7 +350,7 @@ const formatQty = (qty: number, cls: AssetClass) => {
 
         <!-- 3. GRID DE ATIVOS -->
         <div v-if="assetsStore.isLoading" class="loading-box">
-            Carregando ativos de renda variável e cripto via túnel Tailscale...
+            Carregando ativos de renda variável e cripto...
         </div>
 
         <div v-else-if="filteredAssets.length > 0" class="assets-grid">
@@ -536,7 +536,7 @@ const formatQty = (qty: number, cls: AssetClass) => {
                 <PhTrendUp size="26" weight="duotone" />
             </div>
             <h3>Sua Carteira de Renda Variável & Cripto está pronta</h3>
-            <p>Cadastre suas Ações da B3, FIIs, ETFs, BDRs ou Criptomoedas (Bitcoin, Ethereum, Solana) com busca de cotação ao vivo e custódia privada no seu Cofre Tailscale.</p>
+            <p>Cadastre suas Ações da B3, FIIs, ETFs, BDRs ou Criptomoedas (Bitcoin, Ethereum, Solana, USDT) com acompanhamento de preço médio e proventos.</p>
             <button class="btn-primary" @click="openCreate" style="margin-top: 0.5rem;">
                 <PhPlus size="16" weight="bold" /> Cadastrar Primeiro Ativo
             </button>

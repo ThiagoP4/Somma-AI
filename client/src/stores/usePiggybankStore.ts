@@ -595,7 +595,10 @@ export const usePiggybankStore = defineStore('piggybank', () => {
                 .order('created_at', { ascending: true });
 
             if (error) throw error;
-            piggybanks.value = enrichWithMeta(data || []);
+            const onlyPiggybanks = (data || []).filter(
+                (row: any) => !String(row?.title || '').startsWith('[ASSET]')
+            );
+            piggybanks.value = enrichWithMeta(onlyPiggybanks);
 
         } catch (error) {
             console.error('[PiggybankStore] Error fetching piggybanks:', error);
